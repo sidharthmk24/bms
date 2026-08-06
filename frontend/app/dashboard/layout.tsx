@@ -37,6 +37,7 @@ export default function DashboardLayout({
     return null; // Will redirect in useEffect
   }
 
+  
   return (
     <div className="flex h-screen w-full bg-gray-50 overflow-hidden">
       <RealTimeSync />
