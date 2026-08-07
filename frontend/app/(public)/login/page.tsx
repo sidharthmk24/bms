@@ -42,6 +42,9 @@ export default function LoginPage() {
     try {
       const response = await api.post('/auth/login', { email, password });
       if (response.success && response.data?.accessToken) {
+        if (response.data.refreshToken) {
+          localStorage.setItem('refreshToken', response.data.refreshToken);
+        }
         await login(response.data.accessToken);
       } else {
         setError('Invalid credentials');
@@ -65,6 +68,9 @@ export default function LoginPage() {
     try {
       const response = await api.post('/auth/setup-password', { email, password });
       if (response.success && response.data?.accessToken) {
+        if (response.data.refreshToken) {
+          localStorage.setItem('refreshToken', response.data.refreshToken);
+        }
         await login(response.data.accessToken);
       } else {
         setError('Setup failed');
@@ -124,7 +130,7 @@ export default function LoginPage() {
                   disabled={step !== 'EMAIL'}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="block w-full rounded-lg border-0 py-2.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6 transition-shadow disabled:bg-gray-50 disabled:text-gray-500"
+                  className="block w-full rounded-lg border-0 py-2.5 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6 transition-shadow disabled:bg-gray-50 disabled:text-gray-500"
                 />
               </div>
             </div>
@@ -143,7 +149,7 @@ export default function LoginPage() {
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="block w-full rounded-lg border-0 py-2.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6 transition-shadow"
+                    className="block w-full rounded-lg border-0 py-2.5 px-4 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6 transition-shadow"
                     autoFocus
                   />
                 </div>

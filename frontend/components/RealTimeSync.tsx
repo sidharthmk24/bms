@@ -10,7 +10,7 @@ export default function RealTimeSync() {
     if (!token) return;
 
     // Connect to SSE notifications endpoint
-    const url = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1'}/notifications/sync?token=${token}`;
+    const url = `${process.env.NEXT_PUBLIC_API_URL || '/api/v1'}/notifications/sync?token=${token}`;
     const eventSource = new EventSource(url);
 
     eventSource.onmessage = (event) => {

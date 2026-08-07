@@ -16,8 +16,8 @@ export default function EnquiriesPage() {
 
   const { data: enquiries, loading: logLoading } = useApiData<any[]>('/enquiries', []);
   const { data: demandSummary, loading: demandLoading } = useApiData<any[]>('/enquiries/demand-summary', []);
-  const { data: catalog } = useApiData<any[]>('/books?limit=1000', []);
-  const { data: rawInventory } = useApiData<any>(user?.branchId ? `/branches/${user.branchId}/inventory?limit=1000` : null);
+  const { data: catalog } = useApiData<any>('/catalog/books?limit=1000', []);
+  const { data: rawInventory } = useApiData<any>(user?.branchId ? `/inventory/branch/${user.branchId}?limit=1000` : null);
 
   // Compute Out of Stock Catalog for the specific branch
   const catalogList = catalog?.books || catalog?.items || catalog?.data || (Array.isArray(catalog) ? catalog : []);
@@ -106,7 +106,7 @@ export default function EnquiriesPage() {
           <h2 className="text-2xl font-bold tracking-tight text-gray-900">Customer Enquiries</h2>
           <p className="text-sm text-gray-500">Track out-of-stock requests and demand signals.</p>
         </div>
-        {!!user?.branchId && user?.roles?.includes('BRANCH_FRONT_OFFICE') && (
+        {/* {!!user?.branchId && user?.roles?.includes('BRANCH_FRONT_OFFICE') && (
           <button
             onClick={() => setIsCreating(true)}
             className="flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
@@ -114,7 +114,7 @@ export default function EnquiriesPage() {
             <Plus className="w-4 h-4 mr-2" />
             Log Enquiry
           </button>
-        )}
+        )} */}
       </div>
 
       <div className="flex space-x-1 border-b border-gray-200">
@@ -345,3 +345,4 @@ export default function EnquiriesPage() {
     </div>
   );
 }
+

@@ -20,16 +20,16 @@ export default function CatalogManagementPage() {
   const [sortBy, setSortBy] = useState('title');
   const [order, setOrder] = useState('ASC');
 
-  const booksUrl = `/books?page=${page}&limit=50`
+  const booksUrl = `/catalog/books?page=${page}&limit=50`
     + (searchQuery ? `&search=${encodeURIComponent(searchQuery)}` : '')
     + (selectedCategory ? `&categoryId=${selectedCategory}` : '')
     + (selectedAuthor ? `&authorId=${selectedAuthor}` : '')
     + `&sortBy=${sortBy}&order=${order}`;
 
   const { data: booksResponse, loading: booksLoading } = useApiData<any>(booksUrl, []);
-  const { data: authors, loading: authorsLoading } = useApiData<any[]>('/authors', []);
-  const { data: categories, loading: categoriesLoading } = useApiData<any[]>('/categories', []);
-  const { data: publishers, loading: pubLoading } = useApiData<any[]>('/publishers', []);
+  const { data: authors, loading: authorsLoading } = useApiData<any[]>('/catalog/authors', []);
+  const { data: categories, loading: categoriesLoading } = useApiData<any[]>('/catalog/categories', []);
+  const { data: publishers, loading: pubLoading } = useApiData<any[]>('/catalog/publishers', []);
 
   const books = booksResponse?.books || (Array.isArray(booksResponse) ? booksResponse : []);
 
@@ -94,7 +94,7 @@ export default function CatalogManagementPage() {
     setIsSubmitting(true);
     try {
       const endpointMap = {
-        'BOOKS': '/books', 'AUTHORS': '/authors', 'CATEGORIES': '/categories', 'PUBLISHERS': '/publishers'
+        'BOOKS': '/catalog/books', 'AUTHORS': '/catalog/authors', 'CATEGORIES': '/catalog/categories', 'PUBLISHERS': '/catalog/publishers'
       };
       
       let payload: any = {};
@@ -109,7 +109,7 @@ export default function CatalogManagementPage() {
           if (existing) {
             finalAuthorId = existing.id;
           } else {
-            const res = await api.post('/authors', { name: customAuthorName });
+            const res = await api.post('/catalog/authors', { name: customAuthorName });
             finalAuthorId = res.data?.data?.id || res.data?.id;
           }
         }
@@ -119,7 +119,7 @@ export default function CatalogManagementPage() {
           if (existing) {
             finalPublisherId = existing.id;
           } else {
-            const res = await api.post('/publishers', { name: customPublisherName });
+            const res = await api.post('/catalog/publishers', { name: customPublisherName });
             finalPublisherId = res.data?.data?.id || res.data?.id;
           }
         }
@@ -129,7 +129,7 @@ export default function CatalogManagementPage() {
           if (existing) {
             finalCategoryId = existing.id;
           } else {
-            const res = await api.post('/categories', { name: customCategoryName });
+            const res = await api.post('/catalog/categories', { name: customCategoryName });
             finalCategoryId = res.data?.data?.id || res.data?.id;
           }
         }

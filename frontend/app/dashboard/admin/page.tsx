@@ -90,7 +90,9 @@ export default function AdminDashboard() {
             placeholder="Select a branch to view trend..."
             options={[
               { value: 'all', label: 'All Branches (Combined)' },
-              ...branches.map((b: any) => ({ value: b.id, label: `${b.name} (${b.code})` }))
+              ...branches
+                .filter((b: any) => b.type !== 'WAREHOUSE')
+                .map((b: any) => ({ value: b.id, label: `${b.name} (${b.code})` }))
             ]}
           />
         </div>

@@ -12,9 +12,9 @@ export default function RestockRequestsPage() {
   const { user } = useAuth();
   const isCentral = (user?.roles?.some(r => ['SUPER_ADMIN', 'ADMIN', 'CENTRAL_INVENTORY_MANAGER'].includes(r)) || false);
   
-  const { data: requestsResponse, loading, error } = useApiData<any[]>('/restock-requests', []);
+  const { data: requestsResponse, loading, error } = useApiData<any>('/restock', []);
   const requests = requestsResponse?.items || (Array.isArray(requestsResponse) ? requestsResponse : []);
-  const { data: catalog } = useApiData<any[]>('/books', []);
+  const { data: catalog } = useApiData<any>('/catalog/books?limit=1000', []);
 
   // Creation State (Branch)
   const [isCreating, setIsCreating] = useState(false);
@@ -29,7 +29,7 @@ export default function RestockRequestsPage() {
 
   const handleCreate = async () => {
     try {
-      await api.post('/restock-requests', {
+      await api.post('/restock', {
         items: cart.map(i => ({ bookId: i.bookId, quantity: i.quantity }))
       });
       setIsCreating(false);
@@ -43,7 +43,7 @@ export default function RestockRequestsPage() {
   const handleReview = async (status: 'APPROVED' | 'PARTIALLY_APPROVED' | 'REJECTED') => {
     if (!reviewingId) return;
     try {
-      await api.patch(`/restock-requests/${reviewingId}/review`, {
+      await api.patch(`/restock/${reviewingId}/review`, {
         status,
         note: reviewNote,
         items: reviewData.map(r => ({
@@ -60,7 +60,7 @@ export default function RestockRequestsPage() {
 
   const handleDispatch = async (id: string) => {
     try {
-      await api.post(`/restock-requests/${id}/dispatch`);
+      await api.post(`/restock/${id}/dispatch`);
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to dispatch');
     }
@@ -70,7 +70,7 @@ export default function RestockRequestsPage() {
     try {
       // In a real flow, branch might confirm exact received quantities.
       // We assume full receipt of dispatched items here for simplicity.
-      await api.post(`/restock-requests/${id}/receive`);
+      await api.post(`/restock/${id}/receive`);
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to receive');
     }
@@ -122,7 +122,7 @@ export default function RestockRequestsPage() {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {(requests || []).map((req) => (
+            {(requests || []).map((req: any) => (
               <tr key={req.id}>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="text-sm font-bold text-gray-900">#{req.id.split('-')[0]}</div>
@@ -178,6 +178,7 @@ export default function RestockRequestsPage() {
               <div className="flex space-x-2 mb-6">
                 <div className="flex-1">
                   <Dropdown
+                    searchable
                     value={selectedBook}
                     onChange={(val) => setSelectedBook(val)}
                     placeholder="Select a book..."
@@ -243,7 +244,7 @@ export default function RestockRequestsPage() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {requests?.find(r => r.id === reviewingId)?.items.map((item: any) => (
+                    {requests?.find((r: any) => r.id === reviewingId)?.items.map((item: any) => (
                       <tr key={item.id}>
                         <td className="px-4 py-3 text-sm text-gray-900">{item.book?.title}</td>
                         <td className="px-4 py-3 text-sm text-right text-blue-600 font-medium">
@@ -286,3 +287,4 @@ export default function RestockRequestsPage() {
     </div>
   );
 }
+

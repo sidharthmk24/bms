@@ -68,7 +68,7 @@ export default function BillingPage() {
     setIsScanning(true);
 
     try {
-      const res = await api.get(`/books/barcode/${currentBarcode}`);
+      const res = await api.get(`/catalog/books-barcode/${currentBarcode}`);
       if (res.success && res.data) {
         const book = res.data;
         
@@ -495,13 +495,13 @@ export default function BillingPage() {
                   >
                     Cancel
                   </button>
-                  <button
+                  {/* <button
                     onClick={handleLogEnquiry}
                     disabled={!enquiryTitle && !missingBarcode}
                     className="px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 disabled:opacity-50"
                   >
                     Log Enquiry
-                  </button>
+                  </button> */}
                 </div>
               </div>
             </motion.div>

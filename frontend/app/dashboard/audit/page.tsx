@@ -10,7 +10,7 @@ export default function AuditLogPage() {
   const { user } = useAuth();
   
   // Only SUPER_ADMIN is allowed to view audit logs in the backend
-  const { data: logs, loading, error } = useApiData<any[]>('/audit-logs?limit=200', []);
+  const { data: logs, loading, error } = useApiData<any[]>('/audit?limit=200', []);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedLog, setSelectedLog] = useState<any>(null);
 

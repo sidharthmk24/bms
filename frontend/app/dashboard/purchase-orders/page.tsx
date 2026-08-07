@@ -12,9 +12,9 @@ export default function PurchaseOrdersPage() {
   const { user } = useAuth();
   const canReceive = user?.roles?.some(r => ['SUPER_ADMIN', 'CENTRAL_INVENTORY_MANAGER', 'ADMIN'].includes(r));
   
-  const { data: pos, loading, error } = useApiData<any[]>('/purchase-orders', []);
-  const { data: catalog } = useApiData<any>('/books?limit=1000', []);
-  const { data: suppliers } = useApiData<any[]>('/suppliers', []);
+  const { data: pos, loading, error } = useApiData<any[]>('/procurement', []);
+  const { data: catalog } = useApiData<any>('/catalog/books?limit=1000', []);
+  const { data: suppliers } = useApiData<any[]>('/catalog/suppliers', []);
 
   // Create PO State
   const [isCreating, setIsCreating] = useState(false);
@@ -36,7 +36,7 @@ export default function PurchaseOrdersPage() {
   const handleCreate = async () => {
     try {
       setIsSubmitting(true);
-      await api.post('/purchase-orders', {
+      await api.post('/procurement', {
         supplierId: selectedSupplier,
         expectedDate: expectedDate || undefined,
         items: cart.map(i => ({ bookId: i.bookId, quantityOrdered: i.quantity, unitCost: i.unitCost }))
@@ -56,7 +56,7 @@ export default function PurchaseOrdersPage() {
   const handleStatusUpdate = async (id: string, status: string, items?: any[]) => {
     try {
       setIsSubmitting(true);
-      await api.patch(`/purchase-orders/${id}/status`, {
+      await api.patch(`/procurement/${id}/receive`, {
         status,
         items
       });
@@ -182,20 +182,35 @@ export default function PurchaseOrdersPage() {
 
               <div className="border-t pt-4 mb-4">
                 <h4 className="text-sm font-medium text-gray-700 mb-2">Add Items</h4>
-                <div className="flex space-x-2">
+                <div className="flex items-end space-x-3 bg-gray-50 p-4 rounded-lg border border-gray-100">
                   <div className="flex-1">
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Select Book</label>
                     <Dropdown
+                      searchable
                       value={bookInput}
-                      onChange={(val) => setBookInput(val)}
-                      placeholder="Select a book..."
+                      onChange={(val) => {
+                        setBookInput(val);
+                        const bookList = catalog?.books || catalog?.items || catalog?.data || (Array.isArray(catalog) ? catalog : []);
+                        const book = bookList.find((b: any) => b.id === val);
+                        if (book && book.costPrice) {
+                          setCostInput(book.costPrice);
+                        }
+                      }}
+                      placeholder="Search and select..."
                       options={(catalog?.books || catalog?.items || catalog?.data || (Array.isArray(catalog) ? catalog : [])).map((b: any) => ({
                         value: b.id,
-                        label: `${b.title} (Cost: ₹${b.costPrice || 0})`
+                        label: `${b.title} (Current Cost: ₹${b.costPrice || 0})`
                       }))}
                     />
                   </div>
-                  <input type="number" min="1" value={qtyInput} onChange={e => setQtyInput(Number(e.target.value))} placeholder="Qty" className="w-20 block px-3 py-2 border border-gray-300 rounded-lg sm:text-sm text-gray-900 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow" />
-                  <input type="number" step="0.01" min="0" value={costInput} onChange={e => setCostInput(Number(e.target.value))} placeholder="Cost" className="w-24 block px-3 py-2 border border-gray-300 rounded-lg sm:text-sm text-gray-900 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow" />
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Quantity</label>
+                    <input type="number" min="1" value={qtyInput} onChange={e => setQtyInput(Number(e.target.value))} placeholder="e.g. 50" className="w-32 block px-4 py-2 border border-gray-300 rounded-lg sm:text-sm text-gray-900 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Unit Cost (₹)</label>
+                    <input type="number" step="0.01" min="0" value={costInput} onChange={e => setCostInput(Number(e.target.value))} placeholder="e.g. 15.50" className="w-36 block px-4 py-2 border border-gray-300 rounded-lg sm:text-sm text-gray-900 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow" />
+                  </div>
                   <button 
                     onClick={() => {
                       if (bookInput && qtyInput > 0 && costInput >= 0) {
@@ -205,8 +220,8 @@ export default function PurchaseOrdersPage() {
                         setBookInput('');
                       }
                     }}
-                    className="px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-sm font-medium transition-colors"
-                  >Add</button>
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm"
+                  >Add to Order</button>
                 </div>
               </div>
 
@@ -315,3 +330,4 @@ export default function PurchaseOrdersPage() {
     </div>
   );
 }
+

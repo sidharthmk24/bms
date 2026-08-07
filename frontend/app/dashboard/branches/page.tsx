@@ -7,6 +7,8 @@ import { api } from '@/lib/api';
 import { Loader2, Plus, Store, MapPin, Mail, Phone, Edit2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+import { Dropdown } from '@/components/Dropdown';
+
 export default function BranchesManagementPage() {
   const { user } = useAuth();
   const isSuperAdmin = user?.roles?.includes('SUPER_ADMIN') || user?.roles?.includes('ADMIN');
@@ -22,7 +24,10 @@ export default function BranchesManagementPage() {
   const [formData, setFormData] = useState({
     name: '',
     code: '',
-    type: 'STORE'
+    type: 'STORE',
+    city: '',
+    address: '',
+    isActive: true
   });
 
   if (!isSuperAdmin) {
@@ -35,10 +40,13 @@ export default function BranchesManagementPage() {
       setFormData({
         name: branch.name,
         code: branch.code || '',
-        type: branch.type || 'STORE'
+        type: branch.type || 'STORE',
+        city: branch.city || '',
+        address: branch.address || '',
+        isActive: branch.isActive !== false // defaults to true
       });
     } else {
-      setFormData({ name: '', code: '', type: 'STORE' });
+      setFormData({ name: '', code: '', type: 'STORE', city: '', address: '', isActive: true });
     }
     setIsModalOpen(true);
   };
@@ -50,7 +58,10 @@ export default function BranchesManagementPage() {
       const payload = {
         name: formData.name,
         code: formData.code,
-        type: formData.type
+        type: formData.type,
+        city: formData.city,
+        address: formData.address,
+        isActive: formData.isActive
       };
 
       if (editingBranch) {
@@ -90,8 +101,13 @@ export default function BranchesManagementPage() {
             <div key={b.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
               <div className="p-5 border-b border-gray-100 bg-gray-50 flex justify-between items-start">
                 <div className="flex items-center">
-                  <Store className="w-5 h-5 text-blue-600 mr-2" />
-                  <h3 className="font-bold text-gray-900">{b.name}</h3>
+                  <Store className={`w-5 h-5 mr-2 ${b.isActive !== false ? 'text-blue-600' : 'text-gray-400'}`} />
+                  <h3 className={`font-bold ${b.isActive !== false ? 'text-gray-900' : 'text-gray-400 line-through'}`}>{b.name}</h3>
+                  {b.isActive === false && (
+                    <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+                      Inactive
+                    </span>
+                  )}
                 </div>
                 <button onClick={() => openModal(b)} className="text-gray-400 hover:text-blue-600">
                   <Edit2 className="w-4 h-4" />
@@ -131,12 +147,39 @@ export default function BranchesManagementPage() {
                   <input required type="text" value={formData.code} onChange={e => setFormData({...formData, code: e.target.value})} placeholder="e.g. DWTN-01" className="block w-full px-3 py-2 border rounded-lg sm:text-sm" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Branch Type *</label>
-                  <select required value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})} className="block w-full px-3 py-2 border rounded-lg sm:text-sm bg-white">
-                    <option value="STORE">Store</option>
-                    <option value="WAREHOUSE">Warehouse</option>
-                  </select>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+                  <input type="text" value={formData.city} onChange={e => setFormData({...formData, city: e.target.value})} placeholder="e.g. Mumbai" className="block w-full px-3 py-2 border rounded-lg sm:text-sm" />
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                  <textarea value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} placeholder="Full street address..." className="block w-full px-3 py-2 border rounded-lg sm:text-sm" rows={2} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Branch Type *</label>
+                  <Dropdown
+                    value={formData.type}
+                    onChange={(val) => setFormData({...formData, type: val})}
+                    options={[
+                      { value: 'STORE', label: 'Store' },
+                      { value: 'WAREHOUSE', label: 'Warehouse' }
+                    ]}
+                  />
+                </div>
+
+                {editingBranch && (
+                  <div className="flex items-center mt-4">
+                    <input
+                      id="isActive"
+                      type="checkbox"
+                      checked={formData.isActive}
+                      onChange={e => setFormData({...formData, isActive: e.target.checked})}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="isActive" className="ml-2 block text-sm text-gray-900">
+                      Active (Uncheck to deactivate branch)
+                    </label>
+                  </div>
+                )}
 
                 <div className="flex justify-end space-x-3 mt-6 pt-4 border-t">
                   <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>

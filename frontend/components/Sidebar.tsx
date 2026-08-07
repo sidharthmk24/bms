@@ -31,6 +31,12 @@ export default function Sidebar() {
 
   const getDashboardLink = () => {
     const role = user.role || user.primaryRole || '';
+    
+    // If assigned to a branch but have an admin role, show the branch manager dashboard
+    if (user.branchId && ['SUPER_ADMIN', 'ADMIN'].includes(role)) {
+      return '/dashboard/branch-manager';
+    }
+
     switch (role) {
       case 'SUPER_ADMIN': return '/dashboard/super-admin';
       case 'ADMIN': return '/dashboard/admin';

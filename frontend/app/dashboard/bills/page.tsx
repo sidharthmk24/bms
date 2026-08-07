@@ -8,7 +8,7 @@ import { generateBillPDF } from '@/lib/pdfUtils';
 export default function BillsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   // Assuming the API supports pagination/search, for now fetch all or a default set
-  const { data, loading, error } = useApiData<any>('/billing/bills');
+  const { data, loading, error } = useApiData<any>('/billing');
 
   // If the API returns paginated data, extract the array from 'items'
   const billsList = Array.isArray(data) ? data : (data?.items || []);

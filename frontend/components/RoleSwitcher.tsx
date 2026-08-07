@@ -4,7 +4,9 @@ import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useApiData } from '@/hooks/useApiData';
 import { Shield, ChevronDown, UserSquare2, LogOut } from 'lucide-react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Dropdown } from '@/components/Dropdown';
 
 const ROLES = [
   { value: 'SUPER_ADMIN', label: 'Super Admin', requiresBranch: false },
@@ -129,9 +131,10 @@ export default function RoleSwitcher() {
       </AnimatePresence>
 
       {/* Branch Selection Modal */}
-      <AnimatePresence>
-        {isBranchModalOpen && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {isBranchModalOpen && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -143,16 +146,17 @@ export default function RoleSwitcher() {
                 The role <span className="font-semibold text-gray-700">{pendingRole}</span> requires a branch context. Which branch do you want to view?
               </p>
               
-              <select
-                value={selectedBranchId}
-                onChange={(e) => setSelectedBranchId(e.target.value)}
-                className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 sm:text-sm mb-6"
-              >
-                <option value="" disabled>Select a branch...</option>
-                {branches.map((b: any) => (
-                  <option key={b.id} value={b.id}>{b.name} ({b.code})</option>
-                ))}
-              </select>
+              <div className="mb-6">
+                <Dropdown
+                  value={selectedBranchId}
+                  onChange={(val) => setSelectedBranchId(val)}
+                  placeholder="Select a branch..."
+                  options={branches.map((b: any) => ({
+                    value: b.id,
+                    label: `${b.name} (${b.code})`
+                  }))}
+                />
+              </div>
 
               <div className="flex justify-end space-x-3">
                 <button
@@ -170,9 +174,11 @@ export default function RoleSwitcher() {
                 </button>
               </div>
             </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 }

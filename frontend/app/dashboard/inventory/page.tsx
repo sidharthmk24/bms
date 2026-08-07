@@ -16,10 +16,11 @@ export default function BranchInventoryPage() {
   const [searchTerm, setSearchTerm] = useState('');
   
   // Branch Selection (For Admins)
-  const isGlobalAdmin = (user?.roles?.some(r => ['SUPER_ADMIN', 'ADMIN'].includes(r)) || false);
+  const isGlobalAdmin = ['SUPER_ADMIN', 'ADMIN'].includes(user?.role || user?.primaryRole) && !user?.branchId;
   const [selectedBranchId, setSelectedBranchId] = useState<string>(user?.branchId || '');
   const { data: branchesResponse } = useApiData<any>('/branches', []);
   const branches = branchesResponse?.items || (Array.isArray(branchesResponse) ? branchesResponse : []);
+  const branchName = branches.find((b: any) => b.id === user?.branchId)?.name || 'Branch';
 
   // Modal State
   const [isAdjusting, setIsAdjusting] = useState(false);
@@ -39,7 +40,7 @@ export default function BranchInventoryPage() {
     try {
       setLoading(true);
       setError(null);
-      const res = await api.get(`/branches/${selectedBranchId}/inventory`);
+      const res = await api.get(`/inventory/branch/${selectedBranchId}?limit=1000`);
       if (res.success) {
         setInventory(res.data.items || (Array.isArray(res.data) ? res.data : []));
       }
@@ -62,7 +63,7 @@ export default function BranchInventoryPage() {
 
     try {
       setIsSubmitting(true);
-      await api.post(`/branches/${selectedBranchId}/inventory/${selectedBook.book.id}/adjust`, {
+      await api.post(`/inventory/branch/${selectedBranchId}/book/${selectedBook.book.id}/adjust`, {
         quantity: adjustmentQuantity,
         reason: adjustmentReason,
       });
@@ -102,7 +103,9 @@ export default function BranchInventoryPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-gray-900">Branch Inventory</h2>
+          <h2 className="text-2xl font-bold tracking-tight text-gray-900">
+            {isGlobalAdmin ? "Branch Inventory" : `${branchName} Inventory`}
+          </h2>
           <p className="text-sm text-gray-500">Manage local stock levels and adjustments.</p>
         </div>
         
@@ -175,7 +178,7 @@ export default function BranchInventoryPage() {
                     {item.quantity}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right">
-                    {item.quantity < item.reorderThreshold ? (
+                    {item.quantity <= item.reorderThreshold ? (
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
                         Low Stock
                       </span>

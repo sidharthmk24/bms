@@ -3,20 +3,26 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
 
-export function useApiData<T>(endpoint: string, initialData: T | null = null) {
+export function useApiData<T>(endpoint: string | null | undefined, initialData: T | null = null) {
   const [data, setData] = useState<T | null>(initialData);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
+    if (!endpoint) {
+      setLoading(false);
+      return;
+    }
+    
     try {
       setLoading(true);
+      setError(null);
       const res = await api.get(endpoint);
-      if (res.success) {
+      if (res.success && res.data !== undefined) {
         setData(res.data);
-        setError(null);
       } else {
-        setError('Failed to fetch data');
+        // Fallback for direct data return
+        setData(res as any);
       }
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || 'An error occurred');

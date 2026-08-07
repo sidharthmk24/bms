@@ -7,7 +7,7 @@ import { Loader2, AlertCircle, Search, Settings2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function CentralStockPage() {
-  const { data: centralStock, loading, error } = useApiData<any[]>('/central-stock', []);
+  const { data: centralStock, loading, error, refetch } = useApiData<any[]>('/inventory/central-stock?limit=1000', []);
   const [searchTerm, setSearchTerm] = useState('');
 
   // Modal State
@@ -22,10 +22,13 @@ export default function CentralStockPage() {
 
     try {
       setIsSubmitting(true);
-      await api.patch(`/central-stock/${selectedItem.book.id}/threshold`, {
-        reorderThreshold: newThreshold
+      await api.patch(`/inventory/central-stock/${selectedItem.book.id}/threshold`, {
+        threshold: newThreshold
       });
       setIsAdjusting(false);
+      setSelectedItem(null);
+      // Refetch to show updated threshold in the table immediately
+      await refetch();
     } catch (err: any) {
       alert(err.response?.data?.message || 'Update failed');
     } finally {
@@ -50,7 +53,7 @@ export default function CentralStockPage() {
     );
   }
 
-  const stockList = centralStock?.items || (Array.isArray(centralStock) ? centralStock : []);
+  const stockList = (centralStock as any)?.items || (Array.isArray(centralStock) ? centralStock : []);
   const filteredStock = stockList.filter((item: any) => 
     item.book.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.book.isbn.includes(searchTerm) ||
@@ -94,7 +97,7 @@ export default function CentralStockPage() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredStock.map((item) => (
+              {filteredStock.map((item: any) => (
                 <tr key={item.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">{item.book.title}</div>

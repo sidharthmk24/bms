@@ -14,10 +14,10 @@ export default function ExhibitionsPage() {
   const isAdmin = (user?.roles?.some(r => ['SUPER_ADMIN', 'ADMIN'].includes(r)) || false);
   const isBranchManager = (user?.roles?.some(r => ['BRANCH_MANAGER'].includes(r)) || false);
   const isBranchInventory = (user?.roles?.includes('BRANCH_INVENTORY') && !isBranchManager) || false;
-  const isBranch = isBranchManager || isBranchInventory;
+  const isBranch = (isBranchManager || isBranchInventory) && !isAdmin;
 
   const { data: exhibitions, loading, error } = useApiData<any[]>('/exhibitions', []);
-  const { data: catalog } = useApiData<any[]>('/books', []);
+  const { data: catalog } = useApiData<any>('/catalog/books?limit=1000', []);
   const { data: usersResponse } = useApiData<any>('/users', []);
   const branchUsers = (usersResponse?.data || usersResponse || []).filter((u: any) => u.branchId === user?.branchId || u.branch?.id === user?.branchId);
 
@@ -67,7 +67,9 @@ export default function ExhibitionsPage() {
   const handleApproveReject = async (id: string, action: 'approve' | 'reject') => {
     try {
       setIsSubmitting(true);
-      await api.patch(`/exhibitions/${id}/${action}`, {});
+      await api.post(`/exhibitions/${id}/review`, { 
+        status: action === 'approve' ? 'APPROVED' : 'REJECTED' 
+      });
     } catch (err: any) {
       alert(err.response?.data?.message || `Failed to ${action}`);
     } finally {
@@ -274,6 +276,7 @@ export default function ExhibitionsPage() {
                 <div className="flex space-x-2">
                   <div className="flex-1">
                     <Dropdown
+                      searchable={true}
                       value={bookInput}
                       onChange={(val) => setBookInput(val)}
                       placeholder="Select a book..."
@@ -439,3 +442,4 @@ export default function ExhibitionsPage() {
     </div>
   );
 }
+

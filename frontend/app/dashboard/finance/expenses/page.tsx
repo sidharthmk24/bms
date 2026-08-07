@@ -77,7 +77,7 @@ export default function ExpensesPage() {
     }
   };
 
-  const filteredAndSortedExpenses = (expenses || [])
+  const filteredAndSortedExpenses = (expensesList || [])
     .filter((exp: any) => filterCategory === 'ALL' || exp.category === filterCategory)
     .filter((exp: any) => filterBranch === 'ALL' || (filterBranch === 'HQ' ? !exp.branchId : exp.branchId === filterBranch))
     .sort((a: any, b: any) => {

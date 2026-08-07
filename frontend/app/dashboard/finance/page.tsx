@@ -19,7 +19,7 @@ export default function FinanceDashboard() {
   const endDateStr = new Date().toISOString().split('T')[0];
 
   const { data: dashboardData, loading: dashLoading, error: dashError } = useApiData<any>(`/dashboard/finance?days=${days}`);
-  const { data: branchData, loading: branchLoading } = useApiData<any>(`/finance/branch-comparison?startDate=${startDateStr}&endDate=${endDateStr}`);
+  const { data: branchData, loading: branchLoading } = useApiData<any>(`/finance/reports/branch-comparison?startDate=${startDateStr}&endDate=${endDateStr}`);
   const { data: expensesData, loading: expensesLoading } = useApiData<any>('/finance/expenses');
 
   const loading = dashLoading || branchLoading || expensesLoading;
@@ -123,7 +123,7 @@ export default function FinanceDashboard() {
                 />
                 <RechartsTooltip 
                   contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                  formatter={(value: number) => [`₹${value.toFixed(2)}`]}
+                  formatter={(value: any) => [`₹${Number(value).toFixed(2)}`]}
                 />
                 <Legend />
                 <Area type="monotone" dataKey="revenue" name="Revenue" stroke="#10b981" fillOpacity={1} fill="url(#colorRev)" />
@@ -166,7 +166,7 @@ export default function FinanceDashboard() {
                 />
                 <RechartsTooltip 
                   contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                  formatter={(value: number) => [`₹${value.toFixed(2)}`]}
+                  formatter={(value: any) => [`₹${Number(value).toFixed(2)}`]}
                 />
                 <Legend />
                 <Bar dataKey="revenue" name="Revenue" fill="#3b82f6" radius={[4, 4, 0, 0]} />

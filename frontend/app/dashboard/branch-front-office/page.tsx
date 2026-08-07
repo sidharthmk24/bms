@@ -36,12 +36,12 @@ export default function BranchFrontOfficeDashboard() {
           >
             New Bill
           </Link>
-          <Link 
+          {/* <Link 
             href="/dashboard/enquiries"
             className="inline-flex items-center justify-center rounded-lg bg-white px-4 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
           >
             Log Enquiry
-          </Link>
+          </Link> */}
         </div>
       </div>
 
@@ -64,12 +64,12 @@ export default function BranchFrontOfficeDashboard() {
           icon={CreditCard} 
           color="purple" 
         />
-        <StatCard 
+        {/* <StatCard 
           title="Enquiries Today" 
           value={data?.enquiriesToday || 0} 
           icon={MessageCircle} 
           color="blue" 
-        />
+        /> */}
       </div>
     </div>
   );

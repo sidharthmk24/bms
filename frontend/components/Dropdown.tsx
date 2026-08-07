@@ -19,6 +19,7 @@ interface DropdownProps {
   disabled?: boolean;
   required?: boolean;
   isMulti?: boolean;
+  searchable?: boolean;
 }
 
 export function Dropdown({
@@ -31,8 +32,10 @@ export function Dropdown({
   disabled = false,
   required = false,
   isMulti = false,
+  searchable = false,
 }: DropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [dropdownPosition, setDropdownPosition] = useState<'bottom' | 'top'>('bottom');
   const containerRef = useRef<HTMLDivElement>(null);
   const selectRef = useRef<HTMLSelectElement>(null);
@@ -50,6 +53,12 @@ export function Dropdown({
     return () => {
       document.removeEventListener('mousedown', handleOutsideClick);
     };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setSearchQuery(''); // Reset search query when dropdown closes
+    }
   }, [isOpen]);
 
   const selectedOptions = isMulti
@@ -74,7 +83,7 @@ export function Dropdown({
 
   const handleSelect = (newValue: string) => {
     if (isMulti) {
-      const currentValues = Array.isArray(value) ? value : [];
+      const currentValues = Array.isArray(value) ? (value as string[]) : [];
       let newValues;
       if (currentValues.includes(newValue)) {
         // Prevent removing the last role in a multi-select context
@@ -107,6 +116,7 @@ export function Dropdown({
         onChange={(e) => onChange(e.target.value)}
         required={required}
         disabled={disabled}
+        multiple={isMulti}
         className="absolute inset-0 w-full h-full opacity-0 pointer-events-none"
         aria-hidden="true"
         tabIndex={-1}
@@ -152,11 +162,30 @@ export function Dropdown({
               dropdownPosition === 'top' ? 'bottom-full mb-1' : 'top-full mt-1'
             }`}
           >
+            {searchable && (
+              <div className="p-2 border-b border-gray-100 sticky top-0 bg-white z-10">
+                <input
+                  type="text"
+                  autoFocus
+                  placeholder="Search..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+            )}
             <ul className="py-1">
-              {options.length === 0 ? (
-                <li className="px-3 py-2 text-sm text-gray-500 text-center">No options available</li>
-              ) : (
-                options.map((opt) => {
+              {(() => {
+                const displayOptions = searchable && searchQuery.trim() !== ''
+                  ? options.filter((opt) => opt.label.toLowerCase().includes(searchQuery.toLowerCase()))
+                  : options;
+
+                if (displayOptions.length === 0) {
+                  return <li className="px-3 py-2 text-sm text-gray-500 text-center">No options available</li>;
+                }
+
+                return displayOptions.map((opt) => {
                   const isSelected = isMulti 
                     ? (value as unknown as string[])?.includes(opt.value)
                     : String(opt.value) === String(value);
@@ -175,8 +204,8 @@ export function Dropdown({
                       {isSelected && <Check className="w-4 h-4 text-blue-600" />}
                     </li>
                   );
-                })
-              )}
+                });
+              })()}
             </ul>
           </motion.div>
         )}

@@ -48,30 +48,39 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const router = useRouter();
   const pathname = usePathname();
 
+  // Run ONCE on mount only — pathname must NOT be a dependency here.
+  // Including pathname causes initializeAuth to re-run on every navigation,
+  // which triggers a fresh /auth/me call and can race-condition the user back to /login.
   useEffect(() => {
     const initializeAuth = async () => {
       const storedToken = localStorage.getItem('token');
       if (storedToken) {
-        setToken(storedToken);
         try {
-          // Verify token by fetching current user
-          const response = await api.get('/auth/me');
-          if (response.success && response.data) {
-            setUser(response.data);
+          // Verify token by calling /auth/me directly (bypasses the axios interceptor
+          // to avoid race conditions with the 401 handler wiping a fresh token).
+          const baseURL = process.env.NEXT_PUBLIC_API_URL || '/api/v1';
+          const res = await fetch(`${baseURL}/auth/me`, {
+            headers: { Authorization: `Bearer ${storedToken}` },
+          });
+          const json = await res.json();
+          if (res.ok && json.success && json.data) {
+            setToken(storedToken);
+            setUser(json.data);
           } else {
-            throw new Error('Failed to fetch user');
+            throw new Error('Token invalid');
           }
-        } catch (error) {
-          console.error('Auth initialization failed', error);
+        } catch {
+          // Token is stale — clear it NOW so the login page starts fresh
           localStorage.removeItem('token');
+          localStorage.removeItem('refreshToken');
           setToken(null);
           setUser(null);
-          if (pathname !== '/login') {
+          if (window.location.pathname !== '/login') {
             router.push('/login');
           }
         }
       } else {
-        if (pathname !== '/login') {
+        if (window.location.pathname !== '/login') {
           router.push('/login');
         }
       }
@@ -79,15 +88,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     initializeAuth();
-  }, [router, pathname]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty deps = run once on mount only
 
   const login = async (newToken: string) => {
     localStorage.setItem('token', newToken);
     setToken(newToken);
-    const response = await api.get('/auth/me');
-    if (response.success && response.data) {
-      setUser(response.data);
-      router.push('/dashboard');
+    try {
+      const response = await api.get('/auth/me');
+      if (response.success && response.data) {
+        setUser(response.data);
+        router.push('/dashboard');
+      }
+    } catch (e) {
+      console.error('Failed to fetch user after login', e);
     }
   };
 
