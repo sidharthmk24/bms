@@ -1,4 +1,4 @@
-import { apiSuccess } from '@/lib/api-response';
+import { apiSuccess, apiError } from '@/lib/api-response';
 import { NextResponse } from 'next/server';
 import {  withAuth, AuthenticatedRequest  } from '@/lib/middleware/withAuth';
 import { UsersService } from '@/lib/services/users.service';
