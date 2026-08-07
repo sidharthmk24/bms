@@ -15,6 +15,8 @@ interface ApiInstance {
   put<T = any>(url: string, data?: any, config?: any): Promise<ApiResponse<T>>;
   patch<T = any>(url: string, data?: any, config?: any): Promise<ApiResponse<T>>;
   delete<T = any>(url: string, config?: any): Promise<ApiResponse<T>>;
+  request<T = any>(config: any): Promise<ApiResponse<T>>;
+  (config: any): Promise<ApiResponse<any>>;
   interceptors: any;
 }
 
