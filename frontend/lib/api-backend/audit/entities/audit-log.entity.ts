@@ -18,7 +18,7 @@ export class AuditLog {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: 'varchar', name: 'user_id', type: 'varchar', length: 36 })
+  @Column({ name: 'user_id', type: 'varchar', length: 36 })
   userId: string;
 
   @ManyToOne(() => User, { onDelete: 'RESTRICT' })
