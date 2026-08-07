@@ -20,14 +20,14 @@ export class ExhibitionStock {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: 'varchar', type: 'varchar', length: 36 })
+  @Column({ type: 'varchar', length: 36 })
   exhibitionId: string;
 
   @ManyToOne(() => Exhibition, (e) => e.stock, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'exhibition_id' })
   exhibition: Exhibition;
 
-  @Column({ type: 'varchar', type: 'varchar', length: 36 })
+  @Column({ type: 'varchar', length: 36 })
   bookId: string;
 
   @ManyToOne(() => Book, { onDelete: 'RESTRICT' })

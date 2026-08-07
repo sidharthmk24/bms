@@ -16,7 +16,7 @@ export class CashReconciliation {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: 'varchar', type: 'varchar', length: 36 })
+  @Column({ type: 'varchar', length: 36 })
   branchId: string;
 
   @ManyToOne(() => Branch, { onDelete: 'RESTRICT' })
@@ -38,10 +38,10 @@ export class CashReconciliation {
   @Column({ type: 'decimal', precision: 10, scale: 2, transformer: DecimalTransformer })
   variance: number;
 
-  @Column({ type: 'varchar', type: 'text', nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   note: string | null;
 
-  @Column({ type: 'varchar', type: 'varchar', length: 36 })
+  @Column({ type: 'varchar', length: 36 })
   reconciledById: string;
 
   @ManyToOne(() => User, { onDelete: 'RESTRICT' })

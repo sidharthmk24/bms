@@ -37,7 +37,7 @@ export class Book {
   @Column({ type: 'varchar', unique: true, length: 100 })
   barcode: string;
 
-  @Column({ type: 'varchar', type: 'text', nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   description: string;
 
   @Column({
@@ -55,21 +55,21 @@ export class Book {
   @Column({ type: 'varchar', length: 500, nullable: true })
   coverImageUrl: string;
 
-  @Column({ type: 'varchar', name: 'author_id', type: 'varchar', length: 36 })
+  @Column({ name: 'author_id', type: 'varchar', length: 36 })
   authorId: string;
 
   @ManyToOne(() => Author, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'author_id' })
   author: Author;
 
-  @Column({ type: 'varchar', name: 'publisher_id', type: 'varchar', length: 36 })
+  @Column({ name: 'publisher_id', type: 'varchar', length: 36 })
   publisherId: string;
 
   @ManyToOne(() => Publisher, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'publisher_id' })
   publisher: Publisher;
 
-  @Column({ type: 'varchar', name: 'category_id', type: 'varchar', length: 36 })
+  @Column({ name: 'category_id', type: 'varchar', length: 36 })
   categoryId: string;
 
   @ManyToOne(() => Category, { onDelete: 'RESTRICT' })

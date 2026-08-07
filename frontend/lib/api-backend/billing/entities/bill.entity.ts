@@ -43,7 +43,7 @@ export class Bill {
   @Column({ type: 'varchar', unique: true, length: 50 })
   billNumber: string;
 
-  @Column({ type: 'varchar', name: 'branch_id', type: 'varchar', length: 36 })
+  @Column({ name: 'branch_id', type: 'varchar', length: 36 })
   branchId: string;
 
   @ManyToOne(() => Branch, { onDelete: 'RESTRICT' })
@@ -51,10 +51,10 @@ export class Bill {
   branch: Branch;
 
   /** Set if this bill was created during a travelling exhibition */
-  @Column({ type: 'varchar', name: 'exhibition_id', type: 'varchar', length: 36, nullable: true })
+  @Column({ name: 'exhibition_id', type: 'varchar', length: 36, nullable: true })
   exhibitionId: string | null;
 
-  @Column({ type: 'varchar', name: 'created_by_id', type: 'varchar', length: 36 })
+  @Column({ name: 'created_by_id', type: 'varchar', length: 36 })
   createdById: string;
 
   @ManyToOne(() => User, { onDelete: 'RESTRICT' })
@@ -84,14 +84,14 @@ export class Bill {
   @Column({ type: 'enum', enum: BillStatus, default: BillStatus.COMPLETED })
   status: BillStatus;
 
-  @Column({ type: 'varchar', name: 'voided_by_id', type: 'varchar', length: 36, nullable: true })
+  @Column({ name: 'voided_by_id', type: 'varchar', length: 36, nullable: true })
   voidedById: string | null;
 
   @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'voided_by_id' })
   voidedBy: User;
 
-  @Column({ type: 'varchar', type: 'text', nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   voidReason: string | null;
 
   @Column({ type: 'datetime', nullable: true })

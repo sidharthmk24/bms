@@ -17,7 +17,7 @@ export class CentralStock {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: 'varchar', name: 'book_id', unique: true, type: 'varchar', length: 36 })
+  @Column({ type: 'varchar', name: 'book_id', unique: true, length: 36 })
   bookId: string;
 
   @ManyToOne(() => Book, { onDelete: 'RESTRICT' })

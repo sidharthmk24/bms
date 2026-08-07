@@ -16,7 +16,7 @@ export class ExpenseRevision {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: 'varchar', name: 'expense_id', type: 'varchar', length: 36 })
+  @Column({ name: 'expense_id', type: 'varchar', length: 36 })
   expenseId: string;
 
   @ManyToOne(() => Expense, { onDelete: 'CASCADE' })
@@ -26,10 +26,10 @@ export class ExpenseRevision {
   @Column({ type: 'decimal', precision: 10, scale: 2, transformer: DecimalTransformer })
   previousAmount: number;
 
-  @Column({ type: 'varchar', type: 'text' })
+  @Column({ type: 'varchar' })
   previousDescription: string;
 
-  @Column({ type: 'varchar', type: 'varchar', length: 36 })
+  @Column({ type: 'varchar', length: 36 })
   changedById: string;
 
   @ManyToOne(() => User, { onDelete: 'RESTRICT' })

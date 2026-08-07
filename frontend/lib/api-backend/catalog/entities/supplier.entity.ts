@@ -20,7 +20,7 @@ export class Supplier {
   @Column({ type: 'varchar', length: 255, nullable: true })
   email: string;
 
-  @Column({ type: 'varchar', type: 'text', nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   address: string;
 
   @CreateDateColumn()

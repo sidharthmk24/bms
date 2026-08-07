@@ -28,14 +28,14 @@ export class RestockRequest {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: 'varchar', name: 'branch_id', type: 'varchar', length: 36 })
+  @Column({ name: 'branch_id', type: 'varchar', length: 36 })
   branchId: string;
 
   @ManyToOne(() => Branch, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'branch_id' })
   branch: Branch;
 
-  @Column({ type: 'varchar', name: 'requested_by_id', type: 'varchar', length: 36 })
+  @Column({ name: 'requested_by_id', type: 'varchar', length: 36 })
   requestedById: string;
 
   @ManyToOne(() => User, { onDelete: 'RESTRICT' })
@@ -45,14 +45,14 @@ export class RestockRequest {
   @Column({ type: 'enum', enum: RestockRequestStatus, default: RestockRequestStatus.PENDING })
   status: RestockRequestStatus;
 
-  @Column({ type: 'varchar', name: 'reviewed_by_id', type: 'varchar', length: 36, nullable: true })
+  @Column({ name: 'reviewed_by_id', type: 'varchar', length: 36, nullable: true })
   reviewedById: string | null;
 
   @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'reviewed_by_id' })
   reviewedBy: User;
 
-  @Column({ type: 'varchar', type: 'text', nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   reviewNote: string | null;
 
   @Column({ type: 'datetime', nullable: true })

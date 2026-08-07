@@ -22,14 +22,14 @@ export class BranchInventory {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: 'varchar', name: 'branch_id', type: 'varchar', length: 36 })
+  @Column({ name: 'branch_id', type: 'varchar', length: 36 })
   branchId: string;
 
   @ManyToOne(() => Branch, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'branch_id' })
   branch: Branch;
 
-  @Column({ type: 'varchar', name: 'book_id', type: 'varchar', length: 36 })
+  @Column({ name: 'book_id', type: 'varchar', length: 36 })
   bookId: string;
 
   @ManyToOne(() => Book, { onDelete: 'RESTRICT' })

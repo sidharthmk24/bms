@@ -11,14 +11,14 @@ export class RestockRequestItem {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: 'varchar', name: 'restock_request_id', type: 'varchar', length: 36 })
+  @Column({ name: 'restock_request_id', type: 'varchar', length: 36 })
   restockRequestId: string;
 
   @ManyToOne(() => RestockRequest, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'restock_request_id' })
   restockRequest: RestockRequest;
 
-  @Column({ type: 'varchar', name: 'book_id', type: 'varchar', length: 36 })
+  @Column({ name: 'book_id', type: 'varchar', length: 36 })
   bookId: string;
 
   @ManyToOne(() => Book, { onDelete: 'RESTRICT' })

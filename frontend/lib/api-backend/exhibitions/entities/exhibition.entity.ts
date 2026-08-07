@@ -27,7 +27,7 @@ export class Exhibition {
   location: string;
 
   /** The branch whose stock is taken to the exhibition */
-  @Column({ type: 'varchar', type: 'varchar', length: 36 })
+  @Column({ type: 'varchar', length: 36 })
   sourceBranchId: string;
 
   @ManyToOne(() => Branch, { onDelete: 'RESTRICT' })
@@ -43,28 +43,28 @@ export class Exhibition {
   @Column({ type: 'enum', enum: ExhibitionStatus, default: ExhibitionStatus.REQUESTED })
   status: ExhibitionStatus;
 
-  @Column({ type: 'varchar', type: 'varchar', length: 36 })
+  @Column({ type: 'varchar', length: 36 })
   requestedById: string;
 
   @ManyToOne(() => User, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'requested_by_id' })
   requestedBy: User;
 
-  @Column({ type: 'varchar', type: 'varchar', length: 36, nullable: true })
+  @Column({ type: 'varchar', length: 36, nullable: true })
   approvedById: string | null;
 
   @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'approved_by_id' })
   approvedBy: User;
 
-  @Column({ type: 'varchar', type: 'varchar', length: 36, nullable: true })
+  @Column({ type: 'varchar', length: 36, nullable: true })
   assignedUserId: string | null;
 
   @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'assigned_user_id' })
   assignedUser: User;
 
-  @Column({ type: 'varchar', type: 'varchar', length: 500, nullable: true })
+  @Column({ type: 'varchar', length: 500, nullable: true })
   rejectionReason: string | null;
 
   @OneToMany(() => ExhibitionStock, (s) => s.exhibition)

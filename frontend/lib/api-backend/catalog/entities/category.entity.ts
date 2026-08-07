@@ -16,7 +16,7 @@ export class Category {
   @Column({ type: 'varchar', length: 150 })
   name: string;
 
-  @Column({ type: 'varchar', name: 'parent_id', type: 'varchar', length: 36, nullable: true })
+  @Column({ name: 'parent_id', type: 'varchar', length: 36, nullable: true })
   parentId: string | null;
 
   @ManyToOne(() => Category, { nullable: true, onDelete: 'SET NULL' })

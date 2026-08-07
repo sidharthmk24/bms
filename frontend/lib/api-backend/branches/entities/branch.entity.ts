@@ -30,7 +30,7 @@ export class Branch {
   @Column({ type: 'enum', enum: BranchType, default: BranchType.STORE })
   type: BranchType;
 
-  @Column({ type: 'varchar', type: 'text', nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   address: string;
 
   @Column({ type: 'varchar', length: 100, nullable: true })

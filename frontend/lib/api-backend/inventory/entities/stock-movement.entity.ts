@@ -52,7 +52,7 @@ export class StockMovement {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: 'varchar', name: 'book_id', type: 'varchar', length: 36 })
+  @Column({ name: 'book_id', type: 'varchar', length: 36 })
   bookId: string;
 
   @ManyToOne(() => Book, { onDelete: 'RESTRICT' })
@@ -60,7 +60,7 @@ export class StockMovement {
   book: Book;
 
   /** null = central warehouse pool movement */
-  @Column({ type: 'varchar', name: 'branch_id', type: 'varchar', length: 36, nullable: true })
+  @Column({ name: 'branch_id', type: 'varchar', length: 36, nullable: true })
   branchId: string | null;
 
   @ManyToOne(() => Branch, { nullable: true, onDelete: 'RESTRICT' })
@@ -81,17 +81,17 @@ export class StockMovement {
   @Column({ type: 'enum', enum: MovementReferenceType, nullable: true })
   referenceType: MovementReferenceType | null;
 
-  @Column({ type: 'varchar', type: 'varchar', length: 36, nullable: true })
+  @Column({ type: 'varchar', length: 36, nullable: true })
   referenceId: string | null;
 
-  @Column({ type: 'varchar', name: 'performed_by_id', type: 'varchar', length: 36 })
+  @Column({ name: 'performed_by_id', type: 'varchar', length: 36 })
   performedById: string;
 
   @ManyToOne(() => User, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'performed_by_id' })
   performedBy: User;
 
-  @Column({ type: 'varchar', type: 'text', nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   note: string | null;
 
   @CreateDateColumn()

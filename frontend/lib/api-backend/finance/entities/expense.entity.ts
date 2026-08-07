@@ -31,7 +31,7 @@ export class Expense {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: 'varchar', type: 'varchar', length: 36, nullable: true })
+  @Column({ type: 'varchar', length: 36, nullable: true })
   branchId: string | null;
 
   @ManyToOne(() => Branch, { nullable: true, onDelete: 'RESTRICT' })
@@ -44,13 +44,13 @@ export class Expense {
   @Column({ type: 'decimal', precision: 10, scale: 2, transformer: DecimalTransformer })
   amount: number;
 
-  @Column({ type: 'varchar', type: 'text' })
+  @Column({ type: 'varchar' })
   description: string;
 
   @Column({ type: 'date' })
   expenseDate: Date;
 
-  @Column({ type: 'varchar', type: 'varchar', length: 36 })
+  @Column({ type: 'varchar', length: 36 })
   enteredById: string;
 
   @ManyToOne(() => User, { onDelete: 'RESTRICT' })

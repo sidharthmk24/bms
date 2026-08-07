@@ -11,7 +11,7 @@ export class Author {
   @Column({ type: 'varchar', length: 200 })
   name: string;
 
-  @Column({ type: 'varchar', type: 'text', nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   bio: string;
 
   @CreateDateColumn()

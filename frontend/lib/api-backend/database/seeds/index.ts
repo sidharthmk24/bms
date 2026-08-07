@@ -323,7 +323,7 @@ async function seed() {
             bookId: item.book.id,
             quantity: item.qty,
             unitPrice: item.price,
-            unitCost: item.book.costPrice,
+            unitCost: item.book.costPrice ?? 0,
             lineTotal: item.qty * item.price,
           });
         }
