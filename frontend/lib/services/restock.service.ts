@@ -103,7 +103,7 @@ export class RestockService {
         requestedById: currentUser.userId,
         status: RestockRequestStatus.PENDING,
       } as object);
-      const savedRequest = await queryRunner.manager.save(RestockRequest.name, request);
+      const savedRequest = await queryRunner.manager.save(RestockRequest.name, request) as any;
 
       // Create items
       for (const itemDto of dto.items) {
@@ -138,7 +138,7 @@ export class RestockService {
       // Trigger SSE update
       this.notificationsService.triggerRefresh('restock_changed');
 
-      return savedRequest;
+      return savedRequest as any;
     } catch (err) {
       await queryRunner.rollbackTransaction();
       throw err;
@@ -156,8 +156,8 @@ export class RestockService {
     }
 
     const status = query.status;
-    const page = parseInt(query.page as string) || 1;
-    const limit = parseInt(query.limit as string) || 15;
+    const page = parseInt(query.page as any) || 1;
+    const limit = parseInt(query.limit as any) || 15;
     const skip = (page - 1) * limit;
 
     const { restockRequestRepository } = await this.getRepos();

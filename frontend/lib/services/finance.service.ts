@@ -64,7 +64,7 @@ export class FinanceService {
     await queryRunner.startTransaction();
 
     try {
-      const expense = await queryRunner.manager.findOne("Expense", { where: { id } });
+      const expense = await queryRunner.manager.findOne("Expense", { where: { id } }) as any;
       if (!expense) throw new NotFoundException(`Expense ${id} not found`);
 
       if (hasRole(user, UserRole.BRANCH_MANAGER) && expense.branchId !== user.branchId) {
@@ -77,13 +77,13 @@ export class FinanceService {
         previousAmount: expense.amount,
         previousDescription: expense.description,
         changedById: user.userId,
-      });
+      }) as any;
       await queryRunner.manager.save("ExpenseRevision", revision);
 
       // Update expense
       expense.amount = dto.amount;
       expense.description = dto.description;
-      const updated = await queryRunner.manager.save("Expense", expense);
+      const updated = await queryRunner.manager.save("Expense", expense) as any;
 
       await queryRunner.manager.query(
         'INSERT INTO `audit_log`(`id`,`user_id`,`action`,`entity_type`,`entity_id`,`before_json`,`after_json`,`ip_address`,`created_at`) VALUES (UUID(),?,?,?,?,?,?,?,DEFAULT)',

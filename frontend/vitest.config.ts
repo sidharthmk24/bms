@@ -15,5 +15,5 @@ export default defineConfig({
         singleThread: true
       }
     }
-  },
+  } as any,
 });

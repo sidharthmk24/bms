@@ -265,12 +265,12 @@ export class InventoryService {
 
     try {
       // 1. Update Inventory Table
-      await incrementBranchStock(queryRunner, branchId, dto.bookId, dto.quantity || 0);
+      const updated = await incrementBranchStock(queryRunner, branchId, dto.bookId, dto.quantity || 0) as any;
 
       // 2. Load the row to set threshold and return
       const row = await queryRunner.manager.findOne("BranchInventory", {
         where: { branchId, bookId: dto.bookId },
-      });
+      }) as any;
       if (!row) throw new Error('Failed to find created branch inventory row');
 
       if (dto.threshold !== undefined) {
@@ -307,7 +307,7 @@ export class InventoryService {
       // Trigger real-time sync event
       this.notificationsService.triggerRefresh('stock_changed');
 
-      return row;
+      return row as any;
     } catch (err) {
       await queryRunner.rollbackTransaction();
       throw err;
@@ -405,7 +405,7 @@ export class InventoryService {
         userId: currentUser.userId,
         action: 'BRANCH_STOCK_ADJUSTED',
         entityType: 'BranchInventory',
-        entityId: updated.id,
+        entityId: (updated as any).id,
         beforeJson: beforeState,
         afterJson: updated,
         ipAddress,
@@ -416,7 +416,7 @@ export class InventoryService {
       // Trigger SSE notification
       this.notificationsService.triggerRefresh('stock_changed');
 
-      return updated;
+      return updated as any;
     } catch (err) {
       await queryRunner.rollbackTransaction();
       throw err;

@@ -34,11 +34,11 @@ export class BillingService {
     const ds = await getDataSource();
     return {
       dataSource: ds,
-      billRepository: ds.getRepository("Bill"),
-      billItemRepository: ds.getRepository("BillItem"),
-      bookRepository: ds.getRepository("Book"),
-      branchRepository: ds.getRepository("Branch"),
-      auditLogRepository: ds.getRepository("AuditLog"),
+      billRepository: ds.getRepository<Bill>("Bill"),
+      billItemRepository: ds.getRepository<BillItem>("BillItem"),
+      bookRepository: ds.getRepository<Book>("Book"),
+      branchRepository: ds.getRepository<Branch>("Branch"),
+      auditLogRepository: ds.getRepository<AuditLog>("AuditLog"),
     };
   }
 
@@ -150,7 +150,7 @@ export class BillingService {
         exhibitionId: dto.exhibitionId || null,
       } as object);
 
-      const savedBill = await queryRunner.manager.save("Bill", newBill);
+      const savedBill = await queryRunner.manager.save("Bill", newBill) as any;
 
       // 3. Save Bill Items and Stock Movements
       for (const itemDraft of billItemsToSave) {
@@ -158,7 +158,7 @@ export class BillingService {
         const item = queryRunner.manager.create("BillItem", {
           ...itemDraft,
           billId: savedBill.id,
-        });
+        }) as any;
         await queryRunner.manager.save("BillItem", item);
 
         // Write append-only stock movement
@@ -270,7 +270,7 @@ export class BillingService {
     if (!bill) throw new NotFoundException(`Bill with ID ${id} not found`);
 
     this.checkBranchAccess(currentUser, bill.branchId);
-    return bill;
+    return bill as any;
   }
 
   // ── 4. VOID BILL ───────────────────────────────────────────────────────────
