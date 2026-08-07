@@ -103,7 +103,7 @@ export class BillingService {
         // Load book inside transaction to ensure price accuracy
         const book = await queryRunner.manager.findOne("Book", {
           where: { id: item.bookId, isActive: true },
-        });
+        }) as any;
         if (!book) throw new NotFoundException(`Book with ID ${item.bookId} not found`);
 
         // Atomically decrement stock. Will throw INSUFFICIENT_STOCK if stock is too low.
