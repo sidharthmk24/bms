@@ -16,7 +16,7 @@ export default function BranchInventoryPage() {
   const [searchTerm, setSearchTerm] = useState('');
   
   // Branch Selection (For Admins)
-  const isGlobalAdmin = ['SUPER_ADMIN', 'ADMIN'].includes(user?.role || user?.primaryRole) && !user?.branchId;
+  const isGlobalAdmin = ['SUPER_ADMIN', 'ADMIN'].includes(user?.role || user?.primaryRole || '') && !user?.branchId;
   const [selectedBranchId, setSelectedBranchId] = useState<string>(user?.branchId || '');
   const { data: branchesResponse } = useApiData<any>('/branches', []);
   const branches = branchesResponse?.items || (Array.isArray(branchesResponse) ? branchesResponse : []);
