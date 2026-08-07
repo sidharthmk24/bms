@@ -26,14 +26,14 @@ export class AuditLog {
   user: User;
 
   /** Human-readable action code e.g. BOOK_PRICE_UPDATED, USER_DEACTIVATED */
-  @Column({ type: 'varchar', type: 'varchar', length: 100 })
+  @Column({ type: 'varchar', length: 100 })
   action: string;
 
   /** Name of the entity type e.g. 'Book', 'User', 'Bill' */
-  @Column({ type: 'varchar', type: 'varchar', length: 100 })
+  @Column({ type: 'varchar', length: 100 })
   entityType: string;
 
-  @Column({ type: 'varchar', type: 'varchar', length: 36, nullable: true })
+  @Column({ type: 'varchar', length: 36, nullable: true })
   entityId: string | null;
 
   @Column({ type: 'json', nullable: true })
@@ -42,7 +42,7 @@ export class AuditLog {
   @Column({ type: 'json', nullable: true })
   afterJson: object | null;
 
-  @Column({ type: 'varchar', type: 'varchar', length: 45, nullable: true })
+  @Column({ type: 'varchar', length: 45, nullable: true })
   ipAddress: string | null;
 
   @CreateDateColumn()
