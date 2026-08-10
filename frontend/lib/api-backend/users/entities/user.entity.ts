@@ -9,7 +9,7 @@ import {
   OneToMany,
 } from 'typeorm';
 import { UserRole as UserRoleEnum } from '../enums/user-role.enum';
-import type { UserRole } from './user-role.entity';
+import { UserRole } from './user-role.entity';
 import { Branch } from '../../branches/entities/branch.entity';
 
 @Entity('user')
