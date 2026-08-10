@@ -18,14 +18,15 @@
  */
 
 import 'dotenv/config';
-import { AppDataSource } from '../data-source';
+import { getDataSource } from '../../../db/data-source';
 import * as bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
 
 // ── Entity imports ────────────────────────────────────────────────────────────
 import { Branch, BranchType } from '../../branches/entities/branch.entity';
 import { User } from '../../users/entities/user.entity';
-import { UserRole } from '../../users/enums/user-role.enum';
+import { UserRole as UserRoleEnum } from '../../users/enums/user-role.enum';
+import { UserRole as UserRoleEntity } from '../../users/entities/user-role.entity';
 import { Author } from '../../catalog/entities/author.entity';
 import { Publisher } from '../../catalog/entities/publisher.entity';
 import { Category } from '../../catalog/entities/category.entity';
@@ -60,11 +61,14 @@ function randomBetween(min: number, max: number): number {
 // ── Main seed function ────────────────────────────────────────────────────────
 async function seed() {
   console.log('\n🌱 Connecting to database...');
-  await AppDataSource.initialize();
-  const qr = AppDataSource.createQueryRunner();
+  const ds = await getDataSource();
+  const qr = ds.createQueryRunner();
   await qr.connect();
 
   try {
+    console.log('🧹 Clearing existing database schema...');
+    await ds.synchronize(true);
+    
     console.log('🌱 Starting seed...\n');
 
     // ── 1. Branches ──────────────────────────────────────────────────────────
@@ -93,19 +97,23 @@ async function seed() {
     const branchFO2Id = uuidv4();
 
     const users = [
-      { id: superAdminId, name: 'Super Admin',        email: 'superadmin@bms.com',   role: UserRole.SUPER_ADMIN,               branchId: null,     passwordHash: PASSWORD_HASH, isActive: true, createdById: null },
-      { id: adminId,      name: 'Arjun Sharma',        email: 'admin@bms.com',        role: UserRole.ADMIN,                     branchId: null,     passwordHash: PASSWORD_HASH, isActive: true, createdById: superAdminId },
-      { id: cimId,        name: 'Priya Nair',          email: 'inventory@bms.com',    role: UserRole.CENTRAL_INVENTORY_MANAGER, branchId: null,     passwordHash: PASSWORD_HASH, isActive: true, createdById: superAdminId },
-      { id: financeId,    name: 'Ravi Gupta',          email: 'finance@bms.com',      role: UserRole.FINANCE,                   branchId: null,     passwordHash: PASSWORD_HASH, isActive: true, createdById: superAdminId },
-      { id: branchMgr1Id, name: 'Sneha Patil',         email: 'manager.br01@bms.com', role: UserRole.BRANCH_MANAGER,           branchId: branch1Id, passwordHash: PASSWORD_HASH, isActive: true, createdById: adminId },
-      { id: branchInv1Id, name: 'Deepak Kumar',        email: 'stock.br01@bms.com',   role: UserRole.BRANCH_INVENTORY,         branchId: branch1Id, passwordHash: PASSWORD_HASH, isActive: true, createdById: branchMgr1Id },
-      { id: branchFO1Id,  name: 'Ananya Singh',        email: 'counter.br01@bms.com', role: UserRole.BRANCH_FRONT_OFFICE,      branchId: branch1Id, passwordHash: PASSWORD_HASH, isActive: true, createdById: branchMgr1Id },
-      { id: branchMgr2Id, name: 'Vikram Reddy',        email: 'manager.br02@bms.com', role: UserRole.BRANCH_MANAGER,           branchId: branch2Id, passwordHash: PASSWORD_HASH, isActive: true, createdById: adminId },
-      { id: branchFO2Id,  name: 'Kavya Menon',         email: 'counter.br02@bms.com', role: UserRole.BRANCH_FRONT_OFFICE,      branchId: branch2Id, passwordHash: PASSWORD_HASH, isActive: true, createdById: branchMgr2Id },
+      { id: superAdminId, name: 'Super Admin',        email: 'superadmin@bms.com',   primaryRole: UserRoleEnum.SUPER_ADMIN,               branchId: null,     passwordHash: PASSWORD_HASH, isActive: true, createdById: null },
+      { id: adminId,      name: 'Arjun Sharma',        email: 'admin@bms.com',        primaryRole: UserRoleEnum.ADMIN,                     branchId: null,     passwordHash: PASSWORD_HASH, isActive: true, createdById: superAdminId },
+      { id: cimId,        name: 'Priya Nair',          email: 'inventory@bms.com',    primaryRole: UserRoleEnum.CENTRAL_INVENTORY_MANAGER, branchId: null,     passwordHash: PASSWORD_HASH, isActive: true, createdById: superAdminId },
+      { id: financeId,    name: 'Ravi Gupta',          email: 'finance@bms.com',      primaryRole: UserRoleEnum.FINANCE,                   branchId: null,     passwordHash: PASSWORD_HASH, isActive: true, createdById: superAdminId },
+      { id: branchMgr1Id, name: 'Sneha Patil',         email: 'manager.br01@bms.com', primaryRole: UserRoleEnum.BRANCH_MANAGER,           branchId: branch1Id, passwordHash: PASSWORD_HASH, isActive: true, createdById: adminId },
+      { id: branchInv1Id, name: 'Deepak Kumar',        email: 'stock.br01@bms.com',   primaryRole: UserRoleEnum.BRANCH_INVENTORY,         branchId: branch1Id, passwordHash: PASSWORD_HASH, isActive: true, createdById: branchMgr1Id },
+      { id: branchFO1Id,  name: 'Ananya Singh',        email: 'counter.br01@bms.com', primaryRole: UserRoleEnum.BRANCH_FRONT_OFFICE,      branchId: branch1Id, passwordHash: PASSWORD_HASH, isActive: true, createdById: branchMgr1Id },
+      { id: branchMgr2Id, name: 'Vikram Reddy',        email: 'manager.br02@bms.com', primaryRole: UserRoleEnum.BRANCH_MANAGER,           branchId: branch2Id, passwordHash: PASSWORD_HASH, isActive: true, createdById: adminId },
+      { id: branchFO2Id,  name: 'Kavya Menon',         email: 'counter.br02@bms.com', primaryRole: UserRoleEnum.BRANCH_FRONT_OFFICE,      branchId: branch2Id, passwordHash: PASSWORD_HASH, isActive: true, createdById: branchMgr2Id },
     ];
 
     await qr.manager.save(User, users);
-    console.log('✅ Users seeded');
+    
+    // Seed the user_roles table
+    const userRoles = users.map(u => ({ id: uuidv4(), userId: u.id, role: u.primaryRole }));
+    await qr.manager.save(UserRoleEntity, userRoles);
+    console.log('✅ Users & Roles seeded');
 
     // ── 3. Catalog — Authors, Publishers, Categories, Suppliers ─────────────
     const authors = await qr.manager.save(Author, [
@@ -525,8 +533,14 @@ async function seed() {
     throw err;
   } finally {
     await qr.release();
-    await AppDataSource.destroy();
+    // No need to destroy ds here, or we can use the local ds if we captured it.
+    // We didn't capture it globally, so we can't easily destroy it here without changing scope.
+    // Actually, I can just use process.exit(0) to exit the script.
+    process.exit(0);
   }
 }
 
-seed().catch(() => process.exit(1));
+seed().catch((err) => {
+  console.error("Fatal error:", err);
+  process.exit(1);
+});

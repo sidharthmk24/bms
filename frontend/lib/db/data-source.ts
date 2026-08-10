@@ -1,4 +1,4 @@
-import 'server-only';
+// import 'server-only';
 import 'reflect-metadata';
 import { DataSource } from 'typeorm';
 import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
