@@ -31,7 +31,7 @@ export class Expense {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: 'varchar', length: 36, nullable: true })
+  @Column({ name: 'branch_id', type: 'varchar', length: 36, nullable: true })
   branchId: string | null;
 
   @ManyToOne(() => Branch, { nullable: true, onDelete: 'RESTRICT' })
@@ -50,7 +50,7 @@ export class Expense {
   @Column({ type: 'date' })
   expenseDate: Date;
 
-  @Column({ type: 'varchar', length: 36 })
+  @Column({ name: 'entered_by_id', type: 'varchar', length: 36 })
   enteredById: string;
 
   @ManyToOne(() => User, { onDelete: 'RESTRICT' })

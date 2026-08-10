@@ -31,7 +31,7 @@ export class NewTitleRequest {
   @Column({ type: 'varchar', length: 50, nullable: true })
   isbn: string | null;
 
-  @Column({ type: 'varchar', length: 36 })
+  @Column({ name: 'requested_by_id', type: 'varchar', length: 36 })
   requestedById: string;
 
   @ManyToOne(() => User, { onDelete: 'RESTRICT' })
@@ -44,7 +44,7 @@ export class NewTitleRequest {
   @Column({ type: 'enum', enum: NewTitleRequestStatus, default: NewTitleRequestStatus.PENDING })
   status: NewTitleRequestStatus;
 
-  @Column({ type: 'varchar', length: 36, nullable: true })
+  @Column({ name: 'reviewed_by_id', type: 'varchar', length: 36, nullable: true })
   reviewedById: string | null;
 
   @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
@@ -52,7 +52,7 @@ export class NewTitleRequest {
   reviewedBy: User;
 
   /** Set when approved and the book is added to the catalog */
-  @Column({ type: 'varchar', length: 36, nullable: true })
+  @Column({ name: 'created_book_id', type: 'varchar', length: 36, nullable: true })
   createdBookId: string | null;
 
   @ManyToOne(() => Book, { nullable: true, onDelete: 'SET NULL' })
