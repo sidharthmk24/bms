@@ -29,7 +29,7 @@ export class BookEnquiry {
   id: string;
 
   /** Set if the book IS in the catalog (just out of stock at this branch) */
-  @Column({ name: 'book_id', type: 'varchar', length: 36, nullable: true })
+  @Column({ type: 'varchar', length: 36, nullable: true })
   bookId: string | null;
 
   @ManyToOne(() => Book, { nullable: true, onDelete: 'SET NULL' })
@@ -40,14 +40,14 @@ export class BookEnquiry {
   @Column({ type: 'varchar', nullable: true })
   freeTextTitle: string | null;
 
-  @Column({ name: 'branch_id', type: 'varchar', length: 36 })
+  @Column({ type: 'varchar', length: 36 })
   branchId: string;
 
   @ManyToOne(() => Branch, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'branch_id' })
   branch: Branch;
 
-  @Column({ name: 'logged_by_id', type: 'varchar', length: 36 })
+  @Column({ type: 'varchar', length: 36 })
   loggedById: string;
 
   @ManyToOne(() => User, { onDelete: 'RESTRICT' })

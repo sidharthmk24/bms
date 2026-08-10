@@ -5,7 +5,7 @@ import { withAuth, withRoles } from '@/lib/middleware/withAuth';
 import { UserRole } from '@/lib/api-backend/users/enums/user-role.enum';
 
 const dashboardService = new DashboardService();
-export const GET = withRoles([UserRole.SUPER_ADMIN], async (req: NextRequest, context: any) => {
+export const GET = withRoles([UserRole.SUPER_ADMIN, UserRole.ADMIN], async (req: NextRequest, context: any) => {
   const url = new URL(req.url);
   const days = Number(url.searchParams.get('days')) || 30;
   const branchId = context.params.branchId;

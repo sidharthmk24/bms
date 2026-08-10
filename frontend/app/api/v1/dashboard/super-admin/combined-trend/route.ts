@@ -5,7 +5,7 @@ import { withAuth, withRoles } from '@/lib/middleware/withAuth';
 import { UserRole } from '@/lib/api-backend/users/enums/user-role.enum';
 
 const dashboardService = new DashboardService();
-export const GET = withRoles([UserRole.SUPER_ADMIN], async (req: NextRequest) => {
+export const GET = withRoles([UserRole.SUPER_ADMIN, UserRole.ADMIN], async (req: NextRequest) => {
   const url = new URL(req.url);
   const days = Number(url.searchParams.get('days')) || 30;
   return apiSuccess(await dashboardService.getCombinedTrendForSuperAdmin(days));

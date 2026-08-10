@@ -29,7 +29,7 @@ export class ExpenseRevision {
   @Column({ type: 'varchar' })
   previousDescription: string;
 
-  @Column({ name: 'changed_by_id', type: 'varchar', length: 36 })
+  @Column({ type: 'varchar', length: 36 })
   changedById: string;
 
   @ManyToOne(() => User, { onDelete: 'RESTRICT' })
