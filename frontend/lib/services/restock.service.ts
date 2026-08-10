@@ -98,32 +98,32 @@ export class RestockService {
 
     try {
       // Create request
-      const request = queryRunner.manager.create(RestockRequest.name, {
+      const request = queryRunner.manager.create(RestockRequest, {
         branchId,
         requestedById: currentUser.userId,
         status: RestockRequestStatus.PENDING,
       } as object);
-      const savedRequest = await queryRunner.manager.save(RestockRequest.name, request) as any;
+      const savedRequest = await queryRunner.manager.save(RestockRequest, request) as any;
 
       // Create items
       for (const itemDto of dto.items) {
-        const book = await queryRunner.manager.findOne(Book.name, {
+        const book = await queryRunner.manager.findOne(Book, {
           where: { id: itemDto.bookId, isActive: true },
         });
         if (!book) throw new NotFoundException(`Book with ID ${itemDto.bookId} not found`);
 
-        const item = queryRunner.manager.create(RestockRequestItem.name, {
+        const item = queryRunner.manager.create(RestockRequestItem, {
           restockRequestId: savedRequest.id,
           bookId: itemDto.bookId,
           quantityRequested: itemDto.quantity,
           quantityApproved: 0,
           quantityReceived: 0,
         } as object);
-        await queryRunner.manager.save(RestockRequestItem.name, item);
+        await queryRunner.manager.save(RestockRequestItem, item);
       }
 
       // Audit Log
-      await queryRunner.manager.save(AuditLog.name, {
+      await queryRunner.manager.save(AuditLog, {
         userId: currentUser.userId,
         action: 'RESTOCK_REQUEST_CREATED',
         entityType: 'RestockRequest',
@@ -262,7 +262,7 @@ export class RestockService {
 
       if (dto.status === ReviewStatus.REJECTED) {
         request.status = RestockRequestStatus.REJECTED;
-        await queryRunner.manager.save(RestockRequest.name, request);
+        await queryRunner.manager.save(RestockRequest, request);
       } else {
         // APPROVED / PARTIALLY_APPROVED flow
         if (!dto.items || dto.items.length === 0) {
@@ -288,18 +288,18 @@ export class RestockService {
           }
 
           item.quantityApproved = approvedItemDto.quantityApproved;
-          await queryRunner.manager.save(RestockRequestItem.name, item);
+          await queryRunner.manager.save(RestockRequestItem, item);
         }
 
         request.status = hasPartial
           ? RestockRequestStatus.PARTIALLY_APPROVED
           : RestockRequestStatus.APPROVED;
 
-        await queryRunner.manager.save(RestockRequest.name, request);
+        await queryRunner.manager.save(RestockRequest, request);
       }
 
       // Audit Log
-      await queryRunner.manager.save(AuditLog.name, {
+      await queryRunner.manager.save(AuditLog, {
         userId: currentUser.userId,
         action: `RESTOCK_REQUEST_REVIEWED_${dto.status}`,
         entityType: 'RestockRequest',
@@ -350,7 +350,7 @@ export class RestockService {
       const beforeState = { ...request };
 
       request.status = RestockRequestStatus.FULFILLED;
-      const saved = await queryRunner.manager.save(RestockRequest.name, request);
+      const saved = await queryRunner.manager.save(RestockRequest, request);
 
       // Decrement central stock and write movements
       for (const item of request.items) {
@@ -372,7 +372,7 @@ export class RestockService {
       }
 
       // Audit Log
-      await queryRunner.manager.save(AuditLog.name, {
+      await queryRunner.manager.save(AuditLog, {
         userId: currentUser.userId,
         action: 'RESTOCK_REQUEST_DISPATCHED',
         entityType: 'RestockRequest',
@@ -426,14 +426,14 @@ export class RestockService {
       const beforeState = { ...request };
 
       request.status = RestockRequestStatus.RECEIVED;
-      const saved = await queryRunner.manager.save(RestockRequest.name, request);
+      const saved = await queryRunner.manager.save(RestockRequest, request);
 
       // Increment branch stock and write movements
       for (const item of request.items) {
         if (item.quantityApproved > 0) {
           // Set quantityReceived to matched approved
           item.quantityReceived = item.quantityApproved;
-          await queryRunner.manager.save(RestockRequestItem.name, item);
+          await queryRunner.manager.save(RestockRequestItem, item);
 
           // Atomically increment branch stock
           await incrementBranchStock(queryRunner, request.branchId, item.bookId, item.quantityApproved);
@@ -452,7 +452,7 @@ export class RestockService {
       }
 
       // Audit Log
-      await queryRunner.manager.save(AuditLog.name, {
+      await queryRunner.manager.save(AuditLog, {
         userId: currentUser.userId,
         action: 'RESTOCK_REQUEST_RECEIVED',
         entityType: 'RestockRequest',
