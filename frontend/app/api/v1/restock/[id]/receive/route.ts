@@ -8,8 +8,8 @@ const restockService = new RestockService();
 
 export const POST = withRoles([UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.BRANCH_MANAGER, UserRole.BRANCH_INVENTORY], async (req: NextRequest, { user, params }) => {
   const p = await params;
-  const body = await req.json();
   const ip = req.headers.get('x-forwarded-for') || 'unknown';
   const data = await restockService.receiveRequest(p.id, user, ip);
   return apiSuccess(data);
 });
+
