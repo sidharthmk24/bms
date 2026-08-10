@@ -9,7 +9,7 @@ import {
   OneToMany,
 } from 'typeorm';
 import { UserRole as UserRoleEnum } from '../enums/user-role.enum';
-import { UserRole } from './user-role.entity';
+import type { UserRole } from './user-role.entity';
 import { Branch } from '../../branches/entities/branch.entity';
 
 @Entity('user')
@@ -29,7 +29,7 @@ export class User {
   @Column({ type: 'enum', enum: UserRoleEnum, name: 'primary_role', nullable: true })
   primaryRole: UserRoleEnum;
 
-  @OneToMany(() => UserRole, (userRole: any) => userRole.user, { cascade: true })
+  @OneToMany(() => require('./user-role.entity').UserRole, (userRole: any) => userRole.user, { cascade: true })
   roles: UserRole[];
 
   @Column({ type: 'varchar', name: 'branch_id', length: 36, nullable: true })
