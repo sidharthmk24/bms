@@ -1,0 +1,48 @@
+import { apiSuccess, apiError } from '@/lib/api-response';
+import { NextRequest } from 'next/server';
+import { getDataSource } from '@/lib/db/data-source';
+import * as bcrypt from 'bcrypt';
+import { v4 as uuidv4 } from 'uuid';
+
+export async function GET(req: NextRequest) {
+  try {
+    const ds = await getDataSource();
+    const userRepo = ds.getRepository('User');
+    const roleRepo = ds.getRepository('UserRole');
+    
+    let admin = await userRepo.findOne({ where: { email: 'superadmin@bms.com' }, relations: ['roles'] });
+    
+    if (!admin) {
+      admin = userRepo.create({
+        userId: uuidv4(),
+        email: 'superadmin@bms.com',
+        passwordHash: bcrypt.hashSync('Password@123', 10),
+        name: 'Super Admin',
+        primaryRole: 'SUPER_ADMIN',
+        isActive: true,
+      });
+      await userRepo.save(admin);
+    } else {
+      admin.primaryRole = 'SUPER_ADMIN';
+      await userRepo.save(admin);
+    }
+
+    // Add role
+    const existingRole = await roleRepo.findOne({ where: { userId: admin.id, role: 'SUPER_ADMIN' }});
+    if (!existingRole) {
+       const newRole = roleRepo.create({
+         userId: admin.id,
+         role: 'SUPER_ADMIN'
+       });
+       await roleRepo.save(newRole);
+    }
+
+    return apiSuccess({
+      message: 'Super Admin created successfully!',
+      email: 'superadmin@bms.com',
+      password: 'Password@123'
+    });
+  } catch (error: any) {
+    return apiError(error);
+  }
+}
