@@ -24,12 +24,14 @@ export async function GET() {
   } catch (error) {
     console.error('[HealthCheck] Database connection failed:', error);
     
-    // Never leak connection strings, credentials, or stack traces
+    // For debugging Vercel issues:
     return NextResponse.json({
       status: 'degraded',
       database: 'error',
+      message: error?.message || String(error),
+      stack: error?.stack,
       uptime,
       timestamp,
-    }, { status: 503 });
+    }, { status: 500 });
   }
 }
