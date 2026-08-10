@@ -268,14 +268,14 @@ export class InventoryService {
       const updated = await incrementBranchStock(queryRunner, branchId, dto.bookId, dto.quantity || 0) as any;
 
       // 2. Load the row to set threshold and return
-      const row = await queryRunner.manager.findOne("BranchInventory", {
+      const row = await queryRunner.manager.findOne(BranchInventory, {
         where: { branchId, bookId: dto.bookId },
       }) as any;
       if (!row) throw new Error('Failed to find created branch inventory row');
 
       if (dto.threshold !== undefined) {
         row.reorderThreshold = dto.threshold;
-        await queryRunner.manager.save("BranchInventory", row);
+        await queryRunner.manager.save(BranchInventory, row);
       }
 
       // 3. Write StockMovement if opening stock > 0
@@ -292,7 +292,7 @@ export class InventoryService {
       }
 
       // 3. Save Audit Log
-      await queryRunner.manager.save("AuditLog", {
+      await queryRunner.manager.save(AuditLog, {
         userId: currentUser.userId,
         action: 'BRANCH_INVENTORY_ADDED',
         entityType: 'BranchInventory',
@@ -384,7 +384,7 @@ export class InventoryService {
       }
 
       // Retrieve updated record to return
-      const updated = await queryRunner.manager.findOne("BranchInventory", {
+      const updated = await queryRunner.manager.findOne(BranchInventory, {
         where: { branchId, bookId },
       });
       if (!updated) throw new Error('Updated inventory row not found');
@@ -401,7 +401,7 @@ export class InventoryService {
       });
 
       // Write Audit Log
-      await queryRunner.manager.save("AuditLog", {
+      await queryRunner.manager.save(AuditLog, {
         userId: currentUser.userId,
         action: 'BRANCH_STOCK_ADJUSTED',
         entityType: 'BranchInventory',

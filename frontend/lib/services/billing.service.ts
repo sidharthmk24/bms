@@ -101,7 +101,7 @@ export class BillingService {
       // Validate stock availability and calculate prices
       for (const item of dto.items) {
         // Load book inside transaction to ensure price accuracy
-        const book = await queryRunner.manager.findOne("Book", {
+        const book = await queryRunner.manager.findOne(Book, {
           where: { id: item.bookId, isActive: true },
         }) as any;
         if (!book) throw new NotFoundException(`Book with ID ${item.bookId} not found`);
@@ -134,7 +134,7 @@ export class BillingService {
       const totalAmount = subTotal - discount;
 
       // 2. Save Bill entity
-      const newBill = queryRunner.manager.create("Bill", {
+      const newBill = queryRunner.manager.create(Bill, {
         billNumber,
         branchId,
         createdById: currentUser.userId,
@@ -150,16 +150,16 @@ export class BillingService {
         exhibitionId: dto.exhibitionId || null,
       } as object);
 
-      const savedBill = await queryRunner.manager.save("Bill", newBill) as any;
+      const savedBill = await queryRunner.manager.save(Bill, newBill) as any;
 
       // 3. Save Bill Items and Stock Movements
       for (const itemDraft of billItemsToSave) {
         // Save item
-        const item = queryRunner.manager.create("BillItem", {
+        const item = queryRunner.manager.create(BillItem, {
           ...itemDraft,
           billId: savedBill.id,
         }) as any;
-        await queryRunner.manager.save("BillItem", item);
+        await queryRunner.manager.save(BillItem, item);
 
         // Write append-only stock movement
         await writeStockMovement(queryRunner, {
@@ -174,7 +174,7 @@ export class BillingService {
       }
 
       // 4. Save Audit Log
-      await queryRunner.manager.save("AuditLog", {
+      await queryRunner.manager.save(AuditLog, {
         userId: currentUser.userId,
         action: 'BILL_CHECKOUT',
         entityType: 'Bill',
@@ -312,7 +312,7 @@ export class BillingService {
       bill.voidedById = currentUser.userId;
       bill.voidedAt = new Date();
 
-      const saved = await queryRunner.manager.save("Bill", bill);
+      const saved = await queryRunner.manager.save(Bill, bill);
 
       // 2. Return quantities to branch stock and append stock movements
       for (const item of bill.items) {
