@@ -37,13 +37,13 @@ export class RestockService {
     const ds = await getDataSource();
     return {
       dataSource: ds,
-      restockRequestRepository: ds.getRepository<RestockRequest>("RestockRequest"),
-      restockRequestItemRepository: ds.getRepository<RestockRequestItem>("RestockRequestItem"),
-      centralStockRepository: ds.getRepository<CentralStock>("CentralStock"),
-      branchInventoryRepository: ds.getRepository<BranchInventory>("BranchInventory"),
-      branchRepository: ds.getRepository<Branch>("Branch"),
-      bookRepository: ds.getRepository<Book>("Book"),
-      auditLogRepository: ds.getRepository<AuditLog>("AuditLog"),
+      restockRequestRepository: ds.getRepository(RestockRequest),
+      restockRequestItemRepository: ds.getRepository(RestockRequestItem),
+      centralStockRepository: ds.getRepository(CentralStock),
+      branchInventoryRepository: ds.getRepository(BranchInventory),
+      branchRepository: ds.getRepository(Branch),
+      bookRepository: ds.getRepository(Book),
+      auditLogRepository: ds.getRepository(AuditLog),
     };
   }
 

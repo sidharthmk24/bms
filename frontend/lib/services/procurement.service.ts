@@ -20,7 +20,7 @@ export class ProcurementService {
     const ds = await getDataSource();
     return {
       dataSource: ds,
-      purchaseOrderRepo: ds.getRepository<PurchaseOrder>("PurchaseOrder"),
+      purchaseOrderRepo: ds.getRepository(PurchaseOrder),
     };
   }
 

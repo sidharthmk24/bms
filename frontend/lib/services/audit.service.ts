@@ -6,7 +6,7 @@ export class AuditService {
   private async getRepos() {
     const ds = await getDataSource();
     return {
-      auditRepo: ds.getRepository<AuditLog>("AuditLog"),
+      auditRepo: ds.getRepository(AuditLog),
     };
   }
 

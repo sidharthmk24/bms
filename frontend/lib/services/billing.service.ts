@@ -34,11 +34,11 @@ export class BillingService {
     const ds = await getDataSource();
     return {
       dataSource: ds,
-      billRepository: ds.getRepository<Bill>("Bill"),
-      billItemRepository: ds.getRepository<BillItem>("BillItem"),
-      bookRepository: ds.getRepository<Book>("Book"),
-      branchRepository: ds.getRepository<Branch>("Branch"),
-      auditLogRepository: ds.getRepository<AuditLog>("AuditLog"),
+      billRepository: ds.getRepository(Bill),
+      billItemRepository: ds.getRepository(BillItem),
+      bookRepository: ds.getRepository(Book),
+      branchRepository: ds.getRepository(Branch),
+      auditLogRepository: ds.getRepository(AuditLog),
     };
   }
 

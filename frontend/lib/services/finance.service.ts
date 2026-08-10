@@ -22,9 +22,9 @@ export class FinanceService {
     const ds = await getDataSource();
     return {
       dataSource: ds,
-      expenseRepo: ds.getRepository<Expense>("Expense"),
-      expenseRevisionRepo: ds.getRepository<ExpenseRevision>("ExpenseRevision"),
-      cashReconRepo: ds.getRepository<CashReconciliation>("CashReconciliation"),
+      expenseRepo: ds.getRepository(Expense),
+      expenseRevisionRepo: ds.getRepository(ExpenseRevision),
+      cashReconRepo: ds.getRepository(CashReconciliation),
     };
   }
 

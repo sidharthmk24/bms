@@ -21,10 +21,10 @@ export class AuthService {
   private async getRepos() {
     const ds = await getDataSource();
     return {
-      userRepo: ds.getRepository<User>("User"),
-      refreshRepo: ds.getRepository<RefreshToken>("RefreshToken"),
-      resetRepo: ds.getRepository<PasswordResetToken>("PasswordResetToken"),
-      auditRepo: ds.getRepository<AuditLog>("AuditLog"),
+      userRepo: ds.getRepository(User),
+      refreshRepo: ds.getRepository(RefreshToken),
+      resetRepo: ds.getRepository(PasswordResetToken),
+      auditRepo: ds.getRepository(AuditLog),
     };
   }
 

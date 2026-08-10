@@ -13,8 +13,8 @@ export class BranchesService {
   private async getRepos() {
     const ds = await getDataSource();
     return {
-      branchRepo: ds.getRepository<Branch>("Branch"),
-      auditRepo: ds.getRepository<AuditLog>("AuditLog"),
+      branchRepo: ds.getRepository(Branch),
+      auditRepo: ds.getRepository(AuditLog),
     };
   }
 

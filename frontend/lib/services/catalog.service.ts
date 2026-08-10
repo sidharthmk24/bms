@@ -32,12 +32,12 @@ export class CatalogService {
   private async getRepos() {
     const ds = await getDataSource();
     return {
-      bookRepo: ds.getRepository<Book>("Book"),
-      authorRepo: ds.getRepository<Author>("Author"),
-      publisherRepo: ds.getRepository<Publisher>("Publisher"),
-      categoryRepo: ds.getRepository<Category>("Category"),
-      supplierRepo: ds.getRepository<Supplier>("Supplier"),
-      auditRepo: ds.getRepository<AuditLog>("AuditLog"),
+      bookRepo: ds.getRepository(Book),
+      authorRepo: ds.getRepository(Author),
+      publisherRepo: ds.getRepository(Publisher),
+      categoryRepo: ds.getRepository(Category),
+      supplierRepo: ds.getRepository(Supplier),
+      auditRepo: ds.getRepository(AuditLog),
     };
   }
 

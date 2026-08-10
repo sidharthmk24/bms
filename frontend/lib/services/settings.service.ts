@@ -9,7 +9,7 @@ export class SettingsService {
   private async getRepos() {
     const ds = await getDataSource();
     return {
-      settingRepo: ds.getRepository<SystemSetting>("SystemSetting"),
+      settingRepo: ds.getRepository(SystemSetting),
     };
   }
 

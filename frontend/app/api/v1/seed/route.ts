@@ -1,14 +1,16 @@
 import { apiSuccess, apiError } from '@/lib/api-response';
 import { NextRequest } from 'next/server';
 import { getDataSource } from '@/lib/db/data-source';
+import { User } from '@/lib/api-backend/users/entities/user.entity';
+import { UserRole } from '@/lib/api-backend/users/entities/user-role.entity';
 import * as bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
 
 export async function GET(req: NextRequest) {
   try {
     const ds = await getDataSource();
-    const userRepo = ds.getRepository('User');
-    const roleRepo = ds.getRepository('UserRole');
+    const userRepo = ds.getRepository(User);
+    const roleRepo = ds.getRepository(UserRole);
     
     let admin = await userRepo.findOne({ where: { email: 'superadmin@bms.com' }, relations: ['roles'] });
     

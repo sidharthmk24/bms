@@ -30,7 +30,7 @@ export class ExhibitionsService {
     const ds = await getDataSource();
     return {
       dataSource: ds,
-      exhibitionRepo: ds.getRepository<Exhibition>("Exhibition"),
+      exhibitionRepo: ds.getRepository(Exhibition),
     };
   }
 
@@ -62,11 +62,11 @@ export class ExhibitionsService {
         assignedUserId: dto.assignedUserId || null,
       } as object);
 
-      const savedExhibition = await queryRunner.manager.getRepository("Exhibition").save(exhibition);
+      const savedExhibition = await queryRunner.manager.getRepository(Exhibition).save(exhibition);
 
       // Create stock entries (no quantity movement yet — that happens on dispatch)
       const stockItems = dto.items.map((item) =>
-        queryRunner.manager.getRepository("ExhibitionStock").create({
+        queryRunner.manager.getRepository(ExhibitionStock).create({
           exhibitionId: savedExhibition.id,
           bookId: item.bookId,
           quantityTaken: item.quantityTaken,
@@ -76,7 +76,7 @@ export class ExhibitionsService {
           quantityLost: 0,
         }),
       );
-      await queryRunner.manager.getRepository("ExhibitionStock").save(stockItems);
+      await queryRunner.manager.getRepository(ExhibitionStock).save(stockItems);
 
       await queryRunner.manager.query(
         'INSERT INTO `audit_log`(`id`,`user_id`,`action`,`entity_type`,`entity_id`,`before_json`,`after_json`,`ip_address`,`created_at`) VALUES (UUID(),?,?,?,?,NULL,?,?,DEFAULT)',
@@ -240,7 +240,7 @@ export class ExhibitionsService {
         });
       }
 
-      await queryRunner.manager.getRepository("Exhibition").update({ id }, { status: ExhibitionStatus.ONGOING });
+      await queryRunner.manager.getRepository(Exhibition).update({ id }, { status: ExhibitionStatus.ONGOING });
 
       await queryRunner.manager.query(
         'INSERT INTO `audit_log`(`id`,`user_id`,`action`,`entity_type`,`entity_id`,`before_json`,`after_json`,`ip_address`,`created_at`) VALUES (UUID(),?,?,?,?,?,?,?,DEFAULT)',
@@ -306,7 +306,7 @@ export class ExhibitionsService {
         const stockItem = exhibition.stock.find((s) => s.id === closeItem.stockId)!;
 
         // Update exhibition stock with reconciliation data
-        await queryRunner.manager.getRepository("ExhibitionStock").update({ id: closeItem.stockId }, {
+        await queryRunner.manager.getRepository(ExhibitionStock).update({ id: closeItem.stockId }, {
           quantitySold: closeItem.quantitySold,
           quantityReturned: closeItem.quantityReturned,
           quantityDamaged: closeItem.quantityDamaged,
@@ -366,7 +366,7 @@ export class ExhibitionsService {
         }
       }
 
-      await queryRunner.manager.getRepository("Exhibition").update({ id }, { status: ExhibitionStatus.CLOSED });
+      await queryRunner.manager.getRepository(Exhibition).update({ id }, { status: ExhibitionStatus.CLOSED });
 
       await queryRunner.manager.query(
         'INSERT INTO `audit_log`(`id`,`user_id`,`action`,`entity_type`,`entity_id`,`before_json`,`after_json`,`ip_address`,`created_at`) VALUES (UUID(),?,?,?,?,?,?,?,DEFAULT)',

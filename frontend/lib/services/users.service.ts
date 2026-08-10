@@ -25,10 +25,10 @@ export class UsersService {
   private async getRepos() {
     const ds = await getDataSource();
     return {
-      userRepo: ds.getRepository<User>("User"),
-      resetRepo: ds.getRepository<PasswordResetToken>("PasswordResetToken"),
-      branchRepo: ds.getRepository<Branch>("Branch"),
-      auditRepo: ds.getRepository<AuditLog>("AuditLog"),
+      userRepo: ds.getRepository(User),
+      resetRepo: ds.getRepository(PasswordResetToken),
+      branchRepo: ds.getRepository(Branch),
+      auditRepo: ds.getRepository(AuditLog),
     };
   }
 

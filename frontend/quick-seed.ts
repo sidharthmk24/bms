@@ -2,6 +2,7 @@ import { config } from 'dotenv';
 config({ path: '.env.local' });
 
 import { getDataSource } from './lib/db/data-source';
+import { User } from './lib/api-backend/users/entities/user.entity';
 import * as bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -9,7 +10,7 @@ async function seed() {
   console.log('Connecting to database using credentials from .env.local...');
   const ds = await getDataSource();
   
-  const userRepo = ds.getRepository('User');
+  const userRepo = ds.getRepository(User);
   const existing = await userRepo.findOne({ where: { email: 'superadmin@bms.com' } });
   if (existing) {
     console.log('Super Admin already exists.');

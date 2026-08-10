@@ -23,8 +23,8 @@ export class EnquiriesService {
     const ds = await getDataSource();
     return {
       dataSource: ds,
-      enquiryRepo: ds.getRepository<BookEnquiry>("BookEnquiry"),
-      newTitleRepo: ds.getRepository<NewTitleRequest>("NewTitleRequest"),
+      enquiryRepo: ds.getRepository(BookEnquiry),
+      newTitleRepo: ds.getRepository(NewTitleRequest),
     };
   }
 

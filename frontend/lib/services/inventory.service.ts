@@ -40,12 +40,12 @@ export class InventoryService {
     const ds = await getDataSource();
     return {
       dataSource: ds,
-      centralStockRepository: ds.getRepository<CentralStock>("CentralStock"),
-      branchInventoryRepository: ds.getRepository<BranchInventory>("BranchInventory"),
-      stockMovementRepository: ds.getRepository<StockMovement>("StockMovement"),
-      bookRepository: ds.getRepository<Book>("Book"),
-      branchRepository: ds.getRepository<Branch>("Branch"),
-      auditLogRepository: ds.getRepository<AuditLog>("AuditLog"),
+      centralStockRepository: ds.getRepository(CentralStock),
+      branchInventoryRepository: ds.getRepository(BranchInventory),
+      stockMovementRepository: ds.getRepository(StockMovement),
+      bookRepository: ds.getRepository(Book),
+      branchRepository: ds.getRepository(Branch),
+      auditLogRepository: ds.getRepository(AuditLog),
     };
   }
 
