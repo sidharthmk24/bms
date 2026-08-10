@@ -29,7 +29,7 @@ export class User {
   @Column({ type: 'enum', enum: UserRoleEnum, name: 'primary_role', nullable: true })
   primaryRole: UserRoleEnum;
 
-  @OneToMany('UserRole', (userRole: any) => userRole.user, { cascade: true })
+  @OneToMany(() => UserRole, (userRole: any) => userRole.user, { cascade: true })
   roles: UserRole[];
 
   @Column({ type: 'varchar', name: 'branch_id', length: 36, nullable: true })
