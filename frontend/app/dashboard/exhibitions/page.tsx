@@ -19,12 +19,16 @@ export default function ExhibitionsPage() {
   const { data: exhibitions, loading, error } = useApiData<any[]>('/exhibitions', []);
   const { data: catalog } = useApiData<any>('/catalog/books?limit=1000', []);
   const { data: usersResponse } = useApiData<any>('/users', []);
+  const { data: branchesResponse } = useApiData<any>('/branches', []);
+  
   const branchUsers = (usersResponse?.data || usersResponse || []).filter((u: any) => u.branchId === user?.branchId || u.branch?.id === user?.branchId);
+  const branches = branchesResponse?.items || (Array.isArray(branchesResponse) ? branchesResponse : []);
 
   // Creation State
   const [isCreating, setIsCreating] = useState(false);
   const [eventName, setEventName] = useState('');
   const [location, setLocation] = useState('');
+  const [createBranchId, setCreateBranchId] = useState('');
   const [assignedUserId, setAssignedUserId] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -41,7 +45,46 @@ export default function ExhibitionsPage() {
   // View Rejection Reason State
   const [viewingRejectionReason, setViewingRejectionReason] = useState<string | null>(null);
 
+  // Edit & Assign State
+  const [editingExhibition, setEditingExhibition] = useState<any | null>(null);
+  const [editFormData, setEditFormData] = useState({ name: '', location: '', startDate: '', endDate: '' });
+  
+  const [assigningExhibition, setAssigningExhibition] = useState<any | null>(null);
+  const [assignBranchId, setAssignBranchId] = useState('');
+  const [assignUserId, setAssignUserId] = useState('');
+
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setIsSubmitting(true);
+      await api.patch(`/exhibitions/${editingExhibition.id}`, {
+        name: editFormData.name,
+        location: editFormData.location,
+        startDate: new Date(editFormData.startDate).toISOString(),
+        endDate: new Date(editFormData.endDate).toISOString(),
+      });
+      setEditingExhibition(null);
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to update exhibition');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleAssign = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setIsSubmitting(true);
+      await api.patch(`/exhibitions/${assigningExhibition.id}`, { assignedUserId: assignUserId || null });
+      setAssigningExhibition(null);
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to assign user');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const handleCreate = async () => {
     try {
@@ -49,6 +92,7 @@ export default function ExhibitionsPage() {
       await api.post('/exhibitions', {
         name: eventName,
         location,
+        sourceBranchId: createBranchId || undefined,
         startDate: new Date(startDate).toISOString(),
         endDate: new Date(endDate).toISOString(),
         assignedUserId: assignedUserId || undefined,
@@ -56,7 +100,7 @@ export default function ExhibitionsPage() {
       });
       setIsCreating(false);
       setCart([]);
-      setEventName(''); setLocation(''); setStartDate(''); setEndDate(''); setAssignedUserId('');
+      setEventName(''); setLocation(''); setStartDate(''); setEndDate(''); setAssignedUserId(''); setCreateBranchId('');
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to request exhibition');
     } finally {
@@ -91,9 +135,9 @@ export default function ExhibitionsPage() {
   const handleClose = async () => {
     if (!closingExhibition) return;
     
-    // Validate that Sold + Returned + Damaged + Lost == Taken
+    // Validate that Sold + Returned + Damaged + Lost + Credit == Taken
     for (const rec of reconciliation) {
-      const total = (rec.quantitySold || 0) + (rec.quantityReturned || 0) + (rec.quantityDamaged || 0) + (rec.quantityLost || 0);
+      const total = (rec.quantitySold || 0) + (rec.quantityReturned || 0) + (rec.quantityDamaged || 0) + (rec.quantityLost || 0) + (rec.quantityCredit || 0);
       if (total !== rec.quantityTaken) {
         alert(`Mismatch in "${rec.title}": Total accounted (${total}) does not equal quantity taken (${rec.quantityTaken}).`);
         return;
@@ -109,7 +153,8 @@ export default function ExhibitionsPage() {
           quantitySold: r.quantitySold || 0,
           quantityReturned: r.quantityReturned || 0,
           quantityDamaged: r.quantityDamaged || 0,
-          quantityLost: r.quantityLost || 0
+          quantityLost: r.quantityLost || 0,
+          quantityCredit: r.quantityCredit || 0
         }))
       });
       setClosingExhibition(null);
@@ -157,13 +202,13 @@ export default function ExhibitionsPage() {
           <h2 className="text-2xl font-bold tracking-tight text-gray-900">Exhibitions & Events</h2>
           <p className="text-sm text-gray-500">Manage off-site book sales events.</p>
         </div>
-        {isBranch && (
+        {(isBranch || isAdmin) && (
           <button
             onClick={() => setIsCreating(true)}
             className="flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
           >
             <Plus className="w-4 h-4 mr-2" />
-            Request Exhibition
+            {isAdmin ? 'Create Exhibition' : 'Request Exhibition'}
           </button>
         )}
       </div>
@@ -182,7 +227,7 @@ export default function ExhibitionsPage() {
             {(exhibitions || []).map((ex: any) => (
               <tr key={ex.id}>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm font-bold text-gray-900">{ex.eventName}</div>
+                  <div className="text-sm font-bold text-gray-900">{ex.name || ex.eventName}</div>
                   <div className="text-xs text-gray-500">{ex.location} • {ex.branch?.name}</div>
                   {ex.assignedUser && <div className="text-xs text-blue-600 mt-1">Assigned: {ex.assignedUser.name}</div>}
                 </td>
@@ -194,10 +239,32 @@ export default function ExhibitionsPage() {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                   {isAdmin && ex.status === 'REQUESTED' && (
-                    <div className="flex justify-end space-x-2">
+                    <div className="flex justify-end space-x-2 mt-2">
                       <button onClick={() => handleApproveReject(ex.id, 'reject')} className="text-red-600 hover:text-red-900">Reject</button>
                       <button onClick={() => handleApproveReject(ex.id, 'approve')} className="text-blue-600 hover:text-blue-900 font-bold">Approve</button>
                     </div>
+                  )}
+                  {isAdmin && ex.status !== 'CLOSED' && (
+                    <button onClick={() => {
+                      setAssigningExhibition(ex);
+                      setAssignBranchId('');
+                      setAssignUserId(ex.assignedUserId || '');
+                    }} className="text-green-600 hover:text-green-900 flex items-center justify-end w-full mt-2">
+                      Assign
+                    </button>
+                  )}
+                  {ex.requestedById === user?.id && ex.status !== 'CLOSED' && ex.status !== 'ONGOING' && (
+                    <button onClick={() => {
+                      setEditingExhibition(ex);
+                      setEditFormData({
+                        name: ex.name || ex.eventName,
+                        location: ex.location,
+                        startDate: ex.startDate ? new Date(ex.startDate).toISOString().split('T')[0] : '',
+                        endDate: ex.endDate ? new Date(ex.endDate).toISOString().split('T')[0] : ''
+                      });
+                    }} className="text-blue-600 hover:text-blue-900 flex items-center justify-end w-full mt-2">
+                      Edit Event
+                    </button>
                   )}
                   {isBranch && ex.status === 'APPROVED' && (
                     <button onClick={() => handleDispatch(ex.id)} className="text-purple-600 hover:text-purple-900 flex items-center justify-end w-full">
@@ -215,7 +282,8 @@ export default function ExhibitionsPage() {
                           quantitySold: s.quantityTaken, // Default assume all sold
                           quantityReturned: 0,
                           quantityDamaged: 0,
-                          quantityLost: 0
+                          quantityLost: 0,
+                          quantityCredit: 0
                         })));
                       }} 
                       className="text-amber-600 hover:text-amber-900 flex items-center justify-end w-full"
@@ -249,16 +317,35 @@ export default function ExhibitionsPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
                   <input type="text" value={location} onChange={e => setLocation(e.target.value)} className="block w-full px-3 py-2 border border-gray-300 rounded-lg sm:text-sm" />
                 </div>
+                {isAdmin && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Select Branch</label>
+                    <Dropdown
+                      value={createBranchId}
+                      onChange={(val) => {
+                        setCreateBranchId(val);
+                        setAssignedUserId('');
+                      }}
+                      placeholder="Select a branch..."
+                      options={branches.map((b: any) => ({ value: b.id, label: b.name }))}
+                    />
+                  </div>
+                )}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Assigned Staff</label>
                   <Dropdown
                     value={assignedUserId}
                     onChange={(val) => setAssignedUserId(val)}
-                    placeholder="Select staff member..."
-                    options={branchUsers.map((u: any) => ({
-                      value: u.id,
-                      label: `${u.name} (${u.role})`
-                    }))}
+                    placeholder={isAdmin && !createBranchId ? "Select branch first..." : "Select staff member..."}
+                    options={(usersResponse?.data || usersResponse || [])
+                      .filter((u: any) => {
+                        const targetBranchId = isAdmin ? createBranchId : user?.branchId;
+                        return u.branchId === targetBranchId || u.branch?.id === targetBranchId;
+                      })
+                      .map((u: any) => ({
+                        value: u.id,
+                        label: `${u.name} (${u.roles?.map((r: any) => r.role).join(', ') || u.primaryRole})`
+                      }))}
                   />
                 </div>
                 <div>
@@ -345,7 +432,7 @@ export default function ExhibitionsPage() {
               
               <div className="bg-blue-50 text-blue-800 p-3 rounded-lg mb-4 text-sm flex items-start">
                 <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0" />
-                <p>You must account for every book taken. For each row: <strong>Sold + Returned + Damaged + Lost = Taken</strong>.</p>
+                <p>You must account for every book taken. For each row: <strong>Sold + Returned + Damaged + Lost + Credit = Taken</strong>.</p>
               </div>
 
               <div className="max-h-96 overflow-y-auto mb-6 border rounded-lg">
@@ -358,11 +445,12 @@ export default function ExhibitionsPage() {
                       <th className="px-4 py-2 text-center text-xs font-medium text-gray-500">Returned</th>
                       <th className="px-4 py-2 text-center text-xs font-medium text-red-500">Damaged</th>
                       <th className="px-4 py-2 text-center text-xs font-medium text-red-500">Lost</th>
+                      <th className="px-4 py-2 text-center text-xs font-medium text-rose-500">Credit</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {reconciliation.map((rec: any, idx) => {
-                      const total = (rec.quantitySold || 0) + (rec.quantityReturned || 0) + (rec.quantityDamaged || 0) + (rec.quantityLost || 0);
+                      const total = (rec.quantitySold || 0) + (rec.quantityReturned || 0) + (rec.quantityDamaged || 0) + (rec.quantityLost || 0) + (rec.quantityCredit || 0);
                       const isBalanced = total === rec.quantityTaken;
                       
                       return (
@@ -396,6 +484,13 @@ export default function ExhibitionsPage() {
                               newRec[idx].quantityLost = Number(e.target.value);
                               setReconciliation(newRec);
                             }} className="w-16 text-center border border-red-300 rounded py-1" />
+                          </td>
+                          <td className="px-2 py-3 text-center">
+                            <input type="number" min="0" value={rec.quantityCredit} onChange={(e) => {
+                              const newRec = [...reconciliation];
+                              newRec[idx].quantityCredit = Number(e.target.value);
+                              setReconciliation(newRec);
+                            }} className="w-16 text-center border border-rose-300 rounded py-1" />
                           </td>
                         </tr>
                       );
@@ -435,6 +530,89 @@ export default function ExhibitionsPage() {
                   Close
                 </button>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Exhibition Modal */}
+      <AnimatePresence>
+        {editingExhibition && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6">
+              <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center"><Tent className="w-5 h-5 mr-2"/> Edit Exhibition Details</h3>
+              <form onSubmit={handleEdit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Event Name</label>
+                  <input required type="text" value={editFormData.name} onChange={e => setEditFormData({...editFormData, name: e.target.value})} className="block w-full px-3 py-2 border rounded-lg sm:text-sm" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                  <input required type="text" value={editFormData.location} onChange={e => setEditFormData({...editFormData, location: e.target.value})} className="block w-full px-3 py-2 border rounded-lg sm:text-sm" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                    <input required type="date" value={editFormData.startDate} onChange={e => setEditFormData({...editFormData, startDate: e.target.value})} className="block w-full px-3 py-2 border rounded-lg sm:text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                    <input required type="date" value={editFormData.endDate} onChange={e => setEditFormData({...editFormData, endDate: e.target.value})} className="block w-full px-3 py-2 border rounded-lg sm:text-sm" />
+                  </div>
+                </div>
+                <div className="flex justify-end space-x-3 mt-6 pt-4 border-t">
+                  <button type="button" onClick={() => setEditingExhibition(null)} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
+                  <button type="submit" disabled={isSubmitting} className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                    {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : 'Save Changes'}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Assign User Modal */}
+      <AnimatePresence>
+        {assigningExhibition && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6">
+              <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">Assign Staff to Exhibition</h3>
+              <form onSubmit={handleAssign} className="space-y-4">
+                <p className="text-sm text-gray-500 mb-4">Assign a staff member to oversee the <strong>{assigningExhibition.name}</strong> event.</p>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Select Branch</label>
+                  <Dropdown
+                    value={assignBranchId}
+                    onChange={(val) => {
+                      setAssignBranchId(val);
+                      setAssignUserId('');
+                    }}
+                    placeholder="Select a branch..."
+                    options={branches.map((b: any) => ({ value: b.id, label: b.name }))}
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Select Staff Member</label>
+                  <Dropdown
+                    value={assignUserId}
+                    onChange={(val) => setAssignUserId(val)}
+                    placeholder={assignBranchId ? "Select staff..." : "Select a branch first"}
+                    options={(usersResponse?.data || usersResponse || [])
+                      .filter((u: any) => u.branchId === assignBranchId || u.branch?.id === assignBranchId)
+                      .map((u: any) => ({ value: u.id, label: `${u.name} (${u.roles?.map((r: any) => r.role).join(', ') || u.primaryRole})` }))}
+                  />
+                </div>
+
+                <div className="flex justify-end space-x-3 mt-6 pt-4 border-t">
+                  <button type="button" onClick={() => setAssigningExhibition(null)} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
+                  <button type="submit" disabled={isSubmitting} className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50">
+                    {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : 'Assign'}
+                  </button>
+                </div>
+              </form>
             </motion.div>
           </div>
         )}

@@ -7,7 +7,10 @@ import { UserRole } from '@/lib/api-backend/users/enums/user-role.enum';
 const financeService = new FinanceService();
 
 export const GET = withRoles([UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.FINANCE, UserRole.BRANCH_MANAGER], async (req: NextRequest, { user }) => {
-  const data = await financeService.findAllExpenses(user);
+  const startDate = req.nextUrl.searchParams.get('startDate') || undefined;
+  const endDate = req.nextUrl.searchParams.get('endDate') || undefined;
+  
+  const data = await financeService.findAllExpenses(user, startDate, endDate);
   return apiSuccess(data);
 });
 

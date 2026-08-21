@@ -1,6 +1,6 @@
 import 'server-only';
 import { getDataSource } from '../db/data-source';
-import { Like } from 'typeorm';
+import { ILike } from 'typeorm';
 import { Book } from '../api-backend/catalog/entities/book.entity';
 import { Author } from '../api-backend/catalog/entities/author.entity';
 import { Publisher } from '../api-backend/catalog/entities/publisher.entity';
@@ -74,9 +74,23 @@ export class CatalogService {
   }
 
   async deleteAuthor(id: string): Promise<void> {
-    const { authorRepo } = await this.getRepos();
-    const result = await authorRepo.delete(id);
-    if (result.affected === 0) throw new NotFoundException(`Author with ID ${id} not found`);
+    const { authorRepo, bookRepo } = await this.getRepos();
+    
+    // Block delete if there are active books referencing this author
+    const activeBooksCount = await bookRepo.count({ where: { authorId: id, isActive: true } });
+    if (activeBooksCount > 0) {
+      throw new ConflictException('Cannot delete this author because it is referenced by one or more active books.');
+    }
+
+    try {
+      const result = await authorRepo.delete(id);
+      if (result.affected === 0) throw new NotFoundException(`Author with ID ${id} not found`);
+    } catch (err: any) {
+      if (err.code === 'ER_ROW_IS_REFERENCED_2' || err.errno === 1451 || String(err.message).includes('foreign key')) {
+        throw new ConflictException('Cannot delete this author because it is referenced by one or more books.');
+      }
+      throw err;
+    }
     delCache('catalog:authors:all');
     this.notificationsService.triggerRefresh('catalog_changed');
   }
@@ -114,9 +128,23 @@ export class CatalogService {
   }
 
   async deletePublisher(id: string): Promise<void> {
-    const { publisherRepo } = await this.getRepos();
-    const result = await publisherRepo.delete(id);
-    if (result.affected === 0) throw new NotFoundException(`Publisher with ID ${id} not found`);
+    const { publisherRepo, bookRepo } = await this.getRepos();
+
+    // Block delete if there are active books referencing this publisher
+    const activeBooksCount = await bookRepo.count({ where: { publisherId: id, isActive: true } });
+    if (activeBooksCount > 0) {
+      throw new ConflictException('Cannot delete this publisher because it is referenced by one or more active books.');
+    }
+
+    try {
+      const result = await publisherRepo.delete(id);
+      if (result.affected === 0) throw new NotFoundException(`Publisher with ID ${id} not found`);
+    } catch (err: any) {
+      if (err.code === 'ER_ROW_IS_REFERENCED_2' || err.errno === 1451 || String(err.message).includes('foreign key')) {
+        throw new ConflictException('Cannot delete this publisher because it is referenced by one or more books.');
+      }
+      throw err;
+    }
     delCache('catalog:publishers:all');
     this.notificationsService.triggerRefresh('catalog_changed');
   }
@@ -158,9 +186,23 @@ export class CatalogService {
   }
 
   async deleteCategory(id: string): Promise<void> {
-    const { categoryRepo } = await this.getRepos();
-    const result = await categoryRepo.delete(id);
-    if (result.affected === 0) throw new NotFoundException(`Category with ID ${id} not found`);
+    const { categoryRepo, bookRepo } = await this.getRepos();
+
+    // Block delete if there are active books referencing this category
+    const activeBooksCount = await bookRepo.count({ where: { categoryId: id, isActive: true } });
+    if (activeBooksCount > 0) {
+      throw new ConflictException('Cannot delete this category because it is referenced by one or more active books.');
+    }
+
+    try {
+      const result = await categoryRepo.delete(id);
+      if (result.affected === 0) throw new NotFoundException(`Category with ID ${id} not found`);
+    } catch (err: any) {
+      if (err.code === 'ER_ROW_IS_REFERENCED_2' || err.errno === 1451 || String(err.message).includes('foreign key')) {
+        throw new ConflictException('Cannot delete this category because it is referenced by one or more books.');
+      }
+      throw err;
+    }
     delCache('catalog:categories:all');
     this.notificationsService.triggerRefresh('catalog_changed');
   }
@@ -199,8 +241,15 @@ export class CatalogService {
 
   async deleteSupplier(id: string): Promise<void> {
     const { supplierRepo } = await this.getRepos();
-    const result = await supplierRepo.delete(id);
-    if (result.affected === 0) throw new NotFoundException(`Supplier with ID ${id} not found`);
+    try {
+      const result = await supplierRepo.delete(id);
+      if (result.affected === 0) throw new NotFoundException(`Supplier with ID ${id} not found`);
+    } catch (err: any) {
+      if (err.code === 'ER_ROW_IS_REFERENCED_2' || err.errno === 1451 || String(err.message).includes('foreign key')) {
+        throw new ConflictException('Cannot delete this supplier because it is referenced by one or more products or purchase orders.');
+      }
+      throw err;
+    }
     delCache('catalog:suppliers:all');
     this.notificationsService.triggerRefresh('catalog_changed');
   }
@@ -209,50 +258,54 @@ export class CatalogService {
   async findAllBooks(query: any) {
     const { bookRepo } = await this.getRepos();
     const { search, categoryId, authorId, publisherId, page = 1, limit = 10, sortBy = 'title', order = 'ASC' } = query;
-    const skip = (page - 1) * limit;
+    
+    const pageNum = parseInt(page as string, 10) || 1;
+    const limitNum = parseInt(limit as string, 10) || 10;
+    const skip = (pageNum - 1) * limitNum;
 
     const where: any = { isActive: true };
     const allowedSortFields = ['title', 'price', 'createdAt'];
     const validSortBy = allowedSortFields.includes(sortBy) ? sortBy : 'title';
-
-    if (search) {
-      return bookRepo.findAndCount({
-        where: [
-          { ...where, title: Like(`%${search}%`) },
-          { ...where, isbn: Like(`%${search}%`) },
-          { ...where, barcode: Like(`%${search}%`) },
-        ],
-        relations: ['author', 'publisher', 'category'],
-        order: { [validSortBy]: order },
-        skip,
-        take: limit,
-      }).then(([books, total]) => ({
-        books,
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-      }));
-    }
+    const validOrder = (order as string || '').toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
 
     if (categoryId) where.categoryId = categoryId;
     if (authorId) where.authorId = authorId;
     if (publisherId) where.publisherId = publisherId;
 
+    if (search) {
+      return bookRepo.findAndCount({
+        where: [
+          { ...where, title: ILike(`%${search}%`) },
+          { ...where, isbn: ILike(`%${search}%`) },
+          { ...where, barcode: ILike(`%${search}%`) },
+        ],
+        relations: ['author', 'publisher', 'category'],
+        order: { [validSortBy]: validOrder },
+        skip,
+        take: limitNum,
+      }).then(([books, total]) => ({
+        books,
+        total,
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.ceil(total / limitNum),
+      }));
+    }
+
     const [books, total] = await bookRepo.findAndCount({
       where,
       relations: ['author', 'publisher', 'category'],
-      order: { [validSortBy]: order },
+      order: { [validSortBy]: validOrder },
       skip,
-      take: limit,
+      take: limitNum,
     });
 
     return {
       books,
       total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit),
+      page: pageNum,
+      limit: limitNum,
+      totalPages: Math.ceil(total / limitNum),
     };
   }
 

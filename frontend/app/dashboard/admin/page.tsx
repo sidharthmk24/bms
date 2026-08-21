@@ -92,6 +92,7 @@ export default function AdminDashboard() {
               { value: 'all', label: 'All Branches (Combined)' },
               ...branches
                 .filter((b: any) => b.type !== 'WAREHOUSE')
+                .filter((b: any) => b.isActive !== false)
                 .map((b: any) => ({ value: b.id, label: `${b.name} (${b.code})` }))
             ]}
           />

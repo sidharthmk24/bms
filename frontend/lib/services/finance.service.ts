@@ -41,7 +41,7 @@ export class FinanceService {
     return expenseRepo.save(expense);
   }
 
-  async findAllExpenses(user: JwtPayload): Promise<Expense[]> {
+  async findAllExpenses(user: JwtPayload, startDate?: string, endDate?: string): Promise<Expense[]> {
     const { expenseRepo } = await this.getRepos();
     const qb = expenseRepo
       .createQueryBuilder('e')
@@ -51,7 +51,14 @@ export class FinanceService {
       .addOrderBy('e.createdAt', 'DESC');
 
     if (hasRole(user, UserRole.BRANCH_MANAGER)) {
-      qb.where('e.branch_id = :branchId', { branchId: user.branchId });
+      qb.andWhere('e.branch_id = :branchId', { branchId: user.branchId });
+    }
+    
+    if (startDate) {
+      qb.andWhere('e.expenseDate >= :startDate', { startDate });
+    }
+    if (endDate) {
+      qb.andWhere('e.expenseDate <= :endDate', { endDate });
     }
 
     return qb.getMany();

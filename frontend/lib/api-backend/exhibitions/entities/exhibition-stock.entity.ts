@@ -10,7 +10,7 @@ import { Book } from '../../catalog/entities/book.entity';
  * ExhibitionStock — tracks each book taken to an exhibition.
  *
  * Reconciliation rule enforced at close:
- *   quantityTaken = quantitySold + quantityReturned + quantityDamaged + quantityLost
+ *   quantityTaken = quantitySold + quantityReturned + quantityDamaged + quantityLost + quantityCredit
  *
  * The service rejects the close request if this doesn't balance.
  */
@@ -48,6 +48,9 @@ export class ExhibitionStock {
 
   @Column({ type: 'int', default: 0 })
   quantityLost: number;
+
+  @Column({ type: 'int', default: 0 })
+  quantityCredit: number;
 
   @CreateDateColumn()
   createdAt: Date;

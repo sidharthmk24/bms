@@ -37,4 +37,8 @@ export class CreateExhibitionDto {
   @IsString()
   @IsOptional()
   assignedUserId?: string;
+
+  @IsString()
+  @IsOptional()
+  sourceBranchId?: string;
 }

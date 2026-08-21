@@ -23,6 +23,10 @@ export class CloseExhibitionItemDto {
   @IsNumber()
   @Min(0)
   quantityLost: number;
+
+  @IsNumber()
+  @Min(0)
+  quantityCredit: number;
 }
 
 export class CloseExhibitionDto {

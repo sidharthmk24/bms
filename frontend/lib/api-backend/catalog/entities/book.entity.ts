@@ -55,26 +55,26 @@ export class Book {
   @Column({ type: 'varchar', length: 500, nullable: true })
   coverImageUrl: string;
 
-  @Column({ name: 'author_id', type: 'varchar', length: 36 })
-  authorId: string;
+  @Column({ name: 'author_id', type: 'varchar', length: 36, nullable: true })
+  authorId: string | null;
 
-  @ManyToOne(() => Author, { onDelete: 'RESTRICT' })
+  @ManyToOne(() => Author, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn({ name: 'author_id' })
-  author: Author;
+  author: Author | null;
 
-  @Column({ name: 'publisher_id', type: 'varchar', length: 36 })
-  publisherId: string;
+  @Column({ name: 'publisher_id', type: 'varchar', length: 36, nullable: true })
+  publisherId: string | null;
 
-  @ManyToOne(() => Publisher, { onDelete: 'RESTRICT' })
+  @ManyToOne(() => Publisher, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn({ name: 'publisher_id' })
-  publisher: Publisher;
+  publisher: Publisher | null;
 
-  @Column({ name: 'category_id', type: 'varchar', length: 36 })
-  categoryId: string;
+  @Column({ name: 'category_id', type: 'varchar', length: 36, nullable: true })
+  categoryId: string | null;
 
-  @ManyToOne(() => Category, { onDelete: 'RESTRICT' })
+  @ManyToOne(() => Category, { onDelete: 'SET NULL', nullable: true })
   @JoinColumn({ name: 'category_id' })
-  category: Category;
+  category: Category | null;
 
   @Column({ type: 'boolean', default: true })
   isActive: boolean;

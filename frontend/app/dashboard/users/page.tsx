@@ -238,7 +238,7 @@ export default function UsersManagementPage() {
                       value={formData.branchId}
                       onChange={(val) => setFormData({...formData, branchId: val})}
                       placeholder="Select branch..."
-                      options={(branches || []).map((b: any) => ({
+                      options={(branches || []).filter((b: any) => b.isActive !== false).map((b: any) => ({
                         value: b.id,
                         label: `${b.name} (${b.location})`
                       }))}

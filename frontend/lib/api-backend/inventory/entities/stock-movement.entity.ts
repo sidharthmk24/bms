@@ -16,6 +16,7 @@ export enum StockMovementType {
   EXHIBITION_RETURN = 'EXHIBITION_RETURN',
   PURCHASE_RECEIPT = 'PURCHASE_RECEIPT',
   ADJUSTMENT = 'ADJUSTMENT',
+  CREDIT_OUT = 'CREDIT_OUT',
 }
 
 export enum AdjustmentReason {
@@ -52,31 +53,31 @@ export class StockMovement {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ name: 'book_id', type: 'varchar', length: 36 })
+  @Column({ type: 'enum', enum: StockMovementType })
+  type: StockMovementType;
+
+  @Column({ type: 'int' })
+  quantity: number;
+
+  @Column({ type: 'varchar', length: 36 })
   bookId: string;
 
   @ManyToOne(() => Book, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'book_id' })
   book: Book;
 
-  /** null = central warehouse pool movement */
-  @Column({ name: 'branch_id', type: 'varchar', length: 36, nullable: true })
+  @Column({ type: 'varchar', length: 36, nullable: true })
   branchId: string | null;
 
-  @ManyToOne(() => Branch, { nullable: true, onDelete: 'RESTRICT' })
+  @ManyToOne(() => Branch, { onDelete: 'RESTRICT', nullable: true })
   @JoinColumn({ name: 'branch_id' })
   branch: Branch;
 
-  @Column({ type: 'enum', enum: StockMovementType })
-  type: StockMovementType;
+  @Column({ type: 'enum', enum: AdjustmentReason, name: 'reason', nullable: true })
+  adjustmentReason: AdjustmentReason | null;
 
-  /** Only populated for ADJUSTMENT type movements */
-  @Column({ type: 'enum', enum: AdjustmentReason, nullable: true })
-  reason: AdjustmentReason | null;
-
-  /** Signed integer: negative = out, positive = in */
-  @Column({ type: 'int' })
-  quantity: number;
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  note: string | null;
 
   @Column({ type: 'enum', enum: MovementReferenceType, nullable: true })
   referenceType: MovementReferenceType | null;
@@ -84,15 +85,12 @@ export class StockMovement {
   @Column({ type: 'varchar', length: 36, nullable: true })
   referenceId: string | null;
 
-  @Column({ name: 'performed_by_id', type: 'varchar', length: 36 })
+  @Column({ type: 'varchar', length: 36 })
   performedById: string;
 
   @ManyToOne(() => User, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'performed_by_id' })
   performedBy: User;
-
-  @Column({ type: 'varchar', nullable: true })
-  note: string | null;
 
   @CreateDateColumn()
   createdAt: Date;

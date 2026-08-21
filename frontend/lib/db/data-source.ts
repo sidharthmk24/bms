@@ -43,7 +43,22 @@ export async function getDataSource(): Promise<DataSource> {
   const fingerprint = buildFingerprint();
 
   // If entity classes changed (hot-reload), destroy the stale DataSource
-  if (globalForDb.dataSource?.isInitialized && globalForDb.entityFingerprint !== fingerprint) {
+  let entitiesChanged = false;
+  if (globalForDb.dataSource?.isInitialized) {
+    const registered = globalForDb.dataSource.options.entities as any[];
+    if (!registered || registered.length !== entities.length) {
+      entitiesChanged = true;
+    } else {
+      for (let i = 0; i < entities.length; i++) {
+        if (entities[i] !== registered[i]) {
+          entitiesChanged = true;
+          break;
+        }
+      }
+    }
+  }
+
+  if (globalForDb.dataSource?.isInitialized && (globalForDb.entityFingerprint !== fingerprint || entitiesChanged)) {
     console.warn('[DB] Entity classes changed after hot-reload — reinitialising DataSource...');
     try { await globalForDb.dataSource.destroy(); } catch (_) {}
     globalForDb.dataSource = undefined;

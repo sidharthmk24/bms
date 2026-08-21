@@ -10,7 +10,9 @@ import { getDataSource } from '../db/data-source';
 
 import { Exhibition, ExhibitionStatus } from '../api-backend/exhibitions/entities/exhibition.entity';
 import { ExhibitionStock } from '../api-backend/exhibitions/entities/exhibition-stock.entity';
+import { CreditCopy } from '../api-backend/credit-copies/entities/credit-copy.entity';
 import { CreateExhibitionDto } from '../api-backend/exhibitions/dto/create-exhibition.dto';
+import { UpdateExhibitionDto } from '../api-backend/exhibitions/dto/update-exhibition.dto';
 import { ReviewExhibitionDto } from '../api-backend/exhibitions/dto/review-exhibition.dto';
 import { CloseExhibitionDto } from '../api-backend/exhibitions/dto/close-exhibition.dto';
 
@@ -40,8 +42,9 @@ export class ExhibitionsService {
     user: JwtPayload,
     ipAddress: string,
   ): Promise<Exhibition> {
-    if (!user.branchId) {
-      throw new ForbiddenException('Exhibitions must be requested from a branch context');
+    const branchId = dto.sourceBranchId || user.branchId;
+    if (!branchId) {
+      throw new ForbiddenException('Exhibitions must be requested with a branch context');
     }
 
     const { dataSource, exhibitionRepo } = await this.getRepos();
@@ -53,7 +56,7 @@ export class ExhibitionsService {
       const exhibition = exhibitionRepo.create({
         name: dto.name,
         location: dto.location,
-        sourceBranchId: user.branchId,
+        sourceBranchId: branchId,
         startDate: new Date(dto.startDate),
         endDate: new Date(dto.endDate),
         requestedById: user.userId,
@@ -86,6 +89,74 @@ export class ExhibitionsService {
       await queryRunner.commitTransaction();
       this.notificationsService.triggerRefresh('exhibition_changed');
       return this.findOne(savedExhibition.id, user);
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  // ── Update exhibition ─────────────────────────────────────────────────────────
+  async updateExhibition(
+    id: string,
+    dto: UpdateExhibitionDto,
+    user: JwtPayload,
+    ipAddress: string,
+  ): Promise<Exhibition> {
+    const { exhibitionRepo } = await this.getRepos();
+    const exhibition = await this.findOne(id, user);
+
+    // Permission checks
+    const isAdmin = hasRole(user, UserRole.SUPER_ADMIN) || hasRole(user, UserRole.ADMIN);
+    const isCreator = exhibition.requestedById === user.userId;
+
+    if (!isAdmin && !isCreator) {
+      throw new ForbiddenException('You do not have permission to update this exhibition');
+    }
+
+    if (exhibition.status === ExhibitionStatus.CLOSED) {
+      throw new ConflictException('Cannot update a closed exhibition');
+    }
+
+    const updates: Partial<Exhibition> = {};
+
+    // Creators can update details if not closed. Admins can do it anytime (unless closed).
+    if (dto.name !== undefined) updates.name = dto.name;
+    if (dto.location !== undefined) updates.location = dto.location;
+    if (dto.startDate !== undefined) updates.startDate = new Date(dto.startDate);
+    if (dto.endDate !== undefined) updates.endDate = new Date(dto.endDate);
+
+    // Only Admins can assign users
+    if (dto.assignedUserId !== undefined) {
+      if (!isAdmin) {
+        throw new ForbiddenException('Only administrators can assign users to an exhibition');
+      }
+      updates.assignedUserId = dto.assignedUserId;
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return exhibition;
+    }
+
+    const { dataSource } = await this.getRepos();
+    const queryRunner = dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      await queryRunner.manager.getRepository(Exhibition).update({ id }, updates);
+
+      const updatedExhibition = await queryRunner.manager.getRepository(Exhibition).findOne({ where: { id } });
+
+      await queryRunner.manager.query(
+        'INSERT INTO `audit_log`(`id`,`user_id`,`action`,`entity_type`,`entity_id`,`before_json`,`after_json`,`ip_address`,`created_at`) VALUES (UUID(),?,?,?,?,?,?,?,DEFAULT)',
+        [user.userId, 'EXHIBITION_UPDATED', 'Exhibition', id, JSON.stringify(exhibition), JSON.stringify(updatedExhibition), ipAddress],
+      );
+
+      await queryRunner.commitTransaction();
+      this.notificationsService.triggerRefresh('exhibition_changed');
+      return this.findOne(id, user);
     } catch (err) {
       await queryRunner.rollbackTransaction();
       throw err;
@@ -285,14 +356,15 @@ export class ExhibitionsService {
         closeItem.quantitySold +
         closeItem.quantityReturned +
         closeItem.quantityDamaged +
-        closeItem.quantityLost;
+        closeItem.quantityLost +
+        closeItem.quantityCredit;
 
       if (total !== stockItem.quantityTaken) {
         throw new BadRequestException(
           `Reconciliation failed for book ${stockItem.bookId}: ` +
           `taken=${stockItem.quantityTaken} but sold(${closeItem.quantitySold}) + ` +
           `returned(${closeItem.quantityReturned}) + damaged(${closeItem.quantityDamaged}) + ` +
-          `lost(${closeItem.quantityLost}) = ${total}`,
+          `lost(${closeItem.quantityLost}) + credit(${closeItem.quantityCredit}) = ${total}`,
         );
       }
     }
@@ -311,7 +383,32 @@ export class ExhibitionsService {
           quantityReturned: closeItem.quantityReturned,
           quantityDamaged: closeItem.quantityDamaged,
           quantityLost: closeItem.quantityLost,
+          quantityCredit: closeItem.quantityCredit,
         });
+
+        // Record credit copies if any
+        if (closeItem.quantityCredit > 0) {
+          const creditCopy = queryRunner.manager.getRepository(CreditCopy).create({
+            bookId: stockItem.bookId,
+            branchId: exhibition.sourceBranchId,
+            quantity: closeItem.quantityCredit,
+            recipientName: `Exhibition: ${exhibition.name}`,
+            note: dto.note || 'Issued during exhibition closure',
+            issuedById: user.userId,
+          });
+          await queryRunner.manager.getRepository(CreditCopy).save(creditCopy);
+
+          await writeStockMovement(queryRunner, {
+            bookId: stockItem.bookId,
+            branchId: exhibition.sourceBranchId,
+            type: 'CREDIT_OUT',
+            quantity: -closeItem.quantityCredit,
+            performedById: user.userId,
+            referenceType: 'EXHIBITION',
+            referenceId: exhibition.id,
+            note: 'Credit copy from exhibition',
+          });
+        }
 
         // Return unsold + returned books back to branch inventory
         const qtyToReturn = closeItem.quantityReturned;

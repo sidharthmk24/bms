@@ -118,7 +118,7 @@ export default function BranchInventoryPage() {
                 onChange={(val) => setSelectedBranchId(val)}
                 placeholder="Select a branch..."
                 options={branches
-                  .filter((b: any) => b.type !== 'WAREHOUSE' && b.name?.toLowerCase() !== 'central warehouse')
+                  .filter((b: any) => b.isActive !== false && b.type !== 'WAREHOUSE' && b.name?.toLowerCase() !== 'central warehouse')
                   .map((b: any) => ({
                     value: b.id,
                     label: b.name

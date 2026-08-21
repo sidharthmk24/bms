@@ -3,9 +3,10 @@
 import { useState } from 'react';
 import { useApiData } from '@/hooks/useApiData';
 import { api } from '@/lib/api';
-import { Loader2, Plus, Trash2, ArrowLeft, ArrowUpDown } from 'lucide-react';
+import { Loader2, Plus, Trash2, ArrowLeft, ArrowUpDown, Download, X } from 'lucide-react';
 import Link from 'next/link';
 import { Dropdown } from '@/components/Dropdown';
+import * as XLSX from 'xlsx';
 
 export default function ExpensesPage() {
   const [page, setPage] = useState(1);
@@ -15,6 +16,12 @@ export default function ExpensesPage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedExpenses, setSelectedExpenses] = useState<string[]>([]);
+  
+  // Export state
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportStartDate, setExportStartDate] = useState('');
+  const [exportEndDate, setExportEndDate] = useState('');
+  const [isExporting, setIsExporting] = useState(false);
   
   // Filters & Sorting state
   const [filterCategory, setFilterCategory] = useState<string>('ALL');
@@ -86,6 +93,58 @@ export default function ExpensesPage() {
       return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
     });
 
+  const handleExport = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsExporting(true);
+    try {
+      let url = '/finance/expenses?';
+      if (exportStartDate) url += `startDate=${exportStartDate}&`;
+      if (exportEndDate) url += `endDate=${exportEndDate}`;
+      
+      const res = await api.get(url);
+      const data = res.data?.data || res.data || [];
+      
+      if (!Array.isArray(data) || data.length === 0) {
+        alert('No expenses found for the selected date range.');
+        return;
+      }
+      
+      const headers = ['Date', 'Category', 'Branch', 'Amount (INR)', 'Entered By', 'Description'];
+      const rows = data.map((exp: any) => {
+        const date = exp.expenseDate ? exp.expenseDate.split('T')[0] : '';
+        const cat = exp.category || '';
+        const branch = exp.branch?.name || 'HQ / General';
+        const amount = exp.amount || 0;
+        const user = exp.enteredBy?.name || 'System';
+        const desc = exp.description || '';
+        return [date, cat, branch, amount, user, desc];
+      });
+      
+      const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+      
+      // Set column widths to prevent '#######' on dates and text truncation
+      worksheet['!cols'] = [
+        { wch: 15 }, // Date
+        { wch: 15 }, // Category
+        { wch: 25 }, // Branch
+        { wch: 15 }, // Amount (INR)
+        { wch: 20 }, // Entered By
+        { wch: 50 }, // Description
+      ];
+      
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Expenses');
+      
+      XLSX.writeFile(workbook, `expenses_export_${new Date().toISOString().split('T')[0]}.xlsx`);
+      
+      setShowExportModal(false);
+    } catch (err) {
+      alert('Failed to export expenses');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center space-x-4">
@@ -137,7 +196,7 @@ export default function ExpensesPage() {
                 onChange={(value) => setFormData({ ...formData, branchId: value })}
                 options={[
                   { label: 'HQ / General (No Branch)', value: '' },
-                  ...(branches?.map((b: any) => ({ label: b.name, value: b.id })) || [])
+                  ...(branches?.filter((b: any) => b.isActive !== false).map((b: any) => ({ label: b.name, value: b.id })) || [])
                 ]}
                 placeholder="Select branch"
               />
@@ -204,7 +263,7 @@ export default function ExpensesPage() {
                   options={[
                     { label: 'All Branches', value: 'ALL' },
                     { label: 'HQ (No Branch)', value: 'HQ' },
-                    ...(branches?.map((b: any) => ({ label: b.name, value: b.id })) || [])
+                    ...(branches?.filter((b: any) => b.isActive !== false).map((b: any) => ({ label: b.name, value: b.id })) || [])
                   ]}
                   placeholder="Branch"
                   selectClassName="!py-1.5"
@@ -230,6 +289,14 @@ export default function ExpensesPage() {
                   Delete ({selectedExpenses.length})
                 </button>
               )}
+
+              <button
+                onClick={() => setShowExportModal(true)}
+                className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors shrink-0"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Export to Excel
+              </button>
             </div>
           </div>
           <div className="overflow-x-auto overflow-y-auto flex-1">
@@ -321,6 +388,95 @@ export default function ExpensesPage() {
           </div>
         </div>
       </div>
+
+      {/* Export Modal */}
+      {showExportModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+            <div className="flex justify-between items-center p-6 border-b border-gray-100">
+              <h3 className="text-xl font-bold text-gray-900">Export Expenses</h3>
+              <button onClick={() => setShowExportModal(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleExport} className="p-6">
+              <div className="space-y-4">
+                <p className="text-sm text-gray-500">
+                  Select a date range to export your expenses to an Excel-compatible CSV file. Leave blank to export all available data.
+                </p>
+                
+                <div className="grid grid-cols-2 gap-4 pt-2">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                    <input
+                      type="date"
+                      value={exportStartDate}
+                      onChange={e => setExportStartDate(e.target.value)}
+                      className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                    <input
+                      type="date"
+                      value={exportEndDate}
+                      onChange={e => setExportEndDate(e.target.value)}
+                      className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                    />
+                  </div>
+                </div>
+                
+                <div className="flex flex-wrap gap-2 pt-2">
+                  <button type="button" onClick={() => {
+                    const today = new Date();
+                    setExportEndDate(today.toISOString().split('T')[0]);
+                    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+                    setExportStartDate(firstDay.toISOString().split('T')[0]);
+                  }} className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-full transition-colors">
+                    This Month
+                  </button>
+                  <button type="button" onClick={() => {
+                    const today = new Date();
+                    const lastDay = new Date(today.getFullYear(), today.getMonth(), 0);
+                    setExportEndDate(lastDay.toISOString().split('T')[0]);
+                    const firstDay = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+                    setExportStartDate(firstDay.toISOString().split('T')[0]);
+                  }} className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-full transition-colors">
+                    Last Month
+                  </button>
+                  <button type="button" onClick={() => {
+                    const today = new Date();
+                    setExportEndDate(today.toISOString().split('T')[0]);
+                    const firstDay = new Date(today.getFullYear(), 0, 1);
+                    setExportStartDate(firstDay.toISOString().split('T')[0]);
+                  }} className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-full transition-colors">
+                    This Year
+                  </button>
+                </div>
+              </div>
+              
+              <div className="mt-8 pt-4 border-t border-gray-100 flex justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={() => setShowExportModal(false)}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isExporting}
+                  className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-lg shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+                >
+                  {isExporting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+                  Download Excel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

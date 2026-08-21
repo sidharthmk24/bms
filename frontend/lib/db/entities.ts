@@ -1,4 +1,5 @@
-﻿import { AuditLog } from "../api-backend/audit/entities/audit-log.entity";
+import { AuditLog } from "../api-backend/audit/entities/audit-log.entity";
+import { CreditCopy } from "../api-backend/credit-copies/entities/credit-copy.entity";
 import { BillItem } from "../api-backend/billing/entities/bill-item.entity";
 import { Bill } from "../api-backend/billing/entities/bill.entity";
 import { Branch } from "../api-backend/branches/entities/branch.entity";
@@ -29,6 +30,7 @@ import { User } from "../api-backend/users/entities/user.entity";
 
 export const entities = [
   AuditLog,
+  CreditCopy,
   BillItem,
   Bill,
   Branch,

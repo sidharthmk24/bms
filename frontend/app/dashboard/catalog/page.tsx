@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useApiData } from '@/hooks/useApiData';
 import { api } from '@/lib/api';
-import { Loader2, Plus, Book, Users, Tag, Building2, Pencil } from 'lucide-react';
+import { Loader2, Plus, Book, Users, Tag, Building2, Pencil, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Dropdown } from '@/components/Dropdown';
 
@@ -161,6 +161,38 @@ export default function CatalogManagementPage() {
     }
   };
 
+  const handleDeleteBook = async (id: string, title: string) => {
+    if (!confirm(`Are you sure you want to delete "${title}" from the catalog?`)) return;
+    try {
+      await api.delete(`/catalog/books/${id}`);
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to delete book');
+    }
+  };
+
+  const getSingularLabel = () => {
+    if (activeTab === 'BOOKS') return 'book';
+    if (activeTab === 'AUTHORS') return 'author';
+    if (activeTab === 'CATEGORIES') return 'category';
+    if (activeTab === 'PUBLISHERS') return 'publisher';
+    return '';
+  };
+
+  const handleDeleteEntity = async (id: string, name: string) => {
+    const typeLabel = getSingularLabel();
+    if (!confirm(`Are you sure you want to delete the ${typeLabel} "${name}"?`)) return;
+    try {
+      const endpointMap = {
+        'AUTHORS': '/catalog/authors',
+        'CATEGORIES': '/catalog/categories',
+        'PUBLISHERS': '/catalog/publishers'
+      };
+      await api.delete(`${endpointMap[activeTab as 'AUTHORS' | 'CATEGORIES' | 'PUBLISHERS']}/${id}`);
+    } catch (err: any) {
+      alert(err.response?.data?.message || `Failed to delete ${typeLabel}`);
+    }
+  };
+
   const isLoading = booksLoading || authorsLoading || categoriesLoading || pubLoading;
 
   return (
@@ -175,7 +207,7 @@ export default function CatalogManagementPage() {
           className="flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
         >
           <Plus className="w-4 h-4 mr-2" />
-          Add {activeTab.slice(0,-1).toLowerCase().replace(/^\w/, c => c.toUpperCase())}
+          Add {getSingularLabel().replace(/^\w/, c => c.toUpperCase())}
         </button>
       </div>
 
@@ -197,63 +229,66 @@ export default function CatalogManagementPage() {
       </div>
 
       <div className="bg-white shadow-sm border border-gray-200 rounded-xl overflow-hidden">
+        {activeTab === 'BOOKS' && (
+          <div className="p-4 border-b border-gray-200 flex flex-col sm:flex-row gap-4 bg-gray-50 items-start sm:items-center">
+            <div className="flex-1 w-full">
+              <input 
+                type="text" 
+                placeholder="Search titles, ISBNs..." 
+                value={searchQuery}
+                onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg sm:text-sm focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+            <div className="w-48 text-left z-20">
+              <Dropdown
+                value={selectedCategory}
+                onChange={(val) => { setSelectedCategory(val); setPage(1); }}
+                placeholder="All Categories"
+                options={[
+                  { value: '', label: 'All Categories' },
+                  ...(categories?.map((c: any) => ({ value: c.id, label: c.name })) || [])
+                ]}
+              />
+            </div>
+            <div className="w-48 text-left z-10">
+              <Dropdown
+                value={selectedAuthor}
+                onChange={(val) => { setSelectedAuthor(val); setPage(1); }}
+                placeholder="All Authors"
+                options={[
+                  { value: '', label: 'All Authors' },
+                  ...(authors?.map((a: any) => ({ value: a.id, label: a.name })) || [])
+                ]}
+              />
+            </div>
+            <div className="w-48 text-left">
+              <Dropdown
+                value={`${sortBy}-${order}`}
+                onChange={(val) => {
+                  const [s, o] = val.split('-');
+                  setSortBy(s); setOrder(o); setPage(1);
+                }}
+                placeholder="Sort By..."
+                options={[
+                  { value: 'title-ASC', label: 'Title (A-Z)' },
+                  { value: 'title-DESC', label: 'Title (Z-A)' },
+                  { value: 'price-ASC', label: 'Price (Low-High)' },
+                  { value: 'price-DESC', label: 'Price (High-Low)' },
+                  { value: 'createdAt-DESC', label: 'Newest First' },
+                  { value: 'createdAt-ASC', label: 'Oldest First' },
+                ]}
+              />
+            </div>
+          </div>
+        )}
+
         {isLoading ? (
           <div className="p-10 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-blue-600"/></div>
         ) : (
           <div className="overflow-x-auto">
             {activeTab === 'BOOKS' && (
               <>
-                <div className="p-4 border-b border-gray-200 flex flex-col sm:flex-row gap-4 bg-gray-50 items-start sm:items-center">
-                  <div className="flex-1 w-full">
-                    <input 
-                      type="text" 
-                      placeholder="Search titles, ISBNs..." 
-                      value={searchQuery}
-                      onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg sm:text-sm focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
-                  <div className="w-48 text-left z-20">
-                    <Dropdown
-                      value={selectedCategory}
-                      onChange={(val) => { setSelectedCategory(val); setPage(1); }}
-                      placeholder="All Categories"
-                      options={[
-                        { value: '', label: 'All Categories' },
-                        ...(categories?.map((c: any) => ({ value: c.id, label: c.name })) || [])
-                      ]}
-                    />
-                  </div>
-                  <div className="w-48 text-left z-10">
-                    <Dropdown
-                      value={selectedAuthor}
-                      onChange={(val) => { setSelectedAuthor(val); setPage(1); }}
-                      placeholder="All Authors"
-                      options={[
-                        { value: '', label: 'All Authors' },
-                        ...(authors?.map((a: any) => ({ value: a.id, label: a.name })) || [])
-                      ]}
-                    />
-                  </div>
-                  <div className="w-48 text-left">
-                    <Dropdown
-                      value={`${sortBy}-${order}`}
-                      onChange={(val) => {
-                        const [s, o] = val.split('-');
-                        setSortBy(s); setOrder(o); setPage(1);
-                      }}
-                      placeholder="Sort By..."
-                      options={[
-                        { value: 'title-ASC', label: 'Title (A-Z)' },
-                        { value: 'title-DESC', label: 'Title (Z-A)' },
-                        { value: 'price-ASC', label: 'Price (Low-High)' },
-                        { value: 'price-DESC', label: 'Price (High-Low)' },
-                        { value: 'createdAt-DESC', label: 'Newest First' },
-                        { value: 'createdAt-ASC', label: 'Oldest First' },
-                      ]}
-                    />
-                  </div>
-                </div>
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
@@ -272,7 +307,14 @@ export default function CatalogManagementPage() {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{b.category?.name}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900 font-medium">₹{b.price}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                          <button onClick={() => openModal(b)} className="text-blue-600 hover:text-blue-900"><Pencil className="w-4 h-4"/></button>
+                          <div className="flex justify-end gap-3">
+                            <button onClick={() => openModal(b)} className="text-blue-600 hover:text-blue-900" title="Edit book">
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                            <button onClick={() => handleDeleteBook(b.id, b.title)} className="text-red-600 hover:text-red-900" title="Delete book">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -317,7 +359,14 @@ export default function CatalogManagementPage() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{item.name}</td>
                       <td className="px-6 py-4 text-sm text-gray-500 truncate max-w-md">{item.description || item.biography || '-'}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                        <button onClick={() => openModal(item)} className="text-blue-600 hover:text-blue-900"><Pencil className="w-4 h-4"/></button>
+                        <div className="flex justify-end gap-3">
+                          <button onClick={() => openModal(item)} className="text-blue-600 hover:text-blue-900" title={`Edit ${getSingularLabel()}`}>
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => handleDeleteEntity(item.id, item.name)} className="text-red-600 hover:text-red-900" title={`Delete ${getSingularLabel()}`}>
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -332,7 +381,7 @@ export default function CatalogManagementPage() {
         {isModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-6">
-              <h3 className="text-lg font-bold text-gray-900 mb-4">{editingId ? 'Edit' : 'Create'} {activeTab.slice(0,-1).toLowerCase().replace(/^\w/, c => c.toUpperCase())}</h3>
+              <h3 className="text-lg font-bold text-gray-900 mb-4">{editingId ? 'Edit' : 'Create'} {getSingularLabel().replace(/^\w/, c => c.toUpperCase())}</h3>
               
               <form onSubmit={handleSave} className="space-y-4">
                 {activeTab === 'BOOKS' ? (
