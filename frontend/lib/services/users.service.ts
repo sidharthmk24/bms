@@ -155,14 +155,24 @@ export class UsersService {
 
     const savedUser = await userRepo.save(newUser);
 
-    const { passwordHash: _, ...auditPayload } = savedUser;
+    const plainUser = {
+      id: savedUser.id,
+      name: savedUser.name,
+      email: savedUser.email,
+      primaryRole: savedUser.primaryRole,
+      roles: dto.roles,
+      branchId: savedUser.branchId,
+      isActive: savedUser.isActive,
+      createdAt: savedUser.createdAt,
+    };
+
     await auditRepo.save({
       userId: currentUser.userId,
       action: 'USER_CREATED',
       entityType: 'User',
       entityId: savedUser.id,
       beforeJson: null,
-      afterJson: auditPayload,
+      afterJson: plainUser,
       ipAddress,
     });
 
@@ -171,14 +181,21 @@ export class UsersService {
     // Send the welcome email with login details
     await this.emailService.sendWelcomeEmail(savedUser.email, savedUser.name, temporaryPassword);
 
-    return JSON.parse(JSON.stringify(savedUser));
+    return plainUser;
   }
 
   async update(id: string, dto: UpdateUserDto, currentUser: JwtPayload, ipAddress: string): Promise<User> {
     const { userRepo, branchRepo, auditRepo } = await this.getRepos();
     const user = await this.findOne(id, currentUser);
-    const beforeState = { ...user };
-    delete (beforeState as any).passwordHash;
+    const beforeState = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      primaryRole: user.primaryRole,
+      roles: user.roles.map(r => r.role),
+      branchId: user.branchId,
+      isActive: user.isActive,
+    };
 
     if (dto.roles) {
       for (const currentRole of user.roles) {
@@ -240,20 +257,30 @@ export class UsersService {
 
     const savedUser = await userRepo.save(user);
 
-    const { passwordHash: _, ...auditPayload } = savedUser;
+    const plainUser = {
+      id: savedUser.id,
+      name: savedUser.name,
+      email: savedUser.email,
+      primaryRole: savedUser.primaryRole,
+      roles: updatedRoles,
+      branchId: savedUser.branchId,
+      isActive: savedUser.isActive,
+      updatedAt: savedUser.updatedAt,
+    };
+
     await auditRepo.save({
       userId: currentUser.userId,
       action: 'USER_UPDATED',
       entityType: 'User',
       entityId: id,
       beforeJson: beforeState,
-      afterJson: auditPayload,
+      afterJson: plainUser,
       ipAddress,
     });
 
     this.notificationsService.triggerRefresh('user_changed');
 
-    return JSON.parse(JSON.stringify(savedUser));
+    return plainUser as any;
   }
 
   async updateStatus(id: string, isActive: boolean, currentUser: JwtPayload, ipAddress: string): Promise<void> {
