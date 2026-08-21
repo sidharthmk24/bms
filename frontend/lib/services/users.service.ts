@@ -11,6 +11,7 @@ import { CreateUserDto } from '../api-backend/users/dto/create-user.dto';
 import { UpdateUserDto } from '../api-backend/users/dto/update-user.dto';
 import { JwtPayload } from '../auth/jwt';
 import { NotificationsService } from './notifications.service';
+import { EmailService } from './email.service';
 import { hasRole } from '../api-backend/common/helpers/role.helper';
 import { 
   ForbiddenException, 
@@ -21,6 +22,7 @@ import {
 
 export class UsersService {
   private notificationsService = new NotificationsService();
+  private emailService = new EmailService();
 
   private async getRepos() {
     const ds = await getDataSource();
@@ -138,7 +140,9 @@ export class UsersService {
       }
     }
 
-    const passwordHash = 'PENDING_SETUP';
+    // Generate a temporary 8-character password
+    const temporaryPassword = crypto.randomBytes(4).toString('hex');
+    const passwordHash = await bcrypt.hash(temporaryPassword, 10);
 
     const newUser = userRepo.create({
       ...dto,
@@ -164,7 +168,10 @@ export class UsersService {
 
     this.notificationsService.triggerRefresh('user_changed');
 
-    return savedUser;
+    // Send the welcome email with login details
+    await this.emailService.sendWelcomeEmail(savedUser.email, savedUser.name, temporaryPassword);
+
+    return JSON.parse(JSON.stringify(savedUser));
   }
 
   async update(id: string, dto: UpdateUserDto, currentUser: JwtPayload, ipAddress: string): Promise<User> {
@@ -246,7 +253,7 @@ export class UsersService {
 
     this.notificationsService.triggerRefresh('user_changed');
 
-    return savedUser;
+    return JSON.parse(JSON.stringify(savedUser));
   }
 
   async updateStatus(id: string, isActive: boolean, currentUser: JwtPayload, ipAddress: string): Promise<void> {
