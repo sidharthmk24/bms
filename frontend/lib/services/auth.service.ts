@@ -93,12 +93,12 @@ export class AuthService {
 
     await userRepo.update(user.id, { lastLoginAt: new Date() });
 
-    const accessToken = signJwt(payload, '15m');
+    const accessToken = signJwt(payload, '7d');
     const rawRefreshToken = crypto.randomBytes(40).toString('hex');
     const tokenHash = bcrypt.hashSync(rawRefreshToken, 10);
     
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7);
+    expiresAt.setDate(expiresAt.getDate() + 30);
 
     await refreshRepo.save({
       userId: user.id,
@@ -144,7 +144,7 @@ export class AuthService {
       branchId: targetBranchId || null,
     };
 
-    const accessToken = signJwt(payload, '15m');
+    const accessToken = signJwt(payload, '7d');
 
     return {
       accessToken,
@@ -204,12 +204,12 @@ export class AuthService {
       branchId: user.branchId,
     };
 
-    const newAccessToken = signJwt(payload, '15m');
+    const newAccessToken = signJwt(payload, '7d');
     const newRawRefreshToken = crypto.randomBytes(40).toString('hex');
     const newTokenHash = bcrypt.hashSync(newRawRefreshToken, 10);
     
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7);
+    expiresAt.setDate(expiresAt.getDate() + 30);
 
     await refreshRepo.save({
       userId: user.id,

@@ -138,6 +138,14 @@ export class RestockService {
       // Trigger SSE update
       this.notificationsService.triggerRefresh('restock_changed');
 
+      await this.notificationsService.notifyRoles(
+        [UserRole.CENTRAL_INVENTORY_MANAGER, UserRole.ADMIN, UserRole.SUPER_ADMIN],
+        null,
+        'New Restock Request',
+        `A new restock request was created by branch ${branch?.name || branchId}.`,
+        'RESTOCK_REQUEST'
+      );
+
       return savedRequest as any;
     } catch (err) {
       await queryRunner.rollbackTransaction();
@@ -314,6 +322,15 @@ export class RestockService {
       // Trigger SSE update
       this.notificationsService.triggerRefresh('restock_changed');
 
+      const statusText = request.status === RestockRequestStatus.REJECTED ? 'rejected' : 'approved';
+      await this.notificationsService.notifyRoles(
+        [UserRole.BRANCH_MANAGER, UserRole.BRANCH_INVENTORY],
+        request.branchId,
+        'Restock Request Reviewed',
+        `Your restock request has been ${statusText} by Central.`,
+        'RESTOCK_REQUEST'
+      );
+
       return request;
     } catch (err) {
       await queryRunner.rollbackTransaction();
@@ -387,6 +404,14 @@ export class RestockService {
       // Trigger SSE update
       this.notificationsService.triggerRefresh('stock_changed');
       this.notificationsService.triggerRefresh('restock_changed');
+
+      await this.notificationsService.notifyRoles(
+        [UserRole.BRANCH_MANAGER, UserRole.BRANCH_INVENTORY],
+        request.branchId,
+        'Restock Request Dispatched',
+        `Restock request has been dispatched from Central Warehouse and is on its way.`,
+        'RESTOCK_REQUEST'
+      );
 
       return saved;
     } catch (err) {
@@ -467,6 +492,15 @@ export class RestockService {
       // Trigger SSE update
       this.notificationsService.triggerRefresh('stock_changed');
       this.notificationsService.triggerRefresh('restock_changed');
+
+      const branch = await queryRunner.manager.findOne(Branch, { where: { id: request.branchId } });
+      await this.notificationsService.notifyRoles(
+        [UserRole.CENTRAL_INVENTORY_MANAGER, UserRole.ADMIN, UserRole.SUPER_ADMIN],
+        null,
+        'Restock Request Received',
+        `Restock request has been received by branch ${branch?.name || request.branchId}.`,
+        'RESTOCK_REQUEST'
+      );
 
       return saved;
     } catch (err) {

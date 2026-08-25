@@ -16,9 +16,11 @@ import {
   Shield,
   FileText,
   Truck,
+  ArrowLeftRight,
   MessageSquare,
   LogOut,
   Receipt,
+  BarChart2,
   Menu
 } from 'lucide-react';
 import Image from 'next/image';
@@ -54,11 +56,13 @@ export default function Sidebar() {
     { name: 'Dashboard', href: getDashboardLink(), icon: LayoutDashboard, roles: ['*'] },
     { name: 'Billing', href: '/dashboard/billing', icon: ShoppingCart, roles: ['BRANCH_FRONT_OFFICE', 'BRANCH_MANAGER'] },
     { name: 'All Bills', href: '/dashboard/bills', icon: Receipt, roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE', 'BRANCH_MANAGER', 'BRANCH_FRONT_OFFICE'] },
-    { name: 'Inventory', href: '/dashboard/inventory', icon: Boxes, roles: ['BRANCH_INVENTORY', 'BRANCH_MANAGER', 'SUPER_ADMIN', 'ADMIN'] },
+    { name: 'EOD Sales', href: '/dashboard/eod-sales', icon: BarChart2, roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE'] },
+    { name: 'Inventory', href: '/dashboard/inventory', icon: Boxes, roles: ['BRANCH_INVENTORY', 'BRANCH_MANAGER', 'SUPER_ADMIN', 'ADMIN', 'BRANCH_FRONT_OFFICE'] },
     { name: 'Central Stock', href: '/dashboard/central-stock', icon: Store, roles: ['CENTRAL_INVENTORY_MANAGER', 'SUPER_ADMIN', 'ADMIN'] },
     { name: 'Purchase Orders', href: '/dashboard/purchase-orders', icon: Truck, roles: ['CENTRAL_INVENTORY_MANAGER', 'SUPER_ADMIN', 'ADMIN'] },
     { name: 'Restock', href: '/dashboard/restock', icon: TrendingUp, roles: ['BRANCH_INVENTORY', 'BRANCH_MANAGER', 'CENTRAL_INVENTORY_MANAGER'] },
-    { name: 'Exhibitions', href: '/dashboard/exhibitions', icon: Store, roles: ['BRANCH_MANAGER', 'SUPER_ADMIN', 'ADMIN', 'BRANCH_INVENTORY'] },
+    { name: 'Stock Transfers', href: '/dashboard/transfers', icon: ArrowLeftRight, roles: ['BRANCH_INVENTORY', 'BRANCH_MANAGER', 'CENTRAL_INVENTORY_MANAGER', 'SUPER_ADMIN', 'ADMIN'] },
+    { name: 'Exhibitions', href: '/dashboard/exhibitions', icon: Store, roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE', 'CENTRAL_INVENTORY_MANAGER', 'BRANCH_MANAGER', 'BRANCH_INVENTORY', 'BRANCH_FRONT_OFFICE'] },
     { name: 'Credit Copies', href: '/dashboard/credit-copies', icon: FileText, roles: ['BRANCH_MANAGER', 'SUPER_ADMIN', 'ADMIN'] },
     // { name: 'Enquiries', href: '/dashboard/enquiries', icon: MessageSquare, roles: ['BRANCH_FRONT_OFFICE', 'BRANCH_MANAGER', 'CENTRAL_INVENTORY_MANAGER', 'SUPER_ADMIN', 'ADMIN'] },
     { name: 'Catalog', href: '/dashboard/catalog', icon: BookOpen, roles: ['SUPER_ADMIN' , 'ADMIN', 'CENTRAL_INVENTORY_MANAGER'] },

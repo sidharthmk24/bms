@@ -56,16 +56,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const storedToken = localStorage.getItem('token');
       if (storedToken) {
         try {
-          // Verify token by calling /auth/me directly (bypasses the axios interceptor
-          // to avoid race conditions with the 401 handler wiping a fresh token).
-          const baseURL = process.env.NEXT_PUBLIC_API_URL || '/api/v1';
-          const res = await fetch(`${baseURL}/auth/me`, {
-            headers: { Authorization: `Bearer ${storedToken}` },
-          });
-          const json = await res.json();
-          if (res.ok && json.success && json.data) {
-            setToken(storedToken);
-            setUser(json.data);
+          const res = await api.get('/auth/me');
+          if (res.success && res.data) {
+            const currentToken = localStorage.getItem('token') || storedToken;
+            setToken(currentToken);
+            setUser(res.data);
           } else {
             throw new Error('Token invalid');
           }

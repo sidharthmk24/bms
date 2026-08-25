@@ -357,6 +357,16 @@ export class InventoryService {
     ipAddress: string,
   ): Promise<BranchInventory> {
     this.checkBranchAccess(currentUser, branchId);
+    
+    const allowedRoles = [
+      UserRole.SUPER_ADMIN,
+      UserRole.ADMIN,
+      UserRole.BRANCH_MANAGER,
+      UserRole.BRANCH_INVENTORY,
+    ];
+    if (!allowedRoles.includes(currentUser.primaryRole as UserRole)) {
+      throw new ForbiddenException('You do not have permission to adjust branch stock');
+    }
     const { branchInventoryRepository, dataSource } = await this.getRepos();
 
     const row = await branchInventoryRepository.findOne({

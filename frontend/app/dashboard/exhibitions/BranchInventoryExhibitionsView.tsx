@@ -7,7 +7,7 @@ export function BranchInventoryExhibitionsView({ exhibitions, user }: { exhibiti
   const [viewingExhibition, setViewingExhibition] = useState<any | null>(null);
   const [activeTab, setActiveTab] = useState<'ACTIVE' | 'PAST'>('ACTIVE');
 
-  const myExhibitions = (exhibitions || []).filter(ex => ex.assignedUserId === user?.id);
+  const myExhibitions = (exhibitions || []).filter(ex => ex.assignedUserId === user?.id || ex.assignedUserId === user?.userId);
   const activeExhibitions = myExhibitions.filter(ex => ['REQUESTED', 'APPROVED', 'ONGOING'].includes(ex.status));
   const pastExhibitions = myExhibitions.filter(ex => ['CLOSED', 'REJECTED'].includes(ex.status));
 
@@ -35,9 +35,9 @@ export function BranchInventoryExhibitionsView({ exhibitions, user }: { exhibiti
   const handleClose = async () => {
     if (!closingExhibition) return;
     
-    // Validate that Sold + Returned + Damaged + Lost == Taken
+    // Validate that Sold + Returned + Damaged + Lost + Credit == Taken
     for (const rec of reconciliation) {
-      const total = (rec.quantitySold || 0) + (rec.quantityReturned || 0) + (rec.quantityDamaged || 0) + (rec.quantityLost || 0);
+      const total = (rec.quantitySold || 0) + (rec.quantityReturned || 0) + (rec.quantityDamaged || 0) + (rec.quantityLost || 0) + (rec.quantityCredit || 0);
       if (total !== rec.quantityTaken) {
         alert(`Mismatch in "${rec.title}": Total accounted (${total}) does not equal quantity taken (${rec.quantityTaken}).`);
         return;
@@ -53,7 +53,8 @@ export function BranchInventoryExhibitionsView({ exhibitions, user }: { exhibiti
           quantitySold: r.quantitySold || 0,
           quantityReturned: r.quantityReturned || 0,
           quantityDamaged: r.quantityDamaged || 0,
-          quantityLost: r.quantityLost || 0
+          quantityLost: r.quantityLost || 0,
+          quantityCredit: r.quantityCredit || 0
         }))
       });
       setClosingExhibition(null);
@@ -183,7 +184,8 @@ export function BranchInventoryExhibitionsView({ exhibitions, user }: { exhibiti
                           quantitySold: s.quantityTaken, // Default assume all sold
                           quantityReturned: 0,
                           quantityDamaged: 0,
-                          quantityLost: 0
+                          quantityLost: 0,
+                          quantityCredit: 0
                         })));
                       }} 
                       className="text-amber-600 hover:text-amber-900 font-bold ml-3"
@@ -248,11 +250,12 @@ export function BranchInventoryExhibitionsView({ exhibitions, user }: { exhibiti
                       <th className="px-3 py-3 text-center text-xs font-medium text-blue-600 uppercase">Returned</th>
                       <th className="px-3 py-3 text-center text-xs font-medium text-amber-600 uppercase">Damaged</th>
                       <th className="px-3 py-3 text-center text-xs font-medium text-red-600 uppercase">Lost</th>
+                      <th className="px-3 py-3 text-center text-xs font-medium text-rose-600 uppercase">Credit</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {reconciliation.map((rec, idx) => {
-                      const total = (rec.quantitySold || 0) + (rec.quantityReturned || 0) + (rec.quantityDamaged || 0) + (rec.quantityLost || 0);
+                      const total = (rec.quantitySold || 0) + (rec.quantityReturned || 0) + (rec.quantityDamaged || 0) + (rec.quantityLost || 0) + (rec.quantityCredit || 0);
                       const isBalanced = total === rec.quantityTaken;
                       return (
                         <tr key={rec.stockId} className={!isBalanced ? 'bg-red-50' : ''}>
@@ -286,6 +289,13 @@ export function BranchInventoryExhibitionsView({ exhibitions, user }: { exhibiti
                             <input type="number" min="0" value={rec.quantityLost} onChange={(e) => {
                               const newRec = [...reconciliation];
                               newRec[idx].quantityLost = Number(e.target.value);
+                              setReconciliation(newRec);
+                            }} className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded text-center focus:ring-amber-500 focus:border-amber-500" />
+                          </td>
+                          <td className="px-2 py-2">
+                            <input type="number" min="0" value={rec.quantityCredit} onChange={(e) => {
+                              const newRec = [...reconciliation];
+                              newRec[idx].quantityCredit = Number(e.target.value);
                               setReconciliation(newRec);
                             }} className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded text-center focus:ring-amber-500 focus:border-amber-500" />
                           </td>

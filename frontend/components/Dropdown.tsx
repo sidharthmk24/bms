@@ -7,6 +7,8 @@ import { ChevronDown, Check } from 'lucide-react';
 export interface DropdownOption {
   label: string;
   value: string;
+  badge?: string;
+  badgeClassName?: string;
 }
 
 interface DropdownProps {
@@ -200,8 +202,15 @@ export function Dropdown({
                         isSelected ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
                       }`}
                     >
-                      <span className="block truncate">{opt.label}</span>
-                      {isSelected && <Check className="w-4 h-4 text-blue-600" />}
+                      <div className="flex-1 min-w-0 flex items-center justify-between mr-2">
+                        <span className="block truncate">{opt.label}</span>
+                        {opt.badge && (
+                          <span className={`ml-2 px-2 py-0.5 text-[10px] font-bold rounded-full ${opt.badgeClassName || 'bg-slate-100 text-slate-600'}`}>
+                            {opt.badge}
+                          </span>
+                        )}
+                      </div>
+                      {isSelected && <Check className="w-4 h-4 text-blue-600 flex-shrink-0" />}
                     </li>
                   );
                 });

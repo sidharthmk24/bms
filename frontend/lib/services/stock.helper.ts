@@ -1,6 +1,6 @@
 import 'server-only';
 import { QueryRunner } from 'typeorm';
-import { ConflictException, NotFoundException } from '../errors';
+import { ConflictException } from '../errors';
 
 export type StockMovementType =
   | 'SALE'
@@ -29,6 +29,45 @@ export async function decrementBranchStock(
   const header = Array.isArray(result) ? result[0] : result;
   if (!header || header.affectedRows === 0) {
     throw new ConflictException('INSUFFICIENT_STOCK');
+  }
+
+  try {
+    const updatedRows = await queryRunner.manager.query(
+      `SELECT bi.quantity, bi.reorder_threshold, b.title, br.name as branch_name 
+       FROM branch_inventory bi
+       JOIN book b ON bi.book_id = b.id
+       JOIN branch br ON bi.branch_id = br.id
+       WHERE bi.branch_id = ? AND bi.book_id = ?`,
+      [branchId, bookId]
+    );
+
+    if (updatedRows && updatedRows.length > 0) {
+      const { quantity: newQty, reorder_threshold: threshold, title, branch_name } = updatedRows[0];
+      
+      const { NotificationsService } = await import('./notifications.service');
+      const { UserRole } = await import('../api-backend/users/enums/user-role.enum');
+      const notificationsService = new NotificationsService();
+
+      if (newQty === 0) {
+        await notificationsService.notifyRoles(
+          [UserRole.BRANCH_MANAGER, UserRole.BRANCH_INVENTORY],
+          branchId,
+          'Book Sold Out',
+          `"${title}" is sold out at ${branch_name}!`,
+          'SOLD_OUT'
+        );
+      } else if (newQty <= threshold) {
+        await notificationsService.notifyRoles(
+          [UserRole.BRANCH_MANAGER, UserRole.BRANCH_INVENTORY],
+          branchId,
+          'Low Stock Warning',
+          `"${title}" is low in stock at ${branch_name} (Current: ${newQty}, Threshold: ${threshold})`,
+          'LOW_STOCK'
+        );
+      }
+    }
+  } catch (err) {
+    console.error('[stock.helper] Failed to trigger branch stock notification:', err);
   }
 }
 
@@ -61,6 +100,44 @@ export async function decrementCentralStock(
   const header = Array.isArray(result) ? result[0] : result;
   if (!header || header.affectedRows === 0) {
     throw new ConflictException('INSUFFICIENT_CENTRAL_STOCK');
+  }
+
+  try {
+    const updatedRows = await queryRunner.manager.query(
+      `SELECT cs.quantity, cs.reorder_threshold, b.title 
+       FROM central_stock cs
+       JOIN book b ON cs.book_id = b.id
+       WHERE cs.book_id = ?`,
+      [bookId]
+    );
+
+    if (updatedRows && updatedRows.length > 0) {
+      const { quantity: newQty, reorder_threshold: threshold, title } = updatedRows[0];
+      
+      const { NotificationsService } = await import('./notifications.service');
+      const { UserRole } = await import('../api-backend/users/enums/user-role.enum');
+      const notificationsService = new NotificationsService();
+
+      if (newQty === 0) {
+        await notificationsService.notifyRoles(
+          [UserRole.CENTRAL_INVENTORY_MANAGER, UserRole.ADMIN, UserRole.SUPER_ADMIN],
+          null,
+          'Central Stock Sold Out',
+          `"${title}" is completely sold out in the Central Warehouse!`,
+          'SOLD_OUT'
+        );
+      } else if (newQty <= threshold) {
+        await notificationsService.notifyRoles(
+          [UserRole.CENTRAL_INVENTORY_MANAGER, UserRole.ADMIN, UserRole.SUPER_ADMIN],
+          null,
+          'Central Low Stock Warning',
+          `"${title}" is low in stock in the Central Warehouse (Current: ${newQty}, Threshold: ${threshold})`,
+          'LOW_STOCK'
+        );
+      }
+    }
+  } catch (err) {
+    console.error('[stock.helper] Failed to trigger central stock notification:', err);
   }
 }
 

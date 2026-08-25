@@ -6,7 +6,7 @@ import { UserRole } from '@/lib/api-backend/users/enums/user-role.enum';
 
 const exhibitionsService = new ExhibitionsService();
 
-export const GET = withRoles([UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.BRANCH_MANAGER, UserRole.BRANCH_INVENTORY], async (req: NextRequest, { user }) => {
+export const GET = withAuth(async (req: NextRequest, { user }) => {
   const data = await exhibitionsService.findAll(user);
   return apiSuccess(data);
 });

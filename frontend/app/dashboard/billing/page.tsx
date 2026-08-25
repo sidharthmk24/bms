@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { api } from '@/lib/api';
-import { Search, Plus, Minus, Trash2, Receipt, AlertCircle, Loader2, Printer, CheckCircle2 } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, Receipt, AlertCircle, Loader2, Printer, CheckCircle2, MessageCircle } from 'lucide-react';
 import { generateBillPDF } from '@/lib/pdfUtils';
 import { useApiData } from '@/hooks/useApiData';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -18,6 +18,9 @@ interface CartItem {
 
 export default function BillingPage() {
   const { data: branches } = useApiData<any>('/branches');
+  const { data: exhibitions } = useApiData<any[]>('/exhibitions', []);
+  const ongoingExhibitions = (exhibitions || []).filter((ex: any) => ex.status === 'ONGOING');
+  const [selectedExhibitionId, setSelectedExhibitionId] = useState<string>('');
 
   const [cart, setCart] = useState<CartItem[]>([]);
   const [barcodeInput, setBarcodeInput] = useState('');
@@ -33,6 +36,9 @@ export default function BillingPage() {
   const [completedBill, setCompletedBill] = useState<any>(null);
   const [completedCart, setCompletedCart] = useState<CartItem[]>([]);
   const [phoneError, setPhoneError] = useState('');
+  const [isSendingSms, setIsSendingSms] = useState(false);
+  const [smsSent, setSmsSent] = useState(false);
+  const [smsError, setSmsError] = useState('');
 
   // Enquiry Modal State
   const [showEnquiryModal, setShowEnquiryModal] = useState(false);
@@ -146,6 +152,7 @@ export default function BillingPage() {
         paymentMode: paymentStatus === 'PAID' ? paymentMode : undefined,
         customerName: customerName.trim(),
         customerPhone: customerPhone.trim() || undefined,
+        exhibitionId: selectedExhibitionId || undefined,
       };
 
       const res = await api.post('/billing/checkout', payload);
@@ -175,8 +182,11 @@ export default function BillingPage() {
     setCustomerName('');
     setCustomerPhone('');
     setPhoneError('');
+    setSelectedExhibitionId('');
     setCompletedBill(null);
     setCompletedCart([]);
+    setSmsSent(false);
+    setSmsError('');
     setTimeout(() => {
       barcodeInputRef.current?.focus();
     }, 100);
@@ -317,7 +327,7 @@ export default function BillingPage() {
               The transaction has been successfully recorded. You can now print the invoice or start a new sale.
             </p>
 
-            <div className="space-y-4 w-full">
+          <div className="space-y-4 w-full">
               <button
                 onClick={printBill}
                 className="w-full flex justify-center items-center py-3.5 px-4 border border-transparent rounded-lg shadow-sm text-base font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
@@ -325,6 +335,47 @@ export default function BillingPage() {
                 <Printer className="w-5 h-5 mr-2" />
                 Print Bill (PDF)
               </button>
+
+              {/* SMS Button */}
+              {/* {completedBill?.customerPhone ? (
+                <button
+                  onClick={async () => {
+                    setIsSendingSms(true);
+                    setSmsError('');
+                    try {
+                      await api.post(`/billing/${completedBill.id}/send-sms`, { phone: completedBill.customerPhone });
+                      setSmsSent(true);
+                    } catch (e: any) {
+                      setSmsError(e?.response?.data?.message || 'Failed to send SMS. Check FAST2SMS_API_KEY.');
+                    } finally {
+                      setIsSendingSms(false);
+                    }
+                  }}
+                  disabled={isSendingSms || smsSent}
+                  className={`w-full flex justify-center items-center py-3.5 px-4 border rounded-lg shadow-sm text-base font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                    smsSent
+                      ? 'border-green-300 bg-green-50 text-green-700 cursor-default'
+                      : 'border-emerald-500 bg-emerald-600 hover:bg-emerald-700 text-white focus:ring-emerald-500'
+                  } disabled:opacity-60`}
+                >
+                  {isSendingSms ? (
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                  ) : (
+                    <MessageCircle className="w-5 h-5 mr-2" />
+                  )}
+                  {smsSent ? `SMS Sent to ${completedBill.customerPhone}` : `Send Bill via SMS`}
+                </button>
+              ) : (
+                <div className="w-full py-2.5 px-4 border border-dashed border-gray-300 rounded-lg text-center text-sm text-gray-400">
+                  No phone number — SMS unavailable
+                </div>
+              )} */}
+
+              {smsError && (
+                <p className="text-xs text-red-600 text-center flex items-center justify-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5" />{smsError}
+                </p>
+              )}
               
               <button
                 onClick={startNewSale}
@@ -409,6 +460,26 @@ export default function BillingPage() {
                   />
                   {phoneError && <p className="text-xs text-red-500 mt-1">{phoneError}</p>}
                 </div>
+
+                {ongoingExhibitions.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Link to Exhibition (Optional)
+                    </label>
+                    <select
+                      value={selectedExhibitionId}
+                      onChange={e => setSelectedExhibitionId(e.target.value)}
+                      className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white"
+                    >
+                      <option value="">-- Normal Branch counter --</option>
+                      {ongoingExhibitions.map((ex: any) => (
+                        <option key={ex.id} value={ex.id}>
+                          {ex.name || ex.eventName} ({ex.location})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 <div className="pt-2">
                   <label className="block text-sm font-medium text-gray-700 mb-2">Payment Mode</label>

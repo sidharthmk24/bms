@@ -20,6 +20,26 @@ export class BranchesService {
 
   async findAll(): Promise<Branch[]> {
     const { branchRepo } = await this.getRepos();
+    
+    // Ensure Central Warehouse exists
+    const warehouse = await branchRepo.findOne({ where: { type: BranchType.WAREHOUSE } });
+    if (!warehouse) {
+      try {
+        const newWarehouse = branchRepo.create({
+          name: 'Central Warehouse',
+          code: 'WH-01',
+          type: BranchType.WAREHOUSE,
+          address: 'Central Warehouse Location',
+          city: 'Central',
+          phone: '0000000000',
+          isActive: true,
+        });
+        await branchRepo.save(newWarehouse);
+      } catch (err) {
+        console.error('Failed to auto-create Central Warehouse:', err);
+      }
+    }
+
     return branchRepo.find({ order: { code: 'ASC' } });
   }
 

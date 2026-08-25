@@ -27,6 +27,9 @@ import { PasswordResetToken } from "../api-backend/users/entities/password-reset
 import { RefreshToken } from "../api-backend/users/entities/refresh-token.entity";
 import { UserRole } from "../api-backend/users/entities/user-role.entity";
 import { User } from "../api-backend/users/entities/user.entity";
+import { Notification } from "../api-backend/notifications/entities/notification.entity";
+import { StockTransfer } from "../api-backend/transfers/entities/stock-transfer.entity";
+import { StockTransferItem } from "../api-backend/transfers/entities/stock-transfer-item.entity";
 
 export const entities = [
   AuditLog,
@@ -58,5 +61,8 @@ export const entities = [
   RefreshToken,
   UserRole,
   User,
+  Notification,
+  StockTransfer,
+  StockTransferItem,
 ];
 

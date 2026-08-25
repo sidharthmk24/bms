@@ -16,8 +16,11 @@ import { CreateCashReconciliationDto } from '../api-backend/finance/dto/cash-rec
 
 import { JwtPayload } from '../auth/jwt';
 import { UserRole } from '../api-backend/users/enums/user-role.enum';
+import { NotificationsService } from './notifications.service';
+import { Branch } from '../api-backend/branches/entities/branch.entity';
 
 export class FinanceService {
+  private notificationsService = new NotificationsService();
   private async getRepos() {
     const ds = await getDataSource();
     return {
@@ -98,6 +101,15 @@ export class FinanceService {
       );
 
       await queryRunner.commitTransaction();
+
+      await this.notificationsService.notifyRoles(
+        [UserRole.FINANCE, UserRole.SUPER_ADMIN],
+        null,
+        'Expense Revised',
+        `An expense of category ${expense.category} has been revised.`,
+        'FINANCE'
+      );
+
       return updated;
     } catch (err) {
       await queryRunner.rollbackTransaction();
@@ -169,7 +181,21 @@ export class FinanceService {
     });
 
     try {
-      return await cashReconRepo.save(recon);
+      const saved = await cashReconRepo.save(recon);
+
+      if (variance !== 0) {
+        const branchRepo = dataSource.getRepository(Branch);
+        const branch = await branchRepo.findOne({ where: { id: user.branchId! } });
+        await this.notificationsService.notifyRoles(
+          [UserRole.FINANCE, UserRole.ADMIN, UserRole.SUPER_ADMIN],
+          null,
+          'Cash Reconciliation Variance',
+          `A cash reconciliation variance of $${variance.toFixed(2)} was detected at ${branch?.name || user.branchId} for ${dto.reconciliationDate}.`,
+          'FINANCE'
+        );
+      }
+
+      return saved;
     } catch (err: any) {
       if (err.code === 'ER_DUP_ENTRY') {
         throw new BadRequestException('Cash reconciliation already exists for this date');

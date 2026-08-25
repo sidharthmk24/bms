@@ -11,6 +11,7 @@ import { getDataSource } from '../db/data-source';
 import { Exhibition, ExhibitionStatus } from '../api-backend/exhibitions/entities/exhibition.entity';
 import { ExhibitionStock } from '../api-backend/exhibitions/entities/exhibition-stock.entity';
 import { CreditCopy } from '../api-backend/credit-copies/entities/credit-copy.entity';
+import { Bill, BillStatus, PaymentStatus } from '../api-backend/billing/entities/bill.entity';
 import { CreateExhibitionDto } from '../api-backend/exhibitions/dto/create-exhibition.dto';
 import { UpdateExhibitionDto } from '../api-backend/exhibitions/dto/update-exhibition.dto';
 import { ReviewExhibitionDto } from '../api-backend/exhibitions/dto/review-exhibition.dto';
@@ -88,6 +89,25 @@ export class ExhibitionsService {
 
       await queryRunner.commitTransaction();
       this.notificationsService.triggerRefresh('exhibition_changed');
+      
+      // Notify assigned staff member on creation
+      if (dto.assignedUserId) {
+        await this.notificationsService.createNotification(
+          dto.assignedUserId,
+          'Exhibition Assigned',
+          `You have been assigned to oversee the exhibition "${dto.name}".`,
+          'EXHIBITION'
+        );
+      }
+      
+      await this.notificationsService.notifyRoles(
+        [UserRole.SUPER_ADMIN, UserRole.ADMIN],
+        null,
+        'New Exhibition Request',
+        `A new exhibition "${dto.name}" has been requested.`,
+        'EXHIBITION'
+      );
+
       return this.findOne(savedExhibition.id, user);
     } catch (err) {
       await queryRunner.rollbackTransaction();
@@ -156,6 +176,58 @@ export class ExhibitionsService {
 
       await queryRunner.commitTransaction();
       this.notificationsService.triggerRefresh('exhibition_changed');
+
+      const previousAssignedUserId = exhibition.assignedUserId;
+      const newAssignedUserId = updates.assignedUserId;
+
+      if (newAssignedUserId !== undefined && newAssignedUserId !== previousAssignedUserId) {
+        if (previousAssignedUserId) {
+          await this.notificationsService.createNotification(
+            previousAssignedUserId,
+            'Exhibition Unassigned',
+            `You are no longer assigned to oversee the exhibition "${exhibition.name}".`,
+            'EXHIBITION'
+          );
+        }
+        if (newAssignedUserId) {
+          await this.notificationsService.createNotification(
+            newAssignedUserId,
+            'Exhibition Assigned',
+            `You have been assigned to oversee the exhibition "${exhibition.name}".`,
+            'EXHIBITION'
+          );
+        }
+      } else {
+        // Notify the currently assigned user if details (not assignment) changed
+        const detailsChanged = (
+          (dto.name !== undefined && dto.name !== exhibition.name) ||
+          (dto.location !== undefined && dto.location !== exhibition.location) ||
+          (dto.startDate !== undefined && new Date(dto.startDate).toISOString() !== new Date(exhibition.startDate).toISOString()) ||
+          (dto.endDate !== undefined && new Date(dto.endDate).toISOString() !== new Date(exhibition.endDate).toISOString())
+        );
+
+        const assignedUserId = previousAssignedUserId;
+        if (detailsChanged && assignedUserId) {
+          // Build a human-readable summary of what changed
+          const changes: string[] = [];
+          if (dto.name !== undefined && dto.name !== exhibition.name) changes.push(`name to "${dto.name}"`);
+          if (dto.location !== undefined && dto.location !== exhibition.location) changes.push(`location to "${dto.location}"`);
+          if (dto.startDate !== undefined && new Date(dto.startDate).toISOString() !== new Date(exhibition.startDate).toISOString()) {
+            changes.push(`start date to ${new Date(dto.startDate).toLocaleDateString()}`);
+          }
+          if (dto.endDate !== undefined && new Date(dto.endDate).toISOString() !== new Date(exhibition.endDate).toISOString()) {
+            changes.push(`end date to ${new Date(dto.endDate).toLocaleDateString()}`);
+          }
+          const changeSummary = changes.join(', ');
+          await this.notificationsService.createNotification(
+            assignedUserId,
+            'Exhibition Updated',
+            `The exhibition "${exhibition.name}" you are assigned to has been updated: ${changeSummary}.`,
+            'EXHIBITION'
+          );
+        }
+      }
+
       return this.findOne(id, user);
     } catch (err) {
       await queryRunner.rollbackTransaction();
@@ -177,14 +249,17 @@ export class ExhibitionsService {
       .leftJoinAndSelect('e.assignedUser', 'assignedUser')
       .orderBy('e.createdAt', 'DESC');
 
-    // Super admins and admins see everything. Branch roles only see their own.
+    // Super admins and admins see everything. Branch roles only see their own branch's OR ones they are assigned to.
     if (!hasRole(user, UserRole.SUPER_ADMIN) && !hasRole(user, UserRole.ADMIN)) {
       if (
         hasRole(user, UserRole.BRANCH_MANAGER) ||
         hasRole(user, UserRole.BRANCH_INVENTORY) ||
         hasRole(user, UserRole.BRANCH_FRONT_OFFICE)
       ) {
-        qb.where('e.source_branch_id = :branchId', { branchId: user.branchId });
+        qb.where('e.source_branch_id = :branchId OR e.assigned_user_id = :userId', { 
+          branchId: user.branchId,
+          userId: user.userId 
+        });
       }
     }
 
@@ -208,7 +283,7 @@ export class ExhibitionsService {
         hasRole(user, UserRole.BRANCH_INVENTORY) ||
         hasRole(user, UserRole.BRANCH_FRONT_OFFICE)
       ) {
-        if (exhibition.sourceBranchId !== user.branchId) {
+        if (exhibition.sourceBranchId !== user.branchId && exhibition.assignedUserId !== user.userId) {
           throw new ForbiddenException('Access restricted to your branch exhibitions');
         }
       }
@@ -242,6 +317,15 @@ export class ExhibitionsService {
     );
 
     this.notificationsService.triggerRefresh('exhibition_changed');
+    
+    await this.notificationsService.notifyRoles(
+      [UserRole.BRANCH_MANAGER, UserRole.BRANCH_INVENTORY],
+      exhibition.sourceBranchId,
+      'Exhibition Approved',
+      `Your exhibition request "${exhibition.name}" has been approved!`,
+      'EXHIBITION'
+    );
+
     return this.findOne(id, user);
   }
 
@@ -270,6 +354,15 @@ export class ExhibitionsService {
     );
 
     this.notificationsService.triggerRefresh('exhibition_changed');
+    
+    await this.notificationsService.notifyRoles(
+      [UserRole.BRANCH_MANAGER, UserRole.BRANCH_INVENTORY],
+      exhibition.sourceBranchId,
+      'Exhibition Rejected',
+      `Your exhibition request "${exhibition.name}" has been rejected. Note: ${dto.note || 'No reason given'}`,
+      'EXHIBITION'
+    );
+
     return this.findOne(id, user);
   }
 
@@ -473,6 +566,15 @@ export class ExhibitionsService {
       await queryRunner.commitTransaction();
       this.notificationsService.triggerRefresh('exhibition_changed');
       this.notificationsService.triggerRefresh('stock_changed');
+
+      await this.notificationsService.notifyRoles(
+        [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.FINANCE],
+        null,
+        'Exhibition Closed',
+        `The exhibition "${exhibition.name}" has been closed and reconciled.`,
+        'EXHIBITION'
+      );
+
       return this.findOne(id, user);
     } catch (err) {
       await queryRunner.rollbackTransaction();
@@ -480,5 +582,111 @@ export class ExhibitionsService {
     } finally {
       await queryRunner.release();
     }
+  }
+
+  async getExhibitionHistory(id: string, user: JwtPayload): Promise<any> {
+    const exhibition = await this.findOne(id, user);
+    const ds = await getDataSource();
+
+    // Find all bills for this exhibition
+    const billRepo = ds.getRepository(Bill);
+    const bills = await billRepo.find({
+      where: { 
+        exhibitionId: id,
+        status: BillStatus.COMPLETED
+      },
+      relations: ['items', 'items.book', 'createdBy'],
+      order: { createdAt: 'DESC' }
+    });
+
+    // Calculate metrics
+    let totalRevenue = 0;
+    let totalCreditAmount = 0;
+    let totalBooksSoldFromBills = 0;
+
+    for (const bill of bills) {
+      if (bill.paymentStatus === PaymentStatus.PAID) {
+        totalRevenue += Number(bill.totalAmount);
+      } else if (bill.paymentStatus === PaymentStatus.UNPAID) {
+        totalCreditAmount += Number(bill.totalAmount);
+      }
+
+      for (const item of bill.items) {
+        totalBooksSoldFromBills += item.quantity;
+      }
+    }
+
+    // FALLBACK: If no bills are linked, calculate based on reconciled quantities and book prices
+    if (bills.length === 0) {
+      for (const s of exhibition.stock) {
+        const bookPrice = Number(s.book?.price || 0);
+        totalRevenue += s.quantitySold * bookPrice;
+        totalCreditAmount += s.quantityCredit * bookPrice;
+        totalBooksSoldFromBills += s.quantitySold;
+      }
+    }
+
+    // Calculate stock reconciliation summaries
+    let totalTaken = 0;
+    let totalSold = 0;
+    let totalReturned = 0;
+    let totalDamaged = 0;
+    let totalLost = 0;
+    let totalCreditQty = 0;
+
+    for (const s of exhibition.stock) {
+      totalTaken += s.quantityTaken;
+      totalSold += s.quantitySold;
+      totalReturned += s.quantityReturned;
+      totalDamaged += s.quantityDamaged;
+      totalLost += s.quantityLost;
+      totalCreditQty += s.quantityCredit;
+    }
+
+    return {
+      exhibition: {
+        id: exhibition.id,
+        name: exhibition.name,
+        location: exhibition.location,
+        startDate: exhibition.startDate,
+        endDate: exhibition.endDate,
+        status: exhibition.status,
+        sourceBranchName: exhibition.sourceBranch?.name,
+        assignedUserName: exhibition.assignedUser?.name,
+      },
+      metrics: {
+        totalRevenue,
+        totalCreditAmount,
+        totalBooksSoldFromBills,
+        totalTaken,
+        totalSold,
+        totalReturned,
+        totalDamaged,
+        totalLost,
+        totalCreditQty,
+      },
+      bills: bills.map(b => ({
+        id: b.id,
+        billNumber: b.billNumber,
+        customerName: b.customerName,
+        customerPhone: b.customerPhone,
+        totalAmount: b.totalAmount,
+        paymentStatus: b.paymentStatus,
+        paymentMode: b.paymentMode,
+        createdAt: b.createdAt,
+        createdBy: b.createdBy?.name,
+      })),
+      stock: exhibition.stock.map(s => ({
+        id: s.id,
+        bookTitle: s.book?.title,
+        isbn: s.book?.isbn,
+        quantityTaken: s.quantityTaken,
+        quantitySold: s.quantitySold,
+        quantityReturned: s.quantityReturned,
+        quantityDamaged: s.quantityDamaged,
+        quantityLost: s.quantityLost,
+        quantityCredit: s.quantityCredit,
+      })),
+    };
   }
 }

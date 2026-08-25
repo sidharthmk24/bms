@@ -10,6 +10,7 @@ import { Dropdown } from '@/components/Dropdown';
 
 export default function BranchInventoryPage() {
   const { user } = useAuth();
+  const canAdjust = ['SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'BRANCH_INVENTORY'].includes(user?.role || user?.primaryRole || '');
   const [inventory, setInventory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -189,18 +190,22 @@ export default function BranchInventoryPage() {
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <button
-                      onClick={() => {
-                        setSelectedBook(item);
-                        setAdjustmentQuantity(0);
-                        setAdjustmentReason('CORRECTION');
-                        setIsAdjusting(true);
-                      }}
-                      className="text-blue-600 hover:text-blue-900 flex items-center justify-end w-full"
-                    >
-                      <Edit2 className="w-4 h-4 mr-1" />
-                      Adjust
-                    </button>
+                    {canAdjust ? (
+                      <button
+                        onClick={() => {
+                          setSelectedBook(item);
+                          setAdjustmentQuantity(0);
+                          setAdjustmentReason('CORRECTION');
+                          setIsAdjusting(true);
+                        }}
+                        className="text-blue-600 hover:text-blue-900 flex items-center justify-end w-full"
+                      >
+                        <Edit2 className="w-4 h-4 mr-1" />
+                        Adjust
+                      </button>
+                    ) : (
+                      <span className="text-slate-400 font-medium text-xs">Read Only</span>
+                    )}
                   </td>
                 </tr>
               ))}

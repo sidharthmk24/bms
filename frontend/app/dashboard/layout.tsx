@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import Sidebar from '@/components/Sidebar';
 import RealTimeSync from '@/components/RealTimeSync';
 import RoleSwitcher from '@/components/RoleSwitcher';
+import NotificationDropdown from '@/components/NotificationDropdown';
 import { Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
@@ -46,6 +47,7 @@ export default function DashboardLayout({
         <header className="h-24 border-b border-slate-200/60 bg-slate-50/40 backdrop-blur-xl flex items-center justify-between px-8 shadow-[0_4px_24px_rgba(0,0,0,0.02)] z-10 shrink-0 sticky top-0">
           <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-slate-800 to-slate-600 tracking-tight">Workspace Overview</h1>
           <div className="flex items-center space-x-4">
+            <NotificationDropdown />
             <RoleSwitcher />
           </div>
         </header>

@@ -60,6 +60,15 @@ export class EnquiriesService {
 
     const saved = await enquiryRepo.save(enquiry);
     this.notificationsService.triggerRefresh('enquiry_changed');
+    
+    await this.notificationsService.notifyRoles(
+      [UserRole.BRANCH_MANAGER],
+      user.branchId,
+      'New Book Enquiry',
+      `A new customer enquiry was logged for ${dto.freeTextTitle || 'a catalog book'}.`,
+      'ENQUIRY'
+    );
+
     return saved;
   }
 
@@ -174,6 +183,15 @@ export class EnquiriesService {
       existing.enquiryCount += 1;
       const updated = await newTitleRepo.save(existing);
       this.notificationsService.triggerRefresh('new_title_changed');
+      
+      await this.notificationsService.notifyRoles(
+        [UserRole.CENTRAL_INVENTORY_MANAGER, UserRole.ADMIN],
+        null,
+        'New Title Request Updated',
+        `Request count increased for new title "${dto.freeTextTitle}".`,
+        'ENQUIRY'
+      );
+
       return updated;
     }
 
@@ -190,6 +208,15 @@ export class EnquiriesService {
 
     const saved = await newTitleRepo.save(request);
     this.notificationsService.triggerRefresh('new_title_changed');
+    
+    await this.notificationsService.notifyRoles(
+      [UserRole.CENTRAL_INVENTORY_MANAGER, UserRole.ADMIN],
+      null,
+      'New Title Request',
+      `A new title request "${dto.freeTextTitle}" has been logged.`,
+      'ENQUIRY'
+    );
+
     return saved;
   }
 
@@ -237,6 +264,14 @@ export class EnquiriesService {
     );
 
     this.notificationsService.triggerRefresh('new_title_changed');
+    
+    await this.notificationsService.createNotification(
+      request.requestedById,
+      'New Title Request Reviewed',
+      `Your request for "${request.freeTextTitle}" has been ${dto.status.toLowerCase()}.`,
+      'ENQUIRY'
+    );
+
     return updated;
   }
 }

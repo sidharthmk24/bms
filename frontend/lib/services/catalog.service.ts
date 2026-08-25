@@ -1,6 +1,6 @@
 import 'server-only';
 import { getDataSource } from '../db/data-source';
-import { ILike } from 'typeorm';
+import { Like } from 'typeorm';
 import { Book } from '../api-backend/catalog/entities/book.entity';
 import { Author } from '../api-backend/catalog/entities/author.entity';
 import { Publisher } from '../api-backend/catalog/entities/publisher.entity';
@@ -275,9 +275,9 @@ export class CatalogService {
     if (search) {
       return bookRepo.findAndCount({
         where: [
-          { ...where, title: ILike(`%${search}%`) },
-          { ...where, isbn: ILike(`%${search}%`) },
-          { ...where, barcode: ILike(`%${search}%`) },
+          { ...where, title: Like(`%${search}%`) },
+          { ...where, isbn: Like(`%${search}%`) },
+          { ...where, barcode: Like(`%${search}%`) },
         ],
         relations: ['author', 'publisher', 'category'],
         order: { [validSortBy]: validOrder },
@@ -338,6 +338,23 @@ export class CatalogService {
     });
 
     if (!book) throw new NotFoundException(`Book with barcode ${barcode} not found`);
+
+    setCache(cacheKey, book);
+    return book;
+  }
+
+  async findBookByIsbn(isbn: string): Promise<Book> {
+    const cacheKey = `catalog:book:isbn:${isbn}`;
+    const cached = getCache<Book>(cacheKey);
+    if (cached) return cached;
+
+    const { bookRepo } = await this.getRepos();
+    const book = await bookRepo.findOne({
+      where: { isbn, isActive: true },
+      relations: ['author', 'publisher', 'category'],
+    });
+
+    if (!book) throw new NotFoundException(`Book with ISBN ${isbn} not found`);
 
     setCache(cacheKey, book);
     return book;

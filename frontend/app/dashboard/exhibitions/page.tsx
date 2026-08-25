@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useApiData } from '@/hooks/useApiData';
 import { api } from '@/lib/api';
@@ -11,10 +11,15 @@ import { BranchInventoryExhibitionsView } from './BranchInventoryExhibitionsView
 
 export default function ExhibitionsPage() {
   const { user } = useAuth();
-  const isAdmin = (user?.roles?.some(r => ['SUPER_ADMIN', 'ADMIN'].includes(r)) || false);
-  const isBranchManager = (user?.roles?.some(r => ['BRANCH_MANAGER'].includes(r)) || false);
-  const isBranchInventory = (user?.roles?.includes('BRANCH_INVENTORY') && !isBranchManager) || false;
-  const isBranch = (isBranchManager || isBranchInventory) && !isAdmin;
+  const checkHasRole = (r: string) => {
+    return user?.roles?.includes(r) || user?.role === r || user?.primaryRole === r;
+  };
+  const isAdmin = checkHasRole('SUPER_ADMIN') || checkHasRole('ADMIN');
+  const isBranchManager = checkHasRole('BRANCH_MANAGER');
+  const isBranchInventory = checkHasRole('BRANCH_INVENTORY') && !isBranchManager;
+  const isBranchFrontOffice = checkHasRole('BRANCH_FRONT_OFFICE') && !isBranchManager;
+  const isStaffOnly = (isBranchInventory || isBranchFrontOffice) && !isAdmin;
+  const isBranch = (isBranchManager || isBranchInventory || isBranchFrontOffice) && !isAdmin;
 
   const { data: exhibitions, loading, error } = useApiData<any[]>('/exhibitions', []);
   const { data: catalog } = useApiData<any>('/catalog/books?limit=1000', []);
@@ -23,6 +28,31 @@ export default function ExhibitionsPage() {
   
   const branchUsers = (usersResponse?.data || usersResponse || []).filter((u: any) => u.branchId === user?.branchId || u.branch?.id === user?.branchId);
   const branches = branchesResponse?.items || (Array.isArray(branchesResponse) ? branchesResponse : []);
+
+  const isFinance = (user?.roles?.includes('FINANCE') || user?.primaryRole === 'FINANCE');
+  const showFullHistory = isAdmin || isFinance;
+
+  // History Report State
+  const [viewingExhibitionHistory, setViewingExhibitionHistory] = useState<any | null>(null);
+  const [historyData, setHistoryData] = useState<any | null>(null);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
+  const handleViewHistory = async (ex: any) => {
+    setViewingExhibitionHistory(ex);
+    setLoadingHistory(true);
+    setHistoryData(null);
+    try {
+      const res = await api.get(`/exhibitions/${ex.id}/history`);
+      if (res.success) {
+        setHistoryData(res.data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch exhibition history:', err);
+      alert('Failed to load exhibition details.');
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
 
   // Creation State
   const [isCreating, setIsCreating] = useState(false);
@@ -52,6 +82,28 @@ export default function ExhibitionsPage() {
   const [assigningExhibition, setAssigningExhibition] = useState<any | null>(null);
   const [assignBranchId, setAssignBranchId] = useState('');
   const [assignUserId, setAssignUserId] = useState('');
+
+  const activeSourceBranchId = isAdmin ? createBranchId : user?.branchId;
+  const [branchInventory, setBranchInventory] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!activeSourceBranchId) {
+      setBranchInventory([]);
+      return;
+    }
+    api.get(`/inventory/branch/${activeSourceBranchId}?limit=10000`)
+      .then(res => {
+        if (res.success) {
+          setBranchInventory(res.data.items || res.data || []);
+        }
+      })
+      .catch(err => console.error('Failed to load branch inventory:', err));
+  }, [activeSourceBranchId]);
+
+  const getBookStockQty = (bookId: string) => {
+    const item = branchInventory.find((bi: any) => bi.bookId === bookId || bi.book?.id === bookId);
+    return item ? item.quantity : 0;
+  };
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -191,7 +243,7 @@ export default function ExhibitionsPage() {
     return <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin text-blue-600" /></div>;
   }
 
-  if (isBranchInventory) {
+  if (isStaffOnly) {
     return <BranchInventoryExhibitionsView exhibitions={exhibitions || []} user={user} />;
   }
 
@@ -227,7 +279,12 @@ export default function ExhibitionsPage() {
             {(exhibitions || []).map((ex: any) => (
               <tr key={ex.id}>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm font-bold text-gray-900">{ex.name || ex.eventName}</div>
+                  <button 
+                    onClick={() => handleViewHistory(ex)}
+                    className="text-sm font-bold text-gray-900 hover:text-blue-600 transition-colors text-left"
+                  >
+                    {ex.name || ex.eventName}
+                  </button>
                   <div className="text-xs text-gray-500">{ex.location} • {ex.branch?.name}</div>
                   {ex.assignedUser && <div className="text-xs text-blue-600 mt-1">Assigned: {ex.assignedUser.name}</div>}
                 </td>
@@ -238,6 +295,12 @@ export default function ExhibitionsPage() {
                   {getStatusBadge(ex)}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                  <button 
+                    onClick={() => handleViewHistory(ex)}
+                    className="text-blue-600 hover:text-blue-900 font-medium inline-block mr-3"
+                  >
+                    View Details
+                  </button>
                   {isAdmin && ex.status === 'REQUESTED' && (
                     <div className="flex justify-end space-x-2 mt-2">
                       <button onClick={() => handleApproveReject(ex.id, 'reject')} className="text-red-600 hover:text-red-900">Reject</button>
@@ -367,10 +430,15 @@ export default function ExhibitionsPage() {
                       value={bookInput}
                       onChange={(val) => setBookInput(val)}
                       placeholder="Select a book..."
-                      options={(catalog?.books || catalog?.items || catalog?.data || (Array.isArray(catalog) ? catalog : [])).map((b: any) => ({
-                        value: b.id,
-                        label: b.title
-                      }))}
+                      options={(catalog?.books || catalog?.items || catalog?.data || (Array.isArray(catalog) ? catalog : [])).map((b: any) => {
+                        const stock = getBookStockQty(b.id);
+                        return {
+                          value: b.id,
+                          label: b.title,
+                          badge: `Stock: ${stock}`,
+                          badgeClassName: stock > 0 ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-rose-50 text-rose-700 border border-rose-100'
+                        };
+                      })}
                     />
                   </div>
                   <input type="number" min="1" value={qtyInput} onChange={e => setQtyInput(Number(e.target.value))} placeholder="Qty" className="w-20 block px-3 py-2 border border-gray-300 rounded-lg sm:text-sm" />
@@ -613,6 +681,224 @@ export default function ExhibitionsPage() {
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Exhibition Details & History Modal */}
+      <AnimatePresence>
+        {viewingExhibitionHistory && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }} 
+              animate={{ opacity: 1, scale: 1 }} 
+              exit={{ opacity: 0, scale: 0.95 }} 
+              className="bg-white rounded-2xl shadow-xl w-full max-w-4xl p-6 overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              {/* Header */}
+              <div className="flex justify-between items-start border-b pb-4 mb-4">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 flex items-center">
+                    <Tent className="w-5 h-5 mr-2 text-blue-600" />
+                    {viewingExhibitionHistory.name || viewingExhibitionHistory.eventName}
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Location: <strong className="text-gray-700">{viewingExhibitionHistory.location}</strong> • 
+                    Source: <strong className="text-gray-700">{viewingExhibitionHistory.branch?.name || viewingExhibitionHistory.sourceBranchName}</strong>
+                  </p>
+                </div>
+                <button 
+                  onClick={() => setViewingExhibitionHistory(null)}
+                  className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition"
+                >
+                  <XCircle className="w-6 h-6" />
+                </button>
+              </div>
+
+              {loadingHistory ? (
+                <div className="py-24 flex flex-col items-center justify-center space-y-3">
+                  <Loader2 className="w-10 h-10 animate-spin text-blue-500" />
+                  <p className="text-sm font-semibold text-slate-400">Loading exhibition report...</p>
+                </div>
+              ) : historyData ? (
+                <div className="flex-1 overflow-y-auto pr-1 space-y-6">
+                  {/* Basic Details card for everyone */}
+                  <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+                    <div>
+                      <span className="text-slate-400 block font-semibold uppercase tracking-wider">Start Date</span>
+                      <strong className="text-sm text-slate-700 block mt-0.5">{new Date(historyData.exhibition.startDate).toLocaleDateString()}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block font-semibold uppercase tracking-wider">End Date</span>
+                      <strong className="text-sm text-slate-700 block mt-0.5">{new Date(historyData.exhibition.endDate).toLocaleDateString()}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block font-semibold uppercase tracking-wider">Status</span>
+                      <strong className="text-sm text-slate-700 block mt-0.5 capitalize">{historyData.exhibition.status.toLowerCase()}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block font-semibold uppercase tracking-wider">Overseen By</span>
+                      <strong className="text-sm text-slate-700 block mt-0.5">{historyData.exhibition.assignedUserName || 'Unassigned'}</strong>
+                    </div>
+                  </div>
+
+                  {/* Financial Report Section (Point 1 - only for Finance, Admin, Super Admin) */}
+                  {showFullHistory ? (
+                    <div className="space-y-6">
+                      <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider border-l-4 border-blue-500 pl-2">Financial Summary</h4>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-4 flex flex-col">
+                          <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Total Cash/UPI Revenue</span>
+                          <strong className="text-xl text-emerald-800 mt-1">₹{Number(historyData.metrics.totalRevenue).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
+                        </div>
+                        <div className="bg-amber-50/50 border border-amber-100 rounded-xl p-4 flex flex-col">
+                          <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">Total Credit Sales Amount</span>
+                          <strong className="text-xl text-amber-800 mt-1">₹{Number(historyData.metrics.totalCreditAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
+                        </div>
+                        <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-4 flex flex-col">
+                          <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">Books Sold (From Invoices)</span>
+                          <strong className="text-xl text-blue-800 mt-1">{historyData.metrics.totalBooksSoldFromBills} books</strong>
+                        </div>
+                      </div>
+
+                      {/* Stock Reconciliation Summary Metrics */}
+                      <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 grid grid-cols-3 md:grid-cols-6 gap-3 text-center text-xs">
+                        <div>
+                          <span className="text-slate-400 font-semibold block">Taken</span>
+                          <strong className="text-sm text-slate-700 block mt-0.5">{historyData.metrics.totalTaken}</strong>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 font-semibold block">Sold (Reconciled)</span>
+                          <strong className="text-sm text-slate-700 block mt-0.5">{historyData.metrics.totalSold}</strong>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 font-semibold block">Returned</span>
+                          <strong className="text-sm text-slate-700 block mt-0.5">{historyData.metrics.totalReturned}</strong>
+                        </div>
+                        <div>
+                          <span className="text-red-500 font-semibold block">Damaged</span>
+                          <strong className="text-sm text-red-700 block mt-0.5">{historyData.metrics.totalDamaged}</strong>
+                        </div>
+                        <div>
+                          <span className="text-red-500 font-semibold block">Lost</span>
+                          <strong className="text-sm text-red-700 block mt-0.5">{historyData.metrics.totalLost}</strong>
+                        </div>
+                        <div>
+                          <span className="text-rose-500 font-semibold block">Credit Copy</span>
+                          <strong className="text-sm text-rose-700 block mt-0.5">{historyData.metrics.totalCreditQty}</strong>
+                        </div>
+                      </div>
+
+                      {/* Invoices List */}
+                      <div className="space-y-3">
+                        <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider border-l-4 border-blue-500 pl-2">Sales Invoice History ({historyData.bills.length})</h4>
+                        {historyData.bills.length === 0 ? (
+                          <p className="text-xs text-slate-400 italic">No invoices recorded for this exhibition.</p>
+                        ) : (
+                          <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                            <table className="min-w-full divide-y divide-slate-100 text-left text-xs text-slate-600">
+                              <thead className="bg-slate-50 font-bold uppercase text-[9px] text-slate-400 tracking-wider">
+                                <tr>
+                                  <th className="px-4 py-2.5">Invoice No</th>
+                                  <th className="px-4 py-2.5">Customer</th>
+                                  <th className="px-4 py-2.5">Payment Status</th>
+                                  <th className="px-4 py-2.5">Mode</th>
+                                  <th className="px-4 py-2.5">Date</th>
+                                  <th className="px-4 py-2.5 text-right">Amount</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100 bg-white">
+                                {historyData.bills.map((bill: any) => (
+                                  <tr key={bill.id} className="hover:bg-slate-50/50">
+                                    <td className="px-4 py-2.5 font-semibold text-slate-800">{bill.billNumber}</td>
+                                    <td className="px-4 py-2.5">
+                                      <div>{bill.customerName || 'Walk-in Customer'}</div>
+                                      {bill.customerPhone && <div className="text-[10px] text-slate-400">{bill.customerPhone}</div>}
+                                    </td>
+                                    <td className="px-4 py-2.5">
+                                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                        bill.paymentStatus === 'PAID' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+                                      }`}>
+                                        {bill.paymentStatus}
+                                      </span>
+                                    </td>
+                                    <td className="px-4 py-2.5 font-mono text-[10px]">{bill.paymentMode || 'N/A'}</td>
+                                    <td className="px-4 py-2.5 text-slate-400">{new Date(bill.createdAt).toLocaleString()}</td>
+                                    <td className="px-4 py-2.5 text-right font-bold text-slate-800">₹{Number(bill.totalAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {/* Stock List (visible to everyone, but formatted nicely) */}
+                  <div className="space-y-3">
+                    <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider border-l-4 border-blue-500 pl-2">
+                      {showFullHistory ? 'Reconciled Stock Detail' : 'Stock List'}
+                    </h4>
+                    {historyData.stock.length === 0 ? (
+                      <p className="text-xs text-slate-400 italic">No stock registered for this exhibition.</p>
+                    ) : (
+                      <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                        <table className="min-w-full divide-y divide-slate-100 text-left text-xs text-slate-600">
+                          <thead className="bg-slate-50 font-bold uppercase text-[9px] text-slate-400 tracking-wider">
+                            <tr>
+                              <th className="px-4 py-2.5">Book Title</th>
+                              <th className="px-4 py-2.5 text-center">Taken</th>
+                              <th className="px-4 py-2.5 text-center">Sold</th>
+                              {showFullHistory && (
+                                <>
+                                  <th className="px-4 py-2.5 text-center">Returned</th>
+                                  <th className="px-4 py-2.5 text-center text-red-500">Damaged</th>
+                                  <th className="px-4 py-2.5 text-center text-red-500">Lost</th>
+                                  <th className="px-4 py-2.5 text-center text-rose-500">Credit</th>
+                                </>
+                              )}
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 bg-white">
+                            {historyData.stock.map((s: any) => (
+                              <tr key={s.id} className="hover:bg-slate-50/50">
+                                <td className="px-4 py-2.5">
+                                  <div className="font-semibold text-slate-800">{s.bookTitle}</div>
+                                  <div className="text-[10px] text-slate-400 font-mono mt-0.5">{s.isbn}</div>
+                                </td>
+                                <td className="px-4 py-2.5 text-center font-bold text-slate-700">{s.quantityTaken}</td>
+                                <td className="px-4 py-2.5 text-center font-semibold text-slate-700">{s.quantitySold}</td>
+                                {showFullHistory && (
+                                  <>
+                                    <td className="px-4 py-2.5 text-center text-slate-500">{s.quantityReturned}</td>
+                                    <td className="px-4 py-2.5 text-center text-red-600 font-medium">{s.quantityDamaged}</td>
+                                    <td className="px-4 py-2.5 text-center text-red-600 font-medium">{s.quantityLost}</td>
+                                    <td className="px-4 py-2.5 text-center text-rose-600 font-medium">{s.quantityCredit}</td>
+                                  </>
+                                )}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="py-12 text-center text-sm text-slate-400">Failed to load history metrics.</div>
+              )}
+
+              <div className="flex justify-end pt-4 border-t mt-4">
+                <button 
+                  onClick={() => setViewingExhibitionHistory(null)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-semibold transition"
+                >
+                  Close Report
+                </button>
+              </div>
             </motion.div>
           </div>
         )}
