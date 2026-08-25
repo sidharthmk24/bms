@@ -11,12 +11,14 @@ const globalForDb = globalThis as unknown as {
 };
 
 /**
- * Build a fingerprint from the entity class names + their constructor identity.
- * Every hot-reload creates new class objects, so toString() on the constructor
- * gives a unique-enough string per reload cycle.
+ * Build a fingerprint from the entity constructor identity (not class.name,
+ * which gets minified to single letters like 'u' in Vercel production builds).
+ * We use the array index + a slice of the constructor source as a stable key.
  */
 function buildFingerprint(): string {
-  return entities.map(e => e.name + '_' + e.toString().slice(0, 40)).join('|');
+  return entities
+    .map((e, i) => `${i}:${e.toString().slice(0, 60)}`)
+    .join('|');
 }
 
 async function createDataSource(): Promise<DataSource> {
