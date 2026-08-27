@@ -156,10 +156,10 @@ export function Dropdown({
       <AnimatePresence>
         {isOpen && !disabled && (
           <motion.div
-            initial={{ opacity: 0, y: dropdownPosition === 'top' ? 10 : -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: dropdownPosition === 'top' ? 10 : -10 }}
-            transition={{ duration: 0.15, ease: 'easeOut' }}
+            initial={{ opacity: 0, scale: 0.96, y: dropdownPosition === 'top' ? 8 : -8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: dropdownPosition === 'top' ? 8 : -8 }}
+            transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
             className={`absolute z-50 w-full bg-white border border-gray-200 rounded-lg shadow-xl max-h-60 overflow-auto focus:outline-none ${
               dropdownPosition === 'top' ? 'bottom-full mb-1' : 'top-full mt-1'
             }`}

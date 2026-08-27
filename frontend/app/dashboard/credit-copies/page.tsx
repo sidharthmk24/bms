@@ -27,6 +27,31 @@ export default function CreditCopiesPage() {
   const [note, setNote] = useState('');
   const [branchId, setBranchId] = useState('');
 
+  // Load stock for the active branch/central
+  const activeBranchId = isAdmin ? branchId : (user?.branchId || '');
+  const stockUrl = isCreating
+    ? (!activeBranchId
+      ? '/inventory/central-stock?limit=1000'
+      : `/inventory/branch/${activeBranchId}?limit=1000`)
+    : null;
+  const { data: stockData } = useApiData<any>(stockUrl, null);
+
+  // Map book ID to quantity for fast lookup
+  const stockMap = new Map<string, number>();
+  if (stockData) {
+    const items = stockData.items || (Array.isArray(stockData) ? stockData : []);
+    items.forEach((item: any) => {
+      const bId = item.bookId || item.book?.id;
+      if (bId !== undefined && bId !== null) {
+        stockMap.set(String(bId), item.quantity);
+      }
+    });
+  }
+
+  const getBookCount = (bId: string) => {
+    return stockMap.get(String(bId)) || 0;
+  };
+
   const handleIssue = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -138,10 +163,15 @@ export default function CreditCopiesPage() {
                     value={bookId}
                     onChange={(val) => setBookId(val)}
                     placeholder="Search and select book..."
-                    options={(catalog?.books || catalog?.items || catalog?.data || (Array.isArray(catalog) ? catalog : [])).map((b: any) => ({
-                      value: b.id,
-                      label: b.title
-                    }))}
+                    options={(catalog?.books || catalog?.items || catalog?.data || (Array.isArray(catalog) ? catalog : [])).map((b: any) => {
+                      const count = getBookCount(b.id);
+                      return {
+                        value: b.id,
+                        label: b.title,
+                        badge: `Stock: ${count}`,
+                        badgeClassName: count > 0 ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-rose-50 text-rose-700 border border-rose-100'
+                      };
+                    })}
                   />
                 </div>
 

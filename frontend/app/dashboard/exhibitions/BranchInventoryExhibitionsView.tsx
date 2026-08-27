@@ -8,8 +8,8 @@ export function BranchInventoryExhibitionsView({ exhibitions, user }: { exhibiti
   const [activeTab, setActiveTab] = useState<'ACTIVE' | 'PAST'>('ACTIVE');
 
   const myExhibitions = (exhibitions || []).filter(ex => ex.assignedUserId === user?.id || ex.assignedUserId === user?.userId);
-  const activeExhibitions = myExhibitions.filter(ex => ['REQUESTED', 'APPROVED', 'ONGOING'].includes(ex.status));
-  const pastExhibitions = myExhibitions.filter(ex => ['CLOSED', 'REJECTED'].includes(ex.status));
+  const activeExhibitions = myExhibitions.filter(ex => ['REQUESTED', 'APPROVED', 'ONGOING', 'OVERDUE'].includes(ex.status));
+  const pastExhibitions = myExhibitions.filter(ex => ['CLOSED', 'REJECTED', 'EXPIRED'].includes(ex.status));
 
   const displayList = activeTab === 'ACTIVE' ? activeExhibitions : pastExhibitions;
 
@@ -73,6 +73,8 @@ export function BranchInventoryExhibitionsView({ exhibitions, user }: { exhibiti
       case 'ONGOING': return 'bg-green-100 text-green-800 border-green-200';
       case 'CLOSED': return 'bg-gray-100 text-gray-800 border-gray-200';
       case 'REJECTED': return 'bg-red-100 text-red-800 border-red-200';
+      case 'OVERDUE': return 'bg-rose-100 text-rose-800 border-rose-200';
+      case 'EXPIRED': return 'bg-zinc-100 text-zinc-800 border-zinc-200';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -160,7 +162,7 @@ export function BranchInventoryExhibitionsView({ exhibitions, user }: { exhibiti
               <div className="bg-gray-50 px-5 py-3 border-t border-gray-100 flex justify-between items-center text-sm" onClick={(e) => e.stopPropagation()}>
                 <span className="text-blue-600 font-medium cursor-pointer" onClick={() => setViewingExhibition(ex)}>View Details</span>
                 <div className="flex space-x-3 items-center">
-                  {ex.status === 'REQUESTED' && (
+                  {/* {ex.status === 'REQUESTED' && (
                     <>
                       <button 
                         onClick={(e) => { e.stopPropagation(); setRejectingId(ex.id); }} 
@@ -171,8 +173,8 @@ export function BranchInventoryExhibitionsView({ exhibitions, user }: { exhibiti
                         className="text-blue-600 hover:text-blue-900 font-bold"
                       >Accept</button>
                     </>
-                  )}
-                  {ex.status === 'ONGOING' && (
+                  )} */}
+                  {(ex.status === 'ONGOING' || ex.status === 'OVERDUE') && (
                     <button 
                       onClick={(e) => { 
                         e.stopPropagation(); 

@@ -11,7 +11,8 @@ export type StockMovementType =
   | 'EXHIBITION_OUT'
   | 'EXHIBITION_RETURN'
   | 'PURCHASE_RECEIPT'
-  | 'ADJUSTMENT';
+  | 'ADJUSTMENT'
+  | 'CREDIT_OUT';
 
 export async function decrementBranchStock(
   queryRunner: QueryRunner,

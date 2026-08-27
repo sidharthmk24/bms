@@ -13,6 +13,8 @@ export enum ExhibitionStatus {
   REJECTED = 'REJECTED',
   ONGOING = 'ONGOING',
   CLOSED = 'CLOSED',
+  OVERDUE = 'OVERDUE',
+  EXPIRED = 'EXPIRED',
 }
 
 @Entity('exhibition')

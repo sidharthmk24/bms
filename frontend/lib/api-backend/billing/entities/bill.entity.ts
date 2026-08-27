@@ -16,6 +16,7 @@ export enum PaymentStatus {
 export enum PaymentMode {
   CASH = 'CASH',
   UPI = 'UPI',
+  CREDIT = 'CREDIT',
 }
 
 export enum BillStatus {

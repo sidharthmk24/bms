@@ -6,7 +6,13 @@ import { UserRole } from '@/lib/api-backend/users/enums/user-role.enum';
 
 const exhibitionsService = new ExhibitionsService();
 
-export const POST = withRoles([UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.BRANCH_MANAGER, UserRole.BRANCH_INVENTORY], async (req: NextRequest, { user, params }) => {
+export const POST = withRoles([
+  UserRole.SUPER_ADMIN,
+  UserRole.ADMIN,
+  UserRole.BRANCH_MANAGER,
+  UserRole.BRANCH_INVENTORY,
+  UserRole.CENTRAL_INVENTORY_MANAGER
+], async (req: NextRequest, { user, params }) => {
   const p = await params;
   const ip = req.headers.get('x-forwarded-for') || 'unknown';
   const data = await exhibitionsService.dispatchExhibition(p.id, user, ip);

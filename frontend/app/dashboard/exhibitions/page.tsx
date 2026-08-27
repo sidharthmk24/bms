@@ -18,6 +18,7 @@ export default function ExhibitionsPage() {
   const isBranchManager = checkHasRole('BRANCH_MANAGER');
   const isBranchInventory = checkHasRole('BRANCH_INVENTORY') && !isBranchManager;
   const isBranchFrontOffice = checkHasRole('BRANCH_FRONT_OFFICE') && !isBranchManager;
+  const isCentralManager = checkHasRole('CENTRAL_INVENTORY_MANAGER') && !isAdmin;
   const isStaffOnly = (isBranchInventory || isBranchFrontOffice) && !isAdmin;
   const isBranch = (isBranchManager || isBranchInventory || isBranchFrontOffice) && !isAdmin;
 
@@ -91,14 +92,20 @@ export default function ExhibitionsPage() {
       setBranchInventory([]);
       return;
     }
-    api.get(`/inventory/branch/${activeSourceBranchId}?limit=10000`)
+    const selectedBranch = branches.find((b: any) => b.id === activeSourceBranchId);
+    const isWarehouse = selectedBranch?.type === 'WAREHOUSE';
+    const endpoint = isWarehouse 
+      ? '/inventory/central-stock?limit=10000' 
+      : `/inventory/branch/${activeSourceBranchId}?limit=10000`;
+
+    api.get(endpoint)
       .then(res => {
         if (res.success) {
           setBranchInventory(res.data.items || res.data || []);
         }
       })
       .catch(err => console.error('Failed to load branch inventory:', err));
-  }, [activeSourceBranchId]);
+  }, [activeSourceBranchId, branches]);
 
   const getBookStockQty = (bookId: string) => {
     const item = branchInventory.find((bi: any) => bi.bookId === bookId || bi.book?.id === bookId);
@@ -235,6 +242,8 @@ export default function ExhibitionsPage() {
         return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Rejected</span>;
       case 'ONGOING': return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Ongoing</span>;
       case 'CLOSED': return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">Closed</span>;
+      case 'OVERDUE': return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-rose-100 text-rose-800 border border-rose-200">Overdue</span>;
+      case 'EXPIRED': return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-zinc-100 text-zinc-800 border border-zinc-200">Expired</span>;
       default: return null;
     }
   };
@@ -329,12 +338,16 @@ export default function ExhibitionsPage() {
                       Edit Event
                     </button>
                   )}
-                  {isBranch && ex.status === 'APPROVED' && (
+                  {(ex.status === 'APPROVED' || ex.status === 'EXPIRED') && (
+                    isAdmin ||
+                    (isBranch && ex.branch?.type !== 'WAREHOUSE') ||
+                    (isCentralManager && ex.branch?.type === 'WAREHOUSE')
+                  ) && (
                     <button onClick={() => handleDispatch(ex.id)} className="text-purple-600 hover:text-purple-900 flex items-center justify-end w-full">
                       <Send className="w-4 h-4 mr-1" /> Dispatch Stock
                     </button>
                   )}
-                  {isBranch && ex.status === 'ONGOING' && (
+                  {isBranch && (ex.status === 'ONGOING' || ex.status === 'OVERDUE') && (
                     <button 
                       onClick={() => {
                         setClosingExhibition(ex);
@@ -403,6 +416,11 @@ export default function ExhibitionsPage() {
                     options={(usersResponse?.data || usersResponse || [])
                       .filter((u: any) => {
                         const targetBranchId = isAdmin ? createBranchId : user?.branchId;
+                        if (!targetBranchId) return false;
+                        const selectedBranch = branches.find((b: any) => b.id === targetBranchId);
+                        if (selectedBranch?.type === 'WAREHOUSE') {
+                          return !u.branchId && !u.branch?.id;
+                        }
                         return u.branchId === targetBranchId || u.branch?.id === targetBranchId;
                       })
                       .map((u: any) => ({
@@ -669,7 +687,14 @@ export default function ExhibitionsPage() {
                     onChange={(val) => setAssignUserId(val)}
                     placeholder={assignBranchId ? "Select staff..." : "Select a branch first"}
                     options={(usersResponse?.data || usersResponse || [])
-                      .filter((u: any) => u.branchId === assignBranchId || u.branch?.id === assignBranchId)
+                      .filter((u: any) => {
+                        if (!assignBranchId) return false;
+                        const selectedBranch = branches.find((b: any) => b.id === assignBranchId);
+                        if (selectedBranch?.type === 'WAREHOUSE') {
+                          return !u.branchId && !u.branch?.id;
+                        }
+                        return u.branchId === assignBranchId || u.branch?.id === assignBranchId;
+                      })
                       .map((u: any) => ({ value: u.id, label: `${u.name} (${u.roles?.map((r: any) => r.role).join(', ') || u.primaryRole})` }))}
                   />
                 </div>

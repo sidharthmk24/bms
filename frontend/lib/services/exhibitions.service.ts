@@ -9,9 +9,12 @@ import {
 import { getDataSource } from '../db/data-source';
 
 import { Exhibition, ExhibitionStatus } from '../api-backend/exhibitions/entities/exhibition.entity';
+import { BranchType } from '../api-backend/branches/entities/branch.entity';
 import { ExhibitionStock } from '../api-backend/exhibitions/entities/exhibition-stock.entity';
 import { CreditCopy } from '../api-backend/credit-copies/entities/credit-copy.entity';
 import { Bill, BillStatus, PaymentStatus } from '../api-backend/billing/entities/bill.entity';
+import { User } from '../api-backend/users/entities/user.entity';
+import { Notification } from '../api-backend/notifications/entities/notification.entity';
 import { CreateExhibitionDto } from '../api-backend/exhibitions/dto/create-exhibition.dto';
 import { UpdateExhibitionDto } from '../api-backend/exhibitions/dto/update-exhibition.dto';
 import { ReviewExhibitionDto } from '../api-backend/exhibitions/dto/review-exhibition.dto';
@@ -28,6 +31,96 @@ import {
 
 export class ExhibitionsService {
   private notificationsService = new NotificationsService();
+
+  async checkAndUpdateOverdueExhibitions() {
+    try {
+      const { exhibitionRepo, dataSource } = await this.getRepos();
+      const todayStr = new Date().toISOString().split('T')[0];
+
+      // Find all active/ongoing/approved/requested exhibitions that have passed their dates
+      const overdueExhibitions = await exhibitionRepo
+        .createQueryBuilder('e')
+        .leftJoinAndSelect('e.assignedUser', 'assignedUser')
+        .where('e.status IN (:...statuses)', { 
+          statuses: [ExhibitionStatus.REQUESTED, ExhibitionStatus.APPROVED, ExhibitionStatus.ONGOING] 
+        })
+        .andWhere(
+          '( (e.status IN (:...plannedStatuses) AND e.startDate < :todayStr) OR (e.status = :ongoingStatus AND e.endDate < :todayStr) )',
+          {
+            plannedStatuses: [ExhibitionStatus.REQUESTED, ExhibitionStatus.APPROVED],
+            ongoingStatus: ExhibitionStatus.ONGOING,
+            todayStr
+          }
+        )
+        .getMany();
+
+      if (overdueExhibitions.length === 0) return;
+
+      console.log(`[ExhibitionsService] Found ${overdueExhibitions.length} overdue/expired exhibitions. Updating...`);
+
+      // Find users to notify: assigned user + admins + super admins
+      const userRepo = dataSource.getRepository(User);
+      const allActiveUsers = await userRepo.createQueryBuilder('user')
+        .leftJoinAndSelect('user.roles', 'userRole')
+        .where('user.isActive = :isActive', { isActive: true })
+        .getMany();
+
+      const notifyList = allActiveUsers.filter(user => 
+        user.roles.some(ur => [UserRole.SUPER_ADMIN, UserRole.ADMIN].includes(ur.role as UserRole)) ||
+        (user.id && overdueExhibitions.some(ex => ex.assignedUserId === user.id))
+      );
+
+      const notifRepo = dataSource.getRepository(Notification);
+
+      for (const exhibition of overdueExhibitions) {
+        const isOngoing = exhibition.status === ExhibitionStatus.ONGOING;
+        const newStatus = isOngoing ? ExhibitionStatus.OVERDUE : ExhibitionStatus.EXPIRED;
+
+        // 1. Update status
+        await exhibitionRepo.update(exhibition.id, {
+          status: newStatus,
+        });
+
+        // 2. Notify users
+        for (const user of notifyList) {
+          const isAssigned = user.id === exhibition.assignedUserId;
+          const isAdmin = user.roles.some(ur => [UserRole.SUPER_ADMIN, UserRole.ADMIN].includes(ur.role as UserRole));
+          
+          if (!isAssigned && !isAdmin) continue;
+
+          const existingNotif = await notifRepo.createQueryBuilder('n')
+            .where('n.userId = :userId', { userId: user.id })
+            .andWhere('n.title = :title', { title: 'Exhibition Overdue Alert' })
+            .andWhere('n.message LIKE :msg', { msg: `%${exhibition.id}%` })
+            .getOne();
+
+          if (!existingNotif) {
+            let message = '';
+            if (isAssigned) {
+              message = isOngoing
+                ? `The exhibition "${exhibition.name}" (ID: ${exhibition.id}) you are assigned to has passed its scheduled end date (${exhibition.endDate}) but is not yet closed. Please reconcile and close the event.`
+                : `The exhibition "${exhibition.name}" (ID: ${exhibition.id}) you are assigned to was scheduled to start on ${exhibition.startDate} but was never dispatched. It is now marked as expired.`;
+            } else {
+              message = isOngoing
+                ? `The exhibition "${exhibition.name}" (ID: ${exhibition.id}) assigned to ${exhibition.assignedUser?.name || 'Unassigned'} has passed its scheduled end date but remains unclosed.`
+                : `The exhibition "${exhibition.name}" (ID: ${exhibition.id}) assigned to ${exhibition.assignedUser?.name || 'Unassigned'} was scheduled to start on ${exhibition.startDate} but was never dispatched and has expired.`;
+            }
+
+            await this.notificationsService.createNotification(
+              user.id,
+              'Exhibition Overdue Alert',
+              message,
+              'EXHIBITION'
+            );
+          }
+        }
+      }
+
+      this.notificationsService.triggerRefresh('exhibition_changed');
+    } catch (error) {
+      console.error('[ExhibitionsService] Failed to check and update overdue exhibitions:', error);
+    }
+  }
 
   private async getRepos() {
     const ds = await getDataSource();
@@ -141,6 +234,20 @@ export class ExhibitionsService {
 
     const updates: Partial<Exhibition> = {};
 
+    // Restore status back to APPROVED (for EXPIRED) or ONGOING (for OVERDUE) if dates are moved to the future
+    if (exhibition.status === ExhibitionStatus.EXPIRED || exhibition.status === ExhibitionStatus.OVERDUE) {
+      const newStartDate = dto.startDate ? new Date(dto.startDate) : exhibition.startDate;
+      const newEndDate = dto.endDate ? new Date(dto.endDate) : exhibition.endDate;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      if (exhibition.status === ExhibitionStatus.EXPIRED && newStartDate >= today) {
+        updates.status = ExhibitionStatus.APPROVED;
+      } else if (exhibition.status === ExhibitionStatus.OVERDUE && newEndDate >= today) {
+        updates.status = ExhibitionStatus.ONGOING;
+      }
+    }
+
     // Creators can update details if not closed. Admins can do it anytime (unless closed).
     if (dto.name !== undefined) updates.name = dto.name;
     if (dto.location !== undefined) updates.location = dto.location;
@@ -239,6 +346,7 @@ export class ExhibitionsService {
 
   // ── List exhibitions ─────────────────────────────────────────────────────────
   async findAll(user: JwtPayload): Promise<Exhibition[]> {
+    await this.checkAndUpdateOverdueExhibitions();
     const { exhibitionRepo } = await this.getRepos();
     const qb = exhibitionRepo
       .createQueryBuilder('e')
@@ -268,6 +376,7 @@ export class ExhibitionsService {
 
   // ── Find one ──────────────────────────────────────────────────────────────────
   async findOne(id: string, user: JwtPayload): Promise<Exhibition> {
+    await this.checkAndUpdateOverdueExhibitions();
     const { exhibitionRepo } = await this.getRepos();
     const exhibition = await exhibitionRepo.findOne({
       where: { id },
@@ -302,7 +411,7 @@ export class ExhibitionsService {
     const { exhibitionRepo, dataSource } = await this.getRepos();
     const exhibition = await this.findOne(id, user);
 
-    if (exhibition.status !== ExhibitionStatus.REQUESTED) {
+    if (exhibition.status !== ExhibitionStatus.REQUESTED && exhibition.status !== ExhibitionStatus.EXPIRED) {
       throw new ConflictException(`Cannot approve exhibition in status ${exhibition.status}`);
     }
 
@@ -339,7 +448,7 @@ export class ExhibitionsService {
     const { exhibitionRepo, dataSource } = await this.getRepos();
     const exhibition = await this.findOne(id, user);
 
-    if (exhibition.status !== ExhibitionStatus.REQUESTED) {
+    if (exhibition.status !== ExhibitionStatus.REQUESTED && exhibition.status !== ExhibitionStatus.EXPIRED) {
       throw new ConflictException(`Cannot reject exhibition in status ${exhibition.status}`);
     }
 
@@ -375,8 +484,25 @@ export class ExhibitionsService {
     const { dataSource } = await this.getRepos();
     const exhibition = await this.findOne(id, user);
 
-    if (exhibition.status !== ExhibitionStatus.APPROVED) {
+    if (exhibition.status !== ExhibitionStatus.APPROVED && exhibition.status !== ExhibitionStatus.EXPIRED) {
       throw new ConflictException(`Cannot dispatch exhibition in status ${exhibition.status}`);
+    }
+
+    // Role-based verification for dispatching
+    if (exhibition.sourceBranch?.type === BranchType.WAREHOUSE) {
+      const isCentralManager = hasRole(user, UserRole.CENTRAL_INVENTORY_MANAGER) ||
+                               hasRole(user, UserRole.SUPER_ADMIN) ||
+                               hasRole(user, UserRole.ADMIN);
+      if (!isCentralManager) {
+        throw new ForbiddenException('Only the Central Warehouse Manager or an Administrator can dispatch from the Central Warehouse');
+      }
+    } else {
+      const isStoreStaffOrAdmin = !hasRole(user, UserRole.CENTRAL_INVENTORY_MANAGER) ||
+                                  hasRole(user, UserRole.SUPER_ADMIN) ||
+                                  hasRole(user, UserRole.ADMIN);
+      if (!isStoreStaffOrAdmin) {
+        throw new ForbiddenException('Central Warehouse Manager cannot dispatch from store branches');
+      }
     }
 
     const queryRunner = dataSource.createQueryRunner();
@@ -433,7 +559,7 @@ export class ExhibitionsService {
     const { dataSource } = await this.getRepos();
     const exhibition = await this.findOne(id, user);
 
-    if (exhibition.status !== ExhibitionStatus.ONGOING) {
+    if (exhibition.status !== ExhibitionStatus.ONGOING && exhibition.status !== ExhibitionStatus.OVERDUE) {
       throw new ConflictException(`Cannot close exhibition in status ${exhibition.status}`);
     }
 
