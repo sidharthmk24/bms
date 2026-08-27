@@ -293,6 +293,7 @@ export default function BillsPage() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       {new Date(bill.createdAt).toLocaleString()}
                     </td>
+                    
                     <td className="px-6 py-4">
                       {bill.customerName || '-'}
                     </td>
