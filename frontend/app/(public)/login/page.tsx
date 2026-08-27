@@ -3,8 +3,9 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
-import { Loader2, Book, AlertCircle } from 'lucide-react';
+import { Loader2, AlertCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
+import Image from 'next/image';
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -86,10 +87,16 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="flex justify-center">
-          <div className="h-12 w-12 bg-blue-600 rounded-xl flex items-center justify-center shadow-sm">
-            <Book className="h-7 w-7 text-white" />
-          </div>
+          <Image
+            className="object-contain h-16 w-auto"
+            src="/kb.png"
+            alt="Kairali Books"
+            width={200}
+            height={60}
+            priority
+          />
         </div>
+
         <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-gray-900">
           {step === 'EMAIL' && 'Sign in to your account'}
           {step === 'PASSWORD' && 'Enter your password'}

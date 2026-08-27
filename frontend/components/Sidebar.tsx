@@ -89,31 +89,47 @@ export default function Sidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   return (
-    <div className={`flex flex-col shrink-0 ${isCollapsed ? 'w-20' : 'w-72'} bg-slate-50/40 border-r border-slate-200/60 h-full overflow-y-auto backdrop-blur-xl shadow-[4px_0_24px_rgba(0,0,0,0.02)] transition-all duration-300 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']`}>
+    <div className={`flex flex-col shrink-0 ${isCollapsed ? 'w-20' : 'w-72'} bg-white border-r border-slate-200/60 h-full overflow-y-auto backdrop-blur-xl shadow-[4px_0_24px_rgba(0,0,0,0.02)] transition-all duration-300 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']`}>
       {/* Header / Logo */}
-      <div className={`flex items-center border-b border-slate-200/50 shrink-0 ${isCollapsed ? 'h-24 justify-center px-4' : 'h-24 px-8 justify-between'}`}>
-        <div className={`flex items-center gap-4 ${isCollapsed ? 'hidden' : 'flex'}`}>
-          {/* <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/30 ring-1 ring-white/20">
-            <BookOpen className="w-5 h-5" />
+      <div className={`flex items-center border-b border-slate-200/50 shrink-0 ${isCollapsed ? 'h-24 justify-center px-3' : 'h-24 px-6 justify-between'}`}>
+        {!isCollapsed ? (
+          <div className="flex items-center">
+            <Image
+              className="object-contain h-12 w-auto"
+              src="/kb.png"
+              alt="Kairali Books"
+              width={160}
+              height={48}
+              priority
+            />
           </div>
-          <span className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-slate-800 to-slate-600 tracking-tight">Kirali Books</span> */}
-
-          <Image className=' rounded-full object-cover' src="/kirali-nobg.png" alt="Kirali Books" width={100} height={100} />
-        </div>
+        ) : (
+          <div className="flex items-center justify-center">
+            <Image
+              className="object-contain h-10 w-10"
+              src="/kb.png"
+              alt="Kairali Books"
+              width={40}
+              height={40}
+              priority
+            />
+          </div>
+        )}
         <button 
           onClick={() => setIsCollapsed(!isCollapsed)} 
-          className="p-2.5 text-slate-500 hover:text-slate-800 rounded-xl hover:bg-slate-200/50 transition-colors shrink-0"
+          className="p-2 text-slate-500 hover:text-slate-800 rounded-xl hover:bg-slate-100 transition-colors shrink-0 cursor-pointer"
         >
-          <Menu className="w-6 h-6" />
+          <Menu className="w-5 h-5" />
         </button>
       </div>
+
       
       <div className="p-4 flex-1 flex flex-col gap-6">
         {/* User Card */}
-        <div className={`bg-white rounded-2xl border border-slate-200/60 shadow-sm flex relative overflow-hidden group hover:shadow-md transition-shadow duration-300 ${isCollapsed ? 'justify-center items-center p-2' : 'px-4 py-3.5 flex-col gap-1'}`}>
-          <div className="absolute inset-0 bg-gradient-to-r from-blue-50/50 to-indigo-50/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+        <div className={`bg-slate-50/80 rounded-2xl border border-slate-200/60 shadow-xs flex relative overflow-hidden group hover:border-slate-300 transition-all duration-300 ${isCollapsed ? 'justify-center items-center p-2' : 'px-4 py-3.5 flex-col gap-1'}`}>
+          <div className="absolute inset-0 bg-gradient-to-r from-slate-100/50 to-slate-200/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
           {isCollapsed ? (
-             <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold relative z-10 text-sm">
+             <div className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold relative z-10 text-sm">
                {user.name.charAt(0)}
              </div>
           ) : (
@@ -146,27 +162,26 @@ export default function Sidebar() {
                 title={isCollapsed ? link.name : undefined}
                 className={`flex items-center py-2.5 text-sm font-semibold rounded-xl transition-all duration-200 group relative overflow-hidden ${
                   isActive 
-                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25' 
-                    : 'text-slate-600 hover:bg-white hover:text-slate-900 hover:shadow-sm border border-transparent hover:border-slate-200/60'
+                    ? 'bg-slate-900 text-white shadow-md shadow-slate-900/20 ring-1 ring-slate-900' 
+                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-transparent hover:border-slate-200/60'
                 } ${isCollapsed ? 'justify-center px-0' : 'px-3'}`}
               >
                 {/* Active link background effect */}
                 {isActive && (
-                  <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-indigo-600 opacity-100" />
+                  <div className="absolute inset-0 bg-slate-900 opacity-100" />
                 )}
                 
                 <Icon 
                   className={`flex-shrink-0 h-5 w-5 transition-transform duration-300 relative z-10 group-hover:scale-110 ${
-                    isActive ? 'text-white' : 'text-slate-400 group-hover:text-blue-600'
+                    isActive ? 'text-white' : 'text-slate-400 group-hover:text-slate-900'
                   } ${isCollapsed ? 'mr-0' : 'mr-3'}`} 
                 />
                 {!isCollapsed && <span className="relative z-10 truncate tracking-tight">{link.name}</span>}
-                
-               
               </Link>
             );
           })}
         </nav>
+
       </div>
 
       {/* Logout Button */}
@@ -174,7 +189,7 @@ export default function Sidebar() {
         <button
           onClick={logout}
           title={isCollapsed ? 'Sign Out' : undefined}
-          className={`flex items-center py-3 text-sm font-semibold text-rose-600 rounded-xl hover:bg-rose-50 border border-transparent hover:border-rose-100 transition-all duration-200 group ${isCollapsed ? 'justify-center w-full px-0' : 'w-full px-4'}`}
+          className={`flex items-center py-3 text-sm font-semibold text-rose-600 rounded-xl hover:bg-rose-50 border border-transparent hover:border-rose-100 transition-all duration-200 group cursor-pointer ${isCollapsed ? 'justify-center w-full px-0' : 'w-full px-4'}`}
         >
           <div className={`bg-rose-100/50 p-1.5 rounded-lg group-hover:bg-rose-200/50 transition-colors ${isCollapsed ? 'mr-0' : 'mr-3'}`}>
             <LogOut className={`h-4 w-4 transition-transform duration-300 ${isCollapsed ? '' : 'group-hover:-translate-x-0.5'}`} />
@@ -185,3 +200,5 @@ export default function Sidebar() {
     </div>
   );
 }
+
+

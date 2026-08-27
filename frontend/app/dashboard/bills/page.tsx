@@ -320,7 +320,7 @@ export default function BillsPage() {
                     <td className="px-6 py-4 text-center">
                       <button
                         onClick={() => downloadPDF(bill)}
-                        className="inline-flex items-center justify-center p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors group"
+                        className="inline-flex items-center justify-center p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors group cursor-pointer"
                         title="Download PDF Invoice"
                       >
                         <Download className="w-5 h-5 group-hover:scale-110 transition-transform" />
@@ -336,3 +336,5 @@ export default function BillsPage() {
     </div>
   );
 }
+
+
