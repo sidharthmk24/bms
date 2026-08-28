@@ -316,7 +316,7 @@ export class CatalogService {
 
     const { bookRepo } = await this.getRepos();
     const book = await bookRepo.findOne({
-      where: { id, isActive: true },
+      where: { id },
       relations: ['author', 'publisher', 'category'],
     });
 
@@ -333,7 +333,7 @@ export class CatalogService {
 
     const { bookRepo } = await this.getRepos();
     const book = await bookRepo.findOne({
-      where: { barcode, isActive: true },
+      where: { barcode },
       relations: ['author', 'publisher', 'category'],
     });
 
@@ -350,7 +350,7 @@ export class CatalogService {
 
     const { bookRepo } = await this.getRepos();
     const book = await bookRepo.findOne({
-      where: { isbn, isActive: true },
+      where: { isbn },
       relations: ['author', 'publisher', 'category'],
     });
 

@@ -461,7 +461,7 @@ export default function BillingPage() {
                   {phoneError && <p className="text-xs text-red-500 mt-1">{phoneError}</p>}
                 </div>
 
-                {ongoingExhibitions.length > 0 && (
+                {/* {ongoingExhibitions.length > 0 && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Link to Exhibition (Optional)
@@ -479,7 +479,7 @@ export default function BillingPage() {
                       ))}
                     </select>
                   </div>
-                )}
+                )} */}
 
                 <div className="pt-2">
                   <label className="block text-sm font-medium text-gray-700 mb-2">Payment Mode</label>

@@ -97,7 +97,7 @@ export class TransfersService {
       const savedTransfer = await queryRunner.manager.save(StockTransfer, transfer);
 
       for (const itemDto of items) {
-        const book = await queryRunner.manager.findOne(Book, { where: { id: itemDto.bookId, isActive: true } });
+        const book = await queryRunner.manager.findOne(Book, { where: { id: itemDto.bookId } });
         if (!book) throw new NotFoundException(`Book with ID ${itemDto.bookId} not found`);
 
         const item = queryRunner.manager.create(StockTransferItem, {

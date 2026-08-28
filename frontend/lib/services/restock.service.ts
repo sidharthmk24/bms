@@ -108,7 +108,7 @@ export class RestockService {
       // Create items
       for (const itemDto of dto.items) {
         const book = await queryRunner.manager.findOne(Book, {
-          where: { id: itemDto.bookId, isActive: true },
+          where: { id: itemDto.bookId },
         });
         if (!book) throw new NotFoundException(`Book with ID ${itemDto.bookId} not found`);
 

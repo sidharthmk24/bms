@@ -102,7 +102,7 @@ export class BillingService {
       for (const item of dto.items) {
         // Load book inside transaction to ensure price accuracy
         const book = await queryRunner.manager.findOne(Book, {
-          where: { id: item.bookId, isActive: true },
+          where: { id: item.bookId },
         }) as any;
         if (!book) throw new NotFoundException(`Book with ID ${item.bookId} not found`);
 
