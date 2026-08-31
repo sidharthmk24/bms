@@ -82,13 +82,13 @@ export default function CreditCopiesPage() {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-gray-900 flex items-center">
-            <Gift className="w-6 h-6 mr-2 text-rose-500" /> Credit Copies
+            <Gift className="w-6 h-6 mr-2 text-[#000000]" /> Credit Copies
           </h2>
           <p className="text-sm text-gray-500">Track and issue free promotional or complimentary books.</p>
         </div>
         <button
           onClick={() => setIsCreating(true)}
-          className="flex items-center px-4 py-2 text-sm font-medium text-white bg-rose-600 rounded-lg hover:bg-rose-700"
+          className="flex items-center px-4 py-2 text-sm font-medium text-white bg-[#000000] rounded-lg hover:bg-[#000000]/80"
         >
           <Plus className="w-4 h-4 mr-2" />
           Issue Credit Copy
