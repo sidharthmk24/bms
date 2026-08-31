@@ -172,8 +172,7 @@ export default function BillingPage() {
   const printBill = () => {
     if (!completedBill) return;
     const currentBranch = branches?.find((b: any) => b.id === completedBill.branchId);
-    const branchName = currentBranch?.name || completedBill.branchId;
-    generateBillPDF(completedBill, completedCart, branchName);
+    generateBillPDF(completedBill, completedCart, currentBranch || completedBill.branchId);
   };
 
   const startNewSale = () => {

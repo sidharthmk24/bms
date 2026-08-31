@@ -301,7 +301,7 @@ export default function EODSalesPage() {
                     </td>
                     <td className="px-6 py-3 text-center">
                       <button
-                        onClick={() => generateBillPDF(bill, bill.items || [], bill.branch?.name || bill.branchId)}
+                        onClick={() => generateBillPDF(bill, bill.items || [], bill.branch || bill.branchId)}
                         className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                         title="Download PDF"
                       >

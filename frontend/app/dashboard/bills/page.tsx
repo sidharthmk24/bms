@@ -83,7 +83,7 @@ export default function BillsPage() {
   );
 
   const downloadPDF = (bill: any) => {
-    generateBillPDF(bill, bill.items || [], bill.branch?.name || bill.branchId);
+    generateBillPDF(bill, bill.items || [], bill.branch || bill.branchId);
   };
 
   const handleExport = () => {

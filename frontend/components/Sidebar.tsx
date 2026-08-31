@@ -98,7 +98,7 @@ export default function Sidebar() {
           </div>
           <span className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-slate-800 to-slate-600 tracking-tight">Kirali Books</span> */}
 
-          <Image className=' rounded-full object-cover' src="/kirali-nobg.png" alt="Kirali Books" width={100} height={100} />
+          <Image className='object-contain' src="/kairaliLogo.png" alt="Kairali Books" width={120} height={50} priority />
         </div>
         <button 
           onClick={() => setIsCollapsed(!isCollapsed)} 
