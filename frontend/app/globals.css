@@ -11,41 +11,41 @@
   --font-sans: var(--font-red-hat), sans-serif;
   --font-mono: var(--font-geist-mono);
 
-  /* Primary Brand colors (using #00BFC0 - Teal) */
-  --color-blue-50: color-mix(in oklab, #00BFC0 5%, white);
-  --color-blue-100: color-mix(in oklab, #00BFC0 12%, white);
-  --color-blue-200: color-mix(in oklab, #00BFC0 25%, white);
-  --color-blue-300: color-mix(in oklab, #00BFC0 45%, white);
-  --color-blue-400: color-mix(in oklab, #00BFC0 70%, white);
-  --color-blue-500: #00BFC0;
-  --color-blue-600: #00BFC0;
-  --color-blue-700: color-mix(in oklab, #00BFC0 85%, #000000);
-  --color-blue-800: color-mix(in oklab, #00BFC0 70%, #000000);
-  --color-blue-900: color-mix(in oklab, #00BFC0 50%, #000000);
+  /* Primary Brand colors (using #000000 - Black) */
+  --color-blue-50: color-mix(in oklab, #000000 5%, white);
+  --color-blue-100: color-mix(in oklab, #000000 12%, white);
+  --color-blue-200: color-mix(in oklab, #000000 25%, white);
+  --color-blue-300: color-mix(in oklab, #000000 45%, white);
+  --color-blue-400: color-mix(in oklab, #000000 70%, white);
+  --color-blue-500: #000000;
+  --color-blue-600: #000000;
+  --color-blue-700: color-mix(in oklab, #000000 85%, #000000);
+  --color-blue-800: color-mix(in oklab, #000000 70%, #000000);
+  --color-blue-900: color-mix(in oklab, #000000 50%, #000000);
   --color-blue-950: #000000;
 
-  --color-indigo-50: color-mix(in oklab, #00BFC0 5%, white);
-  --color-indigo-100: color-mix(in oklab, #00BFC0 12%, white);
-  --color-indigo-200: color-mix(in oklab, #00BFC0 25%, white);
-  --color-indigo-300: color-mix(in oklab, #00BFC0 45%, white);
-  --color-indigo-400: color-mix(in oklab, #00BFC0 70%, white);
-  --color-indigo-500: #00BFC0;
-  --color-indigo-600: #00BFC0;
-  --color-indigo-700: color-mix(in oklab, #00BFC0 85%, #000000);
-  --color-indigo-800: color-mix(in oklab, #00BFC0 70%, #000000);
-  --color-indigo-900: color-mix(in oklab, #00BFC0 50%, #000000);
+  --color-indigo-50: color-mix(in oklab, #000000 5%, white);
+  --color-indigo-100: color-mix(in oklab, #000000 12%, white);
+  --color-indigo-200: color-mix(in oklab, #000000 25%, white);
+  --color-indigo-300: color-mix(in oklab, #000000 45%, white);
+  --color-indigo-400: color-mix(in oklab, #000000 70%, white);
+  --color-indigo-500: #000000;
+  --color-indigo-600: #000000;
+  --color-indigo-700: color-mix(in oklab, #000000 85%, #000000);
+  --color-indigo-800: color-mix(in oklab, #000000 70%, #000000);
+  --color-indigo-900: color-mix(in oklab, #000000 50%, #000000);
   --color-indigo-950: #000000;
 
-  --color-purple-50: color-mix(in oklab, #00BFC0 5%, white);
-  --color-purple-100: color-mix(in oklab, #00BFC0 12%, white);
-  --color-purple-200: color-mix(in oklab, #00BFC0 25%, white);
-  --color-purple-300: color-mix(in oklab, #00BFC0 45%, white);
-  --color-purple-400: color-mix(in oklab, #00BFC0 70%, white);
-  --color-purple-500: #00BFC0;
-  --color-purple-600: #00BFC0;
-  --color-purple-700: color-mix(in oklab, #00BFC0 85%, #000000);
-  --color-purple-800: color-mix(in oklab, #00BFC0 70%, #000000);
-  --color-purple-900: color-mix(in oklab, #00BFC0 50%, #000000);
+  --color-purple-50: color-mix(in oklab, #000000 5%, white);
+  --color-purple-100: color-mix(in oklab, #000000 12%, white);
+  --color-purple-200: color-mix(in oklab, #000000 25%, white);
+  --color-purple-300: color-mix(in oklab, #000000 45%, white);
+  --color-purple-400: color-mix(in oklab, #000000 70%, white);
+  --color-purple-500: #000000;
+  --color-purple-600: #000000;
+  --color-purple-700: color-mix(in oklab, #000000 85%, #000000);
+  --color-purple-800: color-mix(in oklab, #000000 70%, #000000);
+  --color-purple-900: color-mix(in oklab, #000000 50%, #000000);
   --color-purple-950: #000000;
 
   /* Neutrals mapped for the white-background theme with #231F20 & #000000 */

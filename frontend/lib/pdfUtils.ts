@@ -25,7 +25,7 @@ export const generateBillPDF = (bill: any, items: any[], branch: any) => {
   
   // Define Theme Colors (RGB)
   const colorPrimary = [35, 31, 32]; // #231F20
-  const colorAccent = [0, 191, 192];  // #00BFC0
+  const colorAccent = [0, 0, 0];      // #000000
   const colorBlack = [0, 0, 0];      // #000000
   const colorMuted = [107, 114, 128]; // #6b7280
   const colorLine = [229, 231, 235];  // #e5e7eb
