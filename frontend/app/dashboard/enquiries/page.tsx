@@ -256,12 +256,16 @@ export default function EnquiriesPage() {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Select Book</label>
                     <Dropdown
+                      searchable
                       value={bookId}
                       onChange={(val) => setBookId(val)}
-                      placeholder="Choose..."
+                      placeholder="Search by title, ISBN, or barcode..."
                       options={(outOfStockCatalog).map((b: any) => ({
                         value: b.id,
-                        label: b.title
+                        label: b.title,
+                        isbn: b.isbn,
+                        barcode: b.barcode,
+                        sublabel: `ISBN: ${b.isbn || 'N/A'}${b.barcode ? ` • Barcode: ${b.barcode}` : ''}`,
                       }))}
                     />
                   </div>

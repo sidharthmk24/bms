@@ -196,10 +196,13 @@ export default function PurchaseOrdersPage() {
                           setCostInput(book.costPrice);
                         }
                       }}
-                      placeholder="Search and select..."
+                      placeholder="Search by title, ISBN, or barcode..."
                       options={(catalog?.books || catalog?.items || catalog?.data || (Array.isArray(catalog) ? catalog : [])).map((b: any) => ({
                         value: b.id,
-                        label: `${b.title} (Current Cost: ₹${b.costPrice || 0})`
+                        label: b.title,
+                        isbn: b.isbn,
+                        barcode: b.barcode,
+                        sublabel: `ISBN: ${b.isbn || 'N/A'}${b.barcode ? ` • Barcode: ${b.barcode}` : ''} • Cost: ₹${b.costPrice || 0}`,
                       }))}
                     />
                   </div>

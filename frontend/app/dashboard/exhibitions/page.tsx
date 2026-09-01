@@ -447,14 +447,17 @@ export default function ExhibitionsPage() {
                       searchable={true}
                       value={bookInput}
                       onChange={(val) => setBookInput(val)}
-                      placeholder="Select a book..."
+                      placeholder="Search by title, ISBN, or barcode..."
                       options={(catalog?.books || catalog?.items || catalog?.data || (Array.isArray(catalog) ? catalog : [])).map((b: any) => {
                         const stock = getBookStockQty(b.id);
                         return {
                           value: b.id,
                           label: b.title,
+                          isbn: b.isbn,
+                          barcode: b.barcode,
+                          sublabel: `ISBN: ${b.isbn || 'N/A'}${b.barcode ? ` • Barcode: ${b.barcode}` : ''}`,
                           badge: `Stock: ${stock}`,
-                          badgeClassName: stock > 0 ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-rose-50 text-rose-700 border border-rose-100'
+                          badgeClassName: stock > 0 ? 'bg-neutral-100 text-black border border-neutral-300' : 'bg-neutral-100 text-neutral-500 border border-neutral-200'
                         };
                       })}
                     />

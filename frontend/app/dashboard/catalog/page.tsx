@@ -234,10 +234,10 @@ export default function CatalogManagementPage() {
             <div className="flex-1 w-full">
               <input 
                 type="text" 
-                placeholder="Search titles, ISBNs..." 
+                placeholder="Search title, ISBN, or barcode..." 
                 value={searchQuery}
                 onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg sm:text-sm focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg sm:text-sm focus:ring-black focus:border-black"
               />
             </div>
             <div className="w-48 text-left z-20">

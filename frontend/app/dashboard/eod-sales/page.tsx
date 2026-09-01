@@ -77,7 +77,7 @@ export default function EODSalesPage() {
     try {
       const params = new URLSearchParams({ startDate, endDate, limit: '500' });
       const res = await api.get(`/billing?${params.toString()}`);
-      const list = Array.isArray(res.data) ? res.data : (res.data?.items ?? res?.items ?? []);
+      const list = Array.isArray(res.data) ? res.data : ((res.data as any)?.items ?? (res as any)?.items ?? []);
       setBills(list);
     } catch (e: any) {
       setError(e?.response?.data?.message || 'Failed to load sales data');

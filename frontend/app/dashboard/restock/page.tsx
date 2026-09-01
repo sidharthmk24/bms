@@ -181,10 +181,13 @@ export default function RestockRequestsPage() {
                     searchable
                     value={selectedBook}
                     onChange={(val) => setSelectedBook(val)}
-                    placeholder="Select a book..."
+                    placeholder="Search by title, ISBN, or barcode..."
                     options={(catalog?.books || catalog?.items || catalog?.data || (Array.isArray(catalog) ? catalog : [])).map((b: any) => ({
                       value: b.id,
-                      label: `${b.title} (${b.barcode})`
+                      label: b.title,
+                      isbn: b.isbn,
+                      barcode: b.barcode,
+                      sublabel: `ISBN: ${b.isbn || 'N/A'}${b.barcode ? ` • Barcode: ${b.barcode}` : ''}`,
                     }))}
                   />
                 </div>

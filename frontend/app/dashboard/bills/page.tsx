@@ -77,10 +77,18 @@ export default function BillsPage() {
   // Extract array from response envelope
   const billsList = Array.isArray(data) ? data : (data?.items || []);
 
-  const filteredBills = billsList.filter((bill: any) => 
-    bill.billNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (bill.customerName && bill.customerName.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredBills = billsList.filter((bill: any) => {
+    const q = searchTerm.toLowerCase();
+    return (
+      bill.billNumber.toLowerCase().includes(q) ||
+      (bill.customerName && bill.customerName.toLowerCase().includes(q)) ||
+      bill.items?.some((i: any) =>
+        i.book?.title?.toLowerCase().includes(q) ||
+        i.book?.isbn?.toLowerCase().includes(q) ||
+        i.book?.barcode?.toLowerCase().includes(q)
+      )
+    );
+  });
 
   const downloadPDF = (bill: any) => {
     generateBillPDF(bill, bill.items || [], bill.branch || bill.branchId);

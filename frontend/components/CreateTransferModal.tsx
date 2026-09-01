@@ -296,7 +296,7 @@ export default function CreateTransferModal({ isOpen, onClose, onSuccess }: Crea
               <div className="relative">
                 <input
                   type="text"
-                  placeholder="Search book by title or ISBN..."
+                  placeholder="Search book by title, ISBN, or barcode..."
                   value={searchQuery}
                   onChange={(e) => {
                     setSearchQuery(e.target.value);
@@ -304,10 +304,10 @@ export default function CreateTransferModal({ isOpen, onClose, onSuccess }: Crea
                     setSelectedBookForBranchSelect(null);
                   }}
                   onFocus={() => setShowSearchResults(true)}
-                  className="w-full pl-10 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  className="w-full pl-10 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-black bg-white"
                 />
                 <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
-                {searching && <Loader2 className="w-4 h-4 text-blue-500 animate-spin absolute right-3.5 top-3.5" />}
+                {searching && <Loader2 className="w-4 h-4 text-black animate-spin absolute right-3.5 top-3.5" />}
               </div>
 
               {/* Results dropdown */}
@@ -325,48 +325,49 @@ export default function CreateTransferModal({ isOpen, onClose, onSuccess }: Crea
                           <span className="font-bold text-slate-500">Available Stock for "{selectedBookForBranchSelect.title}":</span>
                           <button 
                             onClick={() => setSelectedBookForBranchSelect(null)}
-                            className="text-blue-500 hover:text-blue-700 font-semibold"
+                            className="text-black hover:underline font-semibold"
                           >
                             Back
                           </button>
                         </div>
                         {loadingBranchStocks ? (
                           <div className="py-4 flex justify-center text-xs text-slate-400">
-                            <Loader2 className="w-4 h-4 animate-spin text-blue-500 mr-2" />
-                            Loading stocks...
+                            <Loader2 className="w-4 h-4 animate-spin text-black mr-2" />
+                            Fetching stocks...
                           </div>
                         ) : bookBranchStocks.length === 0 ? (
-                          <div className="py-4 text-center text-xs text-rose-500 font-semibold">
-                            This book is out of stock in all branches.
+                          <div className="py-3 text-center text-xs text-slate-400">
+                            No branches currently have stock for this book.
                           </div>
                         ) : (
-                          <div className="space-y-1 max-h-40 overflow-y-auto">
-                            {bookBranchStocks.map((stock) => {
-                              const isSelf = stock.branchId === toBranchId;
-                              const isLocked = fromBranchId && fromBranchId !== stock.branchId;
-                              const isDisabled = isSelf || isLocked;
-
+                          <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                            {bookBranchStocks.map((branchStock) => {
+                              const alreadyAdded = items.some(
+                                (i) => i.bookId === selectedBookForBranchSelect.id
+                              );
                               return (
-                                <button
-                                  key={stock.branchId}
-                                  disabled={isDisabled}
-                                  onClick={() => handleAddBook(selectedBookForBranchSelect, stock)}
-                                  className={`w-full px-3 py-2 text-left text-xs rounded-lg flex items-center justify-between transition ${
-                                    isDisabled 
-                                      ? 'opacity-40 cursor-not-allowed bg-slate-50' 
-                                      : 'hover:bg-blue-50/50 hover:text-blue-700 bg-slate-50/30'
-                                  }`}
+                                <div
+                                  key={branchStock.branchId}
+                                  className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-100 text-xs"
                                 >
                                   <div>
-                                    <span className="font-semibold text-slate-700">{stock.branchName}</span>
-                                    <span className="text-[10px] text-slate-400 font-mono ml-1.5">({stock.branchCode})</span>
+                                    <p className="font-bold text-slate-700">{branchStock.branchName}</p>
+                                    <p className="text-slate-400 text-[10px]">
+                                      Available: <span className="font-semibold text-emerald-600">{branchStock.availableStock}</span>
+                                    </p>
                                   </div>
-                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                    isDisabled ? 'bg-slate-200 text-slate-500' : 'bg-blue-100 text-blue-800'
-                                  }`}>
-                                    {stock.quantity} available
-                                  </span>
-                                </button>
+                                  <button
+                                    onClick={() => handleAddBook(selectedBookForBranchSelect, { branchId: branchStock.branchId, quantity: branchStock.availableStock ?? branchStock.quantity ?? 1 })}
+                                    disabled={alreadyAdded || (branchStock.availableStock !== undefined ? branchStock.availableStock <= 0 : false)}
+                                    className={`px-2.5 py-1 rounded-md text-xs font-semibold ${
+                                      alreadyAdded
+                                        ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                                        : 'bg-black text-white hover:bg-neutral-800'
+                                    }`}
+                                  >
+                                    {alreadyAdded ? 'Added' : 'Select'}
+                                  </button>
+                                </div>
                               );
                             })}
                           </div>
@@ -383,10 +384,12 @@ export default function CreateTransferModal({ isOpen, onClose, onSuccess }: Crea
                             <BookOpen className="w-4 h-4 text-slate-400 shrink-0" />
                             <div className="min-w-0">
                               <p className="font-semibold text-slate-700 truncate">{book.title}</p>
-                              <p className="text-xs text-slate-400 font-mono">{book.isbn}</p>
+                              <p className="text-xs text-slate-400 font-mono">
+                                {[book.isbn ? `ISBN: ${book.isbn}` : '', book.barcode ? `Barcode: ${book.barcode}` : ''].filter(Boolean).join(' • ')}
+                              </p>
                             </div>
                           </div>
-                          <Plus className="w-4 h-4 text-blue-500" />
+                          <Plus className="w-4 h-4 text-black" />
                         </button>
                       ))
                     )}

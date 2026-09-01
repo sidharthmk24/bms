@@ -475,4 +475,68 @@ export class InventoryService {
       totalPages: Math.ceil(total / limit),
     };
   }
+
+  // ── NOTIFY MANAGER ABOUT LOW STOCK ─────────────────────────────────────────
+  async notifyBranchManagerLowStock(branchId: string, bookId: string, currentUser: JwtPayload) {
+    this.checkBranchAccess(currentUser, branchId);
+    const { branchInventoryRepository, bookRepository, branchRepository } = await this.getRepos();
+
+    const [inventoryItem, book, branch] = await Promise.all([
+      branchInventoryRepository.findOne({ where: { branchId, bookId } }),
+      bookRepository.findOne({ where: { id: bookId } }),
+      branchRepository.findOne({ where: { id: branchId } }),
+    ]);
+
+    if (!book) throw new NotFoundException('Book not found');
+    if (!branch) throw new NotFoundException('Branch not found');
+
+    const quantity = inventoryItem?.quantity ?? 0;
+    const threshold = inventoryItem?.reorderThreshold ?? 5;
+
+    await this.notificationsService.notifyRoles(
+      [UserRole.BRANCH_MANAGER, UserRole.ADMIN, UserRole.SUPER_ADMIN],
+      branchId,
+      'Low Stock Alert: ' + book.title,
+      `Staff member ${currentUser.email || 'staff'} reported low stock for "${book.title}" at ${branch.name} (Current stock: ${quantity}, Threshold: ${threshold}). Please arrange for a restock.`,
+      'LOW_STOCK'
+    );
+
+    return {
+      success: true,
+      message: `Branch manager of ${branch.name} notified successfully about low stock for "${book.title}".`,
+      bookTitle: book.title,
+      branchName: branch.name,
+      quantity,
+    };
+  }
+
+  async notifyCentralManagerLowStock(bookId: string, currentUser: JwtPayload) {
+    const { centralStockRepository, bookRepository } = await this.getRepos();
+
+    const [stockItem, book] = await Promise.all([
+      centralStockRepository.findOne({ where: { bookId } }),
+      bookRepository.findOne({ where: { id: bookId } }),
+    ]);
+
+    if (!book) throw new NotFoundException('Book not found');
+
+    const quantity = stockItem?.quantity ?? 0;
+    const threshold = stockItem?.reorderThreshold ?? 5;
+
+    await this.notificationsService.notifyRoles(
+      [UserRole.CENTRAL_INVENTORY_MANAGER, UserRole.ADMIN, UserRole.SUPER_ADMIN],
+      null,
+      'Central Low Stock Alert: ' + book.title,
+      `Low stock reported for "${book.title}" in Central Warehouse (Current stock: ${quantity}, Threshold: ${threshold}). Restock required.`,
+      'LOW_STOCK'
+    );
+
+    return {
+      success: true,
+      message: `Central inventory manager notified successfully about low stock for "${book.title}".`,
+      bookTitle: book.title,
+      quantity,
+    };
+  }
 }
+

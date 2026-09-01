@@ -327,34 +327,42 @@ export class CatalogService {
   }
 
   async findBookByBarcode(barcode: string): Promise<Book> {
-    const cacheKey = `catalog:book:barcode:${barcode}`;
+    const code = barcode.trim();
+    const cacheKey = `catalog:book:barcode:${code}`;
     const cached = getCache<Book>(cacheKey);
     if (cached) return cached;
 
     const { bookRepo } = await this.getRepos();
     const book = await bookRepo.findOne({
-      where: { barcode },
+      where: [
+        { barcode: code, isActive: true },
+        { isbn: code, isActive: true },
+      ],
       relations: ['author', 'publisher', 'category'],
     });
 
-    if (!book) throw new NotFoundException(`Book with barcode ${barcode} not found`);
+    if (!book) throw new NotFoundException(`Book with barcode/ISBN ${barcode} not found`);
 
     setCache(cacheKey, book);
     return book;
   }
 
   async findBookByIsbn(isbn: string): Promise<Book> {
-    const cacheKey = `catalog:book:isbn:${isbn}`;
+    const code = isbn.trim();
+    const cacheKey = `catalog:book:isbn:${code}`;
     const cached = getCache<Book>(cacheKey);
     if (cached) return cached;
 
     const { bookRepo } = await this.getRepos();
     const book = await bookRepo.findOne({
-      where: { isbn },
+      where: [
+        { isbn: code, isActive: true },
+        { barcode: code, isActive: true },
+      ],
       relations: ['author', 'publisher', 'category'],
     });
 
-    if (!book) throw new NotFoundException(`Book with ISBN ${isbn} not found`);
+    if (!book) throw new NotFoundException(`Book with ISBN/barcode ${isbn} not found`);
 
     setCache(cacheKey, book);
     return book;

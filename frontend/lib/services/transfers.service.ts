@@ -530,7 +530,7 @@ export class TransfersService {
         .where('cs.quantity > 0');
 
       if (search) {
-        qb.andWhere('(book.title LIKE :search OR book.isbn LIKE :search)', {
+        qb.andWhere('(book.title LIKE :search OR book.isbn LIKE :search OR book.barcode LIKE :search)', {
           search: `%${search}%`,
         });
       }
@@ -541,6 +541,7 @@ export class TransfersService {
         id: item.book.id,
         title: item.book.title,
         isbn: item.book.isbn,
+        barcode: item.book.barcode,
         quantity: item.quantity,
       }));
     } else {
@@ -551,7 +552,7 @@ export class TransfersService {
         .andWhere('bi.quantity > 0');
 
       if (search) {
-        qb.andWhere('(book.title LIKE :search OR book.isbn LIKE :search)', {
+        qb.andWhere('(book.title LIKE :search OR book.isbn LIKE :search OR book.barcode LIKE :search)', {
           search: `%${search}%`,
         });
       }
@@ -562,6 +563,7 @@ export class TransfersService {
         id: item.book.id,
         title: item.book.title,
         isbn: item.book.isbn,
+        barcode: item.book.barcode,
         quantity: item.quantity,
       }));
     }

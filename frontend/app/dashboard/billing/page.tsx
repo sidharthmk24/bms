@@ -405,8 +405,8 @@ export default function BillingPage() {
                   autoFocus
                   value={barcodeInput}
                   onChange={(e) => setBarcodeInput(e.target.value)}
-                  placeholder="Waiting for scanner..."
-                  className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-900 focus:ring-2 focus:ring-blue-500 focus:bg-white focus:border-transparent transition-colors"
+                  placeholder="Scan barcode, ISBN, or type code..."
+                  className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-900 focus:ring-2 focus:ring-black focus:bg-white focus:border-transparent transition-colors"
                 />
               </form>
               <div className="flex justify-between items-center mt-3">

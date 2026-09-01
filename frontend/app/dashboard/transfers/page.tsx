@@ -95,7 +95,12 @@ export default function StockTransfersPage() {
       t.transferNumber.toLowerCase().includes(term) ||
       t.fromBranch.name.toLowerCase().includes(term) ||
       t.toBranch.name.toLowerCase().includes(term) ||
-      t.requestedBy?.name?.toLowerCase().includes(term)
+      t.requestedBy?.name?.toLowerCase().includes(term) ||
+      t.items?.some((i: any) => 
+        i.book?.title?.toLowerCase().includes(term) ||
+        i.book?.isbn?.toLowerCase().includes(term) ||
+        i.book?.barcode?.toLowerCase().includes(term)
+      )
     );
   });
 

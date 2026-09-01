@@ -7,6 +7,9 @@ import { ChevronDown, Check } from 'lucide-react';
 export interface DropdownOption {
   label: string;
   value: string;
+  sublabel?: string;
+  isbn?: string;
+  barcode?: string;
   badge?: string;
   badgeClassName?: string;
 }
@@ -138,17 +141,17 @@ export function Dropdown({
         type="button"
         disabled={disabled}
         onClick={handleToggle}
-        className={`w-full flex items-center justify-between px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-          disabled ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'text-gray-900 cursor-pointer hover:bg-gray-50'
+        className={`w-full flex items-center justify-between px-3 py-2 bg-white border border-neutral-300 rounded-xl text-sm transition-all focus:outline-none focus:ring-2 focus:ring-black focus:border-black ${
+          disabled ? 'bg-neutral-100 text-neutral-400 cursor-not-allowed' : 'text-black cursor-pointer hover:bg-neutral-50'
         } ${selectClassName}`}
       >
-        <span className={`block truncate ${selectedOptions.length === 0 ? 'text-gray-500' : ''}`}>
+        <span className={`block truncate ${selectedOptions.length === 0 ? 'text-neutral-400' : 'text-black font-medium'}`}>
           {selectedOptions.length > 0 
             ? selectedOptions.map(o => o.label).join(', ') 
             : placeholder}
         </span>
         <ChevronDown
-          className={`w-4 h-4 ml-2 text-gray-400 transition-transform duration-200 ${isOpen ? (dropdownPosition === 'top' ? 'rotate-0' : 'rotate-180') : ''}`}
+          className={`w-4 h-4 ml-2 text-neutral-400 transition-transform duration-200 ${isOpen ? (dropdownPosition === 'top' ? 'rotate-0' : 'rotate-180') : ''}`}
         />
       </button>
 
@@ -159,32 +162,40 @@ export function Dropdown({
             initial={{ opacity: 0, scale: 0.96, y: dropdownPosition === 'top' ? 8 : -8 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: dropdownPosition === 'top' ? 8 : -8 }}
-            transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-            className={`absolute z-50 w-full bg-white border border-gray-200 rounded-lg shadow-xl max-h-60 overflow-auto focus:outline-none ${
+            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+            className={`absolute z-50 w-full bg-white border border-neutral-200 rounded-xl shadow-2xl max-h-64 overflow-auto focus:outline-none ${
               dropdownPosition === 'top' ? 'bottom-full mb-1' : 'top-full mt-1'
             }`}
           >
             {searchable && (
-              <div className="p-2 border-b border-gray-100 sticky top-0 bg-white z-10">
+              <div className="p-2 border-b border-neutral-100 sticky top-0 bg-white z-10">
                 <input
                   type="text"
                   autoFocus
-                  placeholder="Search..."
+                  placeholder="Search title, ISBN, or barcode..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onClick={(e) => e.stopPropagation()}
-                  className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-1.5 text-xs border border-neutral-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-black focus:border-black text-black"
                 />
               </div>
             )}
             <ul className="py-1">
               {(() => {
-                const displayOptions = searchable && searchQuery.trim() !== ''
-                  ? options.filter((opt) => opt.label.toLowerCase().includes(searchQuery.toLowerCase()))
+                const query = searchQuery.trim().toLowerCase();
+                const displayOptions = searchable && query !== ''
+                  ? options.filter((opt) => {
+                      const labelMatch = opt.label?.toLowerCase().includes(query);
+                      const sublabelMatch = opt.sublabel?.toLowerCase().includes(query);
+                      const isbnMatch = opt.isbn?.toLowerCase().includes(query);
+                      const barcodeMatch = opt.barcode?.toLowerCase().includes(query);
+                      const badgeMatch = opt.badge?.toLowerCase().includes(query);
+                      return labelMatch || sublabelMatch || isbnMatch || barcodeMatch || badgeMatch;
+                    })
                   : options;
 
                 if (displayOptions.length === 0) {
-                  return <li className="px-3 py-2 text-sm text-gray-500 text-center">No options available</li>;
+                  return <li className="px-3 py-3 text-xs text-neutral-400 text-center">No matching options found</li>;
                 }
 
                 return displayOptions.map((opt) => {
@@ -198,19 +209,26 @@ export function Dropdown({
                         e.stopPropagation();
                         handleSelect(opt.value);
                       }}
-                      className={`flex items-center justify-between px-3 py-2 text-sm cursor-pointer transition-colors ${
-                        isSelected ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                      className={`flex items-center justify-between px-3 py-2 text-xs cursor-pointer transition-colors ${
+                        isSelected ? 'bg-neutral-100 text-black font-semibold' : 'text-neutral-800 hover:bg-neutral-50 hover:text-black'
                       }`}
                     >
-                      <div className="flex-1 min-w-0 flex items-center justify-between mr-2">
-                        <span className="block truncate">{opt.label}</span>
-                        {opt.badge && (
-                          <span className={`ml-2 px-2 py-0.5 text-[10px] font-bold rounded-full ${opt.badgeClassName || 'bg-slate-100 text-slate-600'}`}>
-                            {opt.badge}
+                      <div className="flex-1 min-w-0 mr-2">
+                        <div className="flex items-center justify-between">
+                          <span className="block truncate">{opt.label}</span>
+                          {opt.badge && (
+                            <span className={`ml-2 px-2 py-0.5 text-[10px] font-bold rounded-full ${opt.badgeClassName || 'bg-neutral-100 text-black border border-neutral-200'}`}>
+                              {opt.badge}
+                            </span>
+                          )}
+                        </div>
+                        {(opt.sublabel || opt.isbn || opt.barcode) && (
+                          <span className="block text-[10px] text-neutral-500 font-mono truncate mt-0.5">
+                            {opt.sublabel || [opt.isbn ? `ISBN: ${opt.isbn}` : '', opt.barcode ? `Barcode: ${opt.barcode}` : ''].filter(Boolean).join(' • ')}
                           </span>
                         )}
                       </div>
-                      {isSelected && <Check className="w-4 h-4 text-blue-600 flex-shrink-0" />}
+                      {isSelected && <Check className="w-4 h-4 text-black flex-shrink-0" />}
                     </li>
                   );
                 });
