@@ -23,7 +23,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
         <p className="text-sm text-gray-900 font-medium mb-1">
           {new Date(label).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
         </p>
-        <p className="text-sm font-semibold text-red-600">
+        <p className="text-sm font-semibold text-purple-600">
           Profit : ₹{payload[0].value.toFixed(2)}
         </p>
       </div>
@@ -106,10 +106,10 @@ export default function BranchManagerDashboard() {
                 <Line 
                   type="monotone" 
                   dataKey="profit" 
-                  stroke="#ef4444" 
+                  stroke="#9333ea" 
                   strokeWidth={3}
                   dot={false}
-                  activeDot={{ r: 6, fill: "#ef4444", stroke: "#fff", strokeWidth: 2 }}
+                  activeDot={{ r: 6, fill: "#9333ea", stroke: "#fff", strokeWidth: 2 }}
                 />
               </LineChart>
             </ResponsiveContainer>

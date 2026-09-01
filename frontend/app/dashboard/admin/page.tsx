@@ -24,7 +24,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
           {new Date(label).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
         </p>
         <div className="space-y-1">
-          <p className="text-sm font-semibold text-emerald-600">
+          <p className="text-sm font-semibold text-purple-600">
             Profit : ₹{(payload.find((p: any) => p.dataKey === 'profit')?.value || 0).toFixed(2)}
           </p>
         </div>
@@ -154,10 +154,10 @@ export default function AdminDashboard() {
                     type="monotone" 
                     dataKey="profit" 
                     name="Profit"
-                    stroke="#10b981" 
+                    stroke="#9333ea" 
                     strokeWidth={3}
                     dot={false}
-                    activeDot={{ r: 6, fill: "#10b981", stroke: "#fff", strokeWidth: 2 }}
+                    activeDot={{ r: 6, fill: "#9333ea", stroke: "#fff", strokeWidth: 2 }}
                   />
                 </LineChart>
               </ResponsiveContainer>
