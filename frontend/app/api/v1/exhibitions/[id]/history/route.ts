@@ -2,13 +2,15 @@ import { apiSuccess, apiError } from '@/lib/api-response';
 import { withAuth, AuthenticatedRequest } from '@/lib/middleware/withAuth';
 import { ExhibitionsService } from '@/lib/services/exhibitions.service';
 
+import { BadRequestException } from '@/lib/errors';
+
 const exhibitionsService = new ExhibitionsService();
 
 async function getExhibitionHistoryHandler(req: AuthenticatedRequest, context: any) {
   try {
     const { id } = await context.params;
     if (!id) {
-      return apiError(new Error('id parameter is required'), 400);
+      return apiError(new BadRequestException('id parameter is required'));
     }
     
     const data = await exhibitionsService.getExhibitionHistory(id, req.user);

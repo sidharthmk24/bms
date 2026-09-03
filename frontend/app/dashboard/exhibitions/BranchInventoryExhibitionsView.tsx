@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Tent, Calendar, MapPin, Search, Package, Book, CheckCircle, XCircle } from 'lucide-react';
+import { Tent, Calendar, MapPin, Search, Package, Book, CheckCircle, XCircle, Eye, ArchiveRestore } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '@/lib/api';
 
@@ -160,20 +160,14 @@ export function BranchInventoryExhibitionsView({ exhibitions, user }: { exhibiti
                 </div>
               </div>
               <div className="bg-gray-50 px-5 py-3 border-t border-gray-100 flex justify-between items-center text-sm" onClick={(e) => e.stopPropagation()}>
-                <span className="text-blue-600 font-medium cursor-pointer" onClick={() => setViewingExhibition(ex)}>View Details</span>
+                <button 
+                  onClick={() => setViewingExhibition(ex)} 
+                  className="inline-flex items-center px-3 py-1.5 text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 border border-gray-300 rounded-lg shadow-sm transition-all hover:text-blue-600 hover:border-blue-300 active:scale-95"
+                >
+                  <Eye className="w-3.5 h-3.5 mr-1.5 text-gray-500" />
+                  View Details
+                </button>
                 <div className="flex space-x-3 items-center">
-                  {/* {ex.status === 'REQUESTED' && (
-                    <>
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); setRejectingId(ex.id); }} 
-                        className="text-red-600 hover:text-red-900 font-medium"
-                      >Reject</button>
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); handleAction(ex.id, 'approve'); }} 
-                        className="text-blue-600 hover:text-blue-900 font-bold"
-                      >Accept</button>
-                    </>
-                  )} */}
                   {(ex.status === 'ONGOING' || ex.status === 'OVERDUE') && (
                     <button 
                       onClick={(e) => { 
@@ -190,8 +184,11 @@ export function BranchInventoryExhibitionsView({ exhibitions, user }: { exhibiti
                           quantityCredit: 0
                         })));
                       }} 
-                      className="text-amber-600 hover:text-amber-900 font-bold ml-3"
-                    >Close & Reconcile</button>
+                      className="inline-flex items-center px-3 py-1.5 text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg shadow-sm transition-colors active:scale-95 ml-3"
+                    >
+                      <ArchiveRestore className="w-3.5 h-3.5 mr-1.5" />
+                      Close & Reconcile
+                    </button>
                   )}
                   {ex.status !== 'REQUESTED' && ex.status !== 'ONGOING' && <span className="text-gray-400 text-xs">ID: {ex.id.substring(0, 8)}</span>}
                 </div>

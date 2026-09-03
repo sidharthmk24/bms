@@ -12,6 +12,14 @@ export class ExhibitionStockItemDto {
   @IsNumber()
   @Min(1)
   quantityTaken: number;
+
+  @IsNumber()
+  @IsOptional()
+  quantityFromBranch?: number;
+
+  @IsNumber()
+  @IsOptional()
+  quantityFromCentral?: number;
 }
 
 export class CreateExhibitionDto {

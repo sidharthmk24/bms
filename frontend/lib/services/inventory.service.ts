@@ -163,6 +163,187 @@ export class InventoryService {
     return saved;
   }
 
+  async createBookWithCentralStock(
+    dto: {
+      title: string;
+      isbn: string;
+      barcode?: string;
+      authorName?: string;
+      authorId?: string;
+      categoryName?: string;
+      categoryId?: string;
+      publisherName?: string;
+      publisherId?: string;
+      description?: string;
+      price: number;
+      costPrice?: number;
+      initialQuantity?: number;
+      reorderThreshold?: number;
+    },
+    currentUser: JwtPayload,
+    ipAddress: string,
+  ) {
+    const { dataSource } = await this.getRepos();
+    const queryRunner = dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const { v4: uuidv4 } = await import('uuid');
+      const isbn = dto.isbn?.trim();
+      const title = dto.title?.trim();
+      const barcode = dto.barcode?.trim() || isbn;
+
+      if (!title) throw new BadRequestException('Book title is required');
+      if (!isbn) throw new BadRequestException('ISBN is required');
+      if (dto.price === undefined || dto.price === null || isNaN(Number(dto.price)) || Number(dto.price) < 0) {
+        throw new BadRequestException('Valid selling price is required');
+      }
+
+      // Check for duplicate ISBN or Barcode
+      const existingIsbn = await queryRunner.manager.query('SELECT id FROM book WHERE isbn = ?', [isbn]);
+      if (existingIsbn && existingIsbn.length > 0) {
+        throw new ConflictException(`A book with ISBN "${isbn}" already exists`);
+      }
+
+      const existingBarcode = await queryRunner.manager.query('SELECT id FROM book WHERE barcode = ?', [barcode]);
+      if (existingBarcode && existingBarcode.length > 0) {
+        throw new ConflictException(`A book with Barcode "${barcode}" already exists`);
+      }
+
+      // Resolve or create Author
+      let authorId = dto.authorId || null;
+      if (!authorId && dto.authorName?.trim()) {
+        const aName = dto.authorName.trim();
+        const [existingAuthor] = await queryRunner.manager.query('SELECT id FROM author WHERE name = ?', [aName]);
+        if (existingAuthor) {
+          authorId = existingAuthor.id;
+        } else {
+          authorId = uuidv4();
+          await queryRunner.manager.query(
+            'INSERT INTO author (id, name, created_at, updated_at) VALUES (?, ?, NOW(), NOW())',
+            [authorId, aName],
+          );
+        }
+      }
+
+      // Resolve or create Category
+      let categoryId = dto.categoryId || null;
+      if (!categoryId && dto.categoryName?.trim()) {
+        const cName = dto.categoryName.trim();
+        const [existingCategory] = await queryRunner.manager.query('SELECT id FROM category WHERE name = ?', [cName]);
+        if (existingCategory) {
+          categoryId = existingCategory.id;
+        } else {
+          categoryId = uuidv4();
+          await queryRunner.manager.query(
+            'INSERT INTO category (id, name, created_at, updated_at) VALUES (?, ?, NOW(), NOW())',
+            [categoryId, cName],
+          );
+        }
+      }
+
+      // Resolve or create Publisher
+      let publisherId = dto.publisherId || null;
+      if (!publisherId && dto.publisherName?.trim()) {
+        const pName = dto.publisherName.trim();
+        const [existingPublisher] = await queryRunner.manager.query('SELECT id FROM publisher WHERE name = ?', [pName]);
+        if (existingPublisher) {
+          publisherId = existingPublisher.id;
+        } else {
+          publisherId = uuidv4();
+          await queryRunner.manager.query(
+            'INSERT INTO publisher (id, name, created_at, updated_at) VALUES (?, ?, NOW(), NOW())',
+            [publisherId, pName],
+          );
+        }
+      }
+
+      // 1. Create Book
+      const bookId = uuidv4();
+      const price = Number(dto.price);
+      const costPrice = dto.costPrice !== undefined && dto.costPrice !== null && !isNaN(Number(dto.costPrice)) ? Number(dto.costPrice) : null;
+      const initialQuantity = Math.max(0, parseInt(String(dto.initialQuantity || 0), 10) || 0);
+      const reorderThreshold = Math.max(0, parseInt(String(dto.reorderThreshold || 15), 10) || 15);
+
+      await queryRunner.manager.query(
+        `INSERT INTO book (id, title, isbn, barcode, description, price, cost_price, author_id, category_id, publisher_id, is_active, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW(), NOW())`,
+        [
+          bookId,
+          title,
+          isbn,
+          barcode,
+          dto.description || null,
+          price,
+          costPrice,
+          authorId,
+          categoryId,
+          publisherId,
+        ],
+      );
+
+      // 2. Create CentralStock
+      const centralStockId = uuidv4();
+      await queryRunner.manager.query(
+        `INSERT INTO central_stock (id, book_id, quantity, reorder_threshold, created_at, updated_at)
+         VALUES (?, ?, ?, ?, NOW(), NOW())`,
+        [centralStockId, bookId, initialQuantity, reorderThreshold],
+      );
+
+      const userId = currentUser.userId || (currentUser as any).sub || (currentUser as any).id;
+
+      // 3. Write initial StockMovement if quantity > 0
+      if (initialQuantity > 0) {
+        await queryRunner.manager.query(
+          `INSERT INTO stock_movement (id, book_id, branch_id, type, reason, quantity, reference_type, reference_id, performed_by_id, note, created_at)
+           VALUES (UUID(), ?, NULL, 'RESTOCK_IN', NULL, ?, 'MANUAL', NULL, ?, 'Initial warehouse intake', NOW())`,
+          [bookId, initialQuantity, userId],
+        );
+      }
+
+      // 4. Audit Log
+      await queryRunner.manager.query(
+        `INSERT INTO audit_log (id, user_id, action, entity_type, entity_id, before_json, after_json, ip_address, created_at)
+         VALUES (UUID(), ?, 'BOOK_CREATED_WITH_STOCK', 'Book', ?, NULL, ?, ?, NOW())`,
+        [
+          userId,
+          bookId,
+          JSON.stringify({ title, isbn, initialQuantity, reorderThreshold, price }),
+          ipAddress,
+        ],
+      );
+
+      await queryRunner.commitTransaction();
+
+      this.notificationsService.triggerRefresh('inventory_changed');
+      this.notificationsService.triggerRefresh('catalog_changed');
+
+      return {
+        id: centralStockId,
+        bookId,
+        quantity: initialQuantity,
+        reorderThreshold,
+        book: {
+          id: bookId,
+          title,
+          isbn,
+          barcode,
+          price,
+          costPrice,
+          author: authorId ? { id: authorId, name: dto.authorName } : null,
+          category: categoryId ? { id: categoryId, name: dto.categoryName } : null,
+          publisher: publisherId ? { id: publisherId, name: dto.publisherName } : null,
+        },
+      };
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
   // ── BRANCH INVENTORY OPERATIONS ────────────────────────────────────────────
 
   async getBranchInventory(branchId: string, query: GetInventoryQueryDto, currentUser: JwtPayload) {

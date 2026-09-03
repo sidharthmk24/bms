@@ -6,12 +6,18 @@ import { FileText, Loader2, Download, Search } from 'lucide-react';
 import { generateBillPDF } from '@/lib/pdfUtils';
 import * as XLSX from 'xlsx';
 import { Dropdown } from '@/components/Dropdown';
+import { Pagination } from '@/components/Pagination';
+import { matchKeywords } from '@/lib/searchUtils';
 
 export default function BillsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFilter, setDateFilter] = useState<'all' | 'this_week' | 'weekly' | 'this_month' | 'monthly' | 'custom'>('all');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const getDateRange = (filter: string, customStart?: string, customEnd?: string) => {
     const now = new Date();
@@ -78,17 +84,25 @@ export default function BillsPage() {
   const billsList = Array.isArray(data) ? data : (data?.items || []);
 
   const filteredBills = billsList.filter((bill: any) => {
-    const q = searchTerm.toLowerCase();
-    return (
-      bill.billNumber.toLowerCase().includes(q) ||
-      (bill.customerName && bill.customerName.toLowerCase().includes(q)) ||
-      bill.items?.some((i: any) =>
-        i.book?.title?.toLowerCase().includes(q) ||
-        i.book?.isbn?.toLowerCase().includes(q) ||
-        i.book?.barcode?.toLowerCase().includes(q)
-      )
+    const bookTitles = bill.items?.map((i: any) => i.book?.title || '').join(' ') || '';
+    const isbns = bill.items?.map((i: any) => i.book?.isbn || '').join(' ') || '';
+    const barcodes = bill.items?.map((i: any) => i.book?.barcode || '').join(' ') || '';
+    const authors = bill.items?.map((i: any) => i.book?.author?.name || '').join(' ') || '';
+    return matchKeywords(
+      searchTerm,
+      bill.billNumber,
+      bill.customerName,
+      bill.customerPhone,
+      bill.paymentMode,
+      bill.branch?.name,
+      bookTitles,
+      isbns,
+      barcodes,
+      authors
     );
   });
+
+  const paginatedBills = filteredBills.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const downloadPDF = (bill: any) => {
     generateBillPDF(bill, bill.items || [], bill.branch || bill.branchId);
@@ -195,9 +209,12 @@ export default function BillsPage() {
           </div>
           <input
             type="text"
-            placeholder="Search bill number or customer..."
+            placeholder="Search bill #, customer, book, keywords..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setCurrentPage(1);
+            }}
             className="block w-full sm:w-80 pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500"
           />
         </div>
@@ -208,7 +225,10 @@ export default function BillsPage() {
         <div className="flex flex-wrap items-center gap-3">
             <Dropdown
               value={dateFilter}
-              onChange={(val) => setDateFilter(val as any)}
+              onChange={(val) => {
+                setDateFilter(val as any);
+                setCurrentPage(1);
+              }}
               options={[
                 { value: 'all', label: 'All Time' },
                 { value: 'this_week', label: 'This Week' },
@@ -293,7 +313,7 @@ export default function BillsPage() {
                   </td>
                 </tr>
               ) : (
-                filteredBills.map((bill: any) => (
+                paginatedBills.map((bill: any) => (
                   <tr key={bill.id} className="bg-white border-b hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4 font-medium text-gray-900 whitespace-nowrap">
                       {bill.billNumber}
@@ -340,6 +360,17 @@ export default function BillsPage() {
             </tbody>
           </table>
         </div>
+
+        <Pagination
+          currentPage={currentPage}
+          totalItems={filteredBills.length}
+          pageSize={pageSize}
+          onPageChange={(page) => setCurrentPage(page)}
+          onPageSizeChange={(size) => {
+            setPageSize(size);
+            setCurrentPage(1);
+          }}
+        />
       </div>
     </div>
   );

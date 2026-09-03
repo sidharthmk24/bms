@@ -209,11 +209,27 @@ export class CatalogService {
 
   // ── 4. SUPPLIER ───────────────────────────────────────────────────────
   async findAllSuppliers(): Promise<Supplier[]> {
+    const { supplierRepo } = await this.getRepos();
+
+    // Ensure Kairali Books in-house supplier exists
+    const existingKairali = await supplierRepo.findOne({
+      where: { name: 'Kairali Books' },
+    });
+    if (!existingKairali) {
+      await supplierRepo.save({
+        name: 'Kairali Books',
+        contactPerson: 'Kairali Publications In-House Press',
+        phone: '0495-2720000',
+        email: 'publishing@kairalibooks.com',
+        address: 'Kozhikode, Kerala',
+      });
+      delCache('catalog:suppliers:all');
+    }
+
     const cacheKey = 'catalog:suppliers:all';
     const cached = getCache<Supplier[]>(cacheKey);
     if (cached) return cached;
 
-    const { supplierRepo } = await this.getRepos();
     const suppliers = await supplierRepo.find({ order: { name: 'ASC' } });
     setCache(cacheKey, suppliers);
     return suppliers;
@@ -263,42 +279,59 @@ export class CatalogService {
     const limitNum = parseInt(limit as string, 10) || 10;
     const skip = (pageNum - 1) * limitNum;
 
-    const where: any = { isActive: true };
     const allowedSortFields = ['title', 'price', 'createdAt'];
     const validSortBy = allowedSortFields.includes(sortBy) ? sortBy : 'title';
     const validOrder = (order as string || '').toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
 
-    if (categoryId) where.categoryId = categoryId;
-    if (authorId) where.authorId = authorId;
-    if (publisherId) where.publisherId = publisherId;
+    const qb = bookRepo.createQueryBuilder('book')
+      .leftJoinAndSelect('book.author', 'author')
+      .leftJoinAndSelect('book.publisher', 'publisher')
+      .leftJoinAndSelect('book.category', 'category')
+      .where('book.isActive = :isActive', { isActive: true });
 
-    if (search) {
-      return bookRepo.findAndCount({
-        where: [
-          { ...where, title: Like(`%${search}%`) },
-          { ...where, isbn: Like(`%${search}%`) },
-          { ...where, barcode: Like(`%${search}%`) },
-        ],
-        relations: ['author', 'publisher', 'category'],
-        order: { [validSortBy]: validOrder },
-        skip,
-        take: limitNum,
-      }).then(([books, total]) => ({
-        books,
-        total,
-        page: pageNum,
-        limit: limitNum,
-        totalPages: Math.ceil(total / limitNum),
-      }));
+    if (categoryId) qb.andWhere('book.categoryId = :categoryId', { categoryId });
+    if (authorId) qb.andWhere('book.authorId = :authorId', { authorId });
+    if (publisherId) qb.andWhere('book.publisherId = :publisherId', { publisherId });
+
+    if (search && String(search).trim()) {
+      const rawSearch = String(search).trim().toLowerCase();
+      const keywords = rawSearch.split(/\s+/).filter(Boolean);
+
+      keywords.forEach((kw, idx) => {
+        const pKw = `kw_${idx}`;
+        const pClean = `kw_clean_${idx}`;
+        const cleanKw = kw.replace(/[-_\s]/g, '');
+
+        if (cleanKw && cleanKw !== kw) {
+          qb.andWhere(
+            `(LOWER(book.title) LIKE :${pKw} OR ` +
+            `LOWER(book.isbn) LIKE :${pKw} OR ` +
+            `REPLACE(LOWER(book.isbn), '-', '') LIKE :${pClean} OR ` +
+            `LOWER(book.barcode) LIKE :${pKw} OR ` +
+            `LOWER(author.name) LIKE :${pKw} OR ` +
+            `LOWER(category.name) LIKE :${pKw} OR ` +
+            `LOWER(publisher.name) LIKE :${pKw})`,
+            { [pKw]: `%${kw}%`, [pClean]: `%${cleanKw}%` }
+          );
+        } else {
+          qb.andWhere(
+            `(LOWER(book.title) LIKE :${pKw} OR ` +
+            `LOWER(book.isbn) LIKE :${pKw} OR ` +
+            `LOWER(book.barcode) LIKE :${pKw} OR ` +
+            `LOWER(author.name) LIKE :${pKw} OR ` +
+            `LOWER(category.name) LIKE :${pKw} OR ` +
+            `LOWER(publisher.name) LIKE :${pKw})`,
+            { [pKw]: `%${kw}%` }
+          );
+        }
+      });
     }
 
-    const [books, total] = await bookRepo.findAndCount({
-      where,
-      relations: ['author', 'publisher', 'category'],
-      order: { [validSortBy]: validOrder },
-      skip,
-      take: limitNum,
-    });
+    qb.orderBy(`book.${validSortBy}`, validOrder)
+      .skip(skip)
+      .take(limitNum);
+
+    const [books, total] = await qb.getManyAndCount();
 
     return {
       books,

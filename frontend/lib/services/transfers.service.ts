@@ -248,14 +248,22 @@ export class TransfersService {
       throw new ConflictException('Only pending transfers can be dispatched');
     }
 
-    // Permission check: only branch manager of fromBranch (or chain admins/managers) can dispatch
-    const allowedChainRoles = [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.CENTRAL_INVENTORY_MANAGER];
-    const hasChainRole = allowedChainRoles.some(r => hasRole(currentUser, r));
+    // Permission check:
+    // If from warehouse: Central Inventory Manager, Admin, or Super Admin can dispatch
+    // If from retail branch: Branch Manager of that branch (or Admin/Super Admin) can dispatch
+    const isFromWarehouse = transfer.fromBranch?.type === 'WAREHOUSE';
+    const isCentralInventory = hasRole(currentUser, UserRole.CENTRAL_INVENTORY_MANAGER);
+    const isSuperAdmin = hasRole(currentUser, UserRole.SUPER_ADMIN);
+    const isAdmin = hasRole(currentUser, UserRole.ADMIN);
+    const isSourceBranchUser = currentUser.branchId === transfer.fromBranchId;
 
-    if (!hasChainRole) {
-      const isBranchManager = hasRole(currentUser, UserRole.BRANCH_MANAGER);
-      if (!isBranchManager || currentUser.branchId !== transfer.fromBranchId) {
-        throw new ForbiddenException('Only the branch manager of the source branch can dispatch this transfer');
+    if (isFromWarehouse) {
+      if (!isCentralInventory && !isAdmin && !isSuperAdmin && !isSourceBranchUser) {
+        throw new ForbiddenException('Only warehouse staff can dispatch transfers from the central warehouse');
+      }
+    } else {
+      if (!isSourceBranchUser && !isAdmin && !isSuperAdmin) {
+        throw new ForbiddenException(`Only the source branch manager (${transfer.fromBranch.name}) can dispatch this transfer`);
       }
     }
 
@@ -342,12 +350,22 @@ export class TransfersService {
       throw new ConflictException('Only dispatched transfers can be received');
     }
 
-    // Permission check: only toBranch managers/inventory staff (or chain admins) can receive
-    if (!hasRole(currentUser, UserRole.SUPER_ADMIN) && 
-        !hasRole(currentUser, UserRole.ADMIN) && 
-        !hasRole(currentUser, UserRole.CENTRAL_INVENTORY_MANAGER)) {
-      if (currentUser.branchId !== transfer.toBranchId) {
-        throw new ForbiddenException('Only managers of the destination branch can receive this transfer');
+    // Permission check:
+    // If transferring TO warehouse: Central Inventory Manager, Admin, or Super Admin can receive
+    // If transferring TO a retail branch: ONLY the destination branch manager/staff (or Super Admin) can confirm receipt!
+    const isToWarehouse = transfer.toBranch?.type === 'WAREHOUSE';
+    const isCentralInventory = hasRole(currentUser, UserRole.CENTRAL_INVENTORY_MANAGER);
+    const isSuperAdmin = hasRole(currentUser, UserRole.SUPER_ADMIN);
+    const isAdmin = hasRole(currentUser, UserRole.ADMIN);
+    const isDestBranchUser = currentUser.branchId === transfer.toBranchId;
+
+    if (isToWarehouse) {
+      if (!isCentralInventory && !isAdmin && !isSuperAdmin && !isDestBranchUser) {
+        throw new ForbiddenException('Only central warehouse inventory managers can receive this transfer');
+      }
+    } else {
+      if (!isDestBranchUser && !isSuperAdmin) {
+        throw new ForbiddenException(`Only the destination branch manager (${transfer.toBranch.name}) can confirm receipt of this stock transfer`);
       }
     }
 
@@ -589,7 +607,13 @@ export class TransfersService {
 
     // Add Central Warehouse if it has stock
     const branchRepo = ds.getRepository(Branch);
-    const warehouse = await branchRepo.findOne({ where: { type: 'WAREHOUSE' as any } });
+    const warehouse = await branchRepo.findOne({
+      where: [
+        { code: 'WH-01' },
+        { name: 'Central Warehouse' },
+        { type: 'WAREHOUSE' as any }
+      ]
+    });
     if (warehouse && central && central.quantity > 0) {
       results.push({
         branchId: warehouse.id,

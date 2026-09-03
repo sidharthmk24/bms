@@ -9,7 +9,7 @@ import {
 import { getDataSource } from '../db/data-source';
 
 import { Exhibition, ExhibitionStatus } from '../api-backend/exhibitions/entities/exhibition.entity';
-import { BranchType } from '../api-backend/branches/entities/branch.entity';
+import { Branch, BranchType } from '../api-backend/branches/entities/branch.entity';
 import { ExhibitionStock } from '../api-backend/exhibitions/entities/exhibition-stock.entity';
 import { CreditCopy } from '../api-backend/credit-copies/entities/credit-copy.entity';
 import { Bill, BillStatus, PaymentStatus } from '../api-backend/billing/entities/bill.entity';
@@ -26,6 +26,8 @@ import { NotificationsService } from './notifications.service';
 import {
   decrementBranchStock,
   incrementBranchStock,
+  decrementCentralStock,
+  incrementCentralStock,
   writeStockMovement,
 } from './stock.helper';
 
@@ -141,12 +143,25 @@ export class ExhibitionsService {
       throw new ForbiddenException('Exhibitions must be requested with a branch context');
     }
 
+    if (!dto.items || dto.items.length === 0) {
+      throw new BadRequestException('Exhibition must contain at least one book item');
+    }
+
     const { dataSource, exhibitionRepo } = await this.getRepos();
     const queryRunner = dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
     try {
+      const [branch] = await queryRunner.manager.query('SELECT id, name, type FROM branch WHERE id = ?', [branchId]);
+      if (!branch) {
+        throw new NotFoundException(`Branch with ID ${branchId} not found`);
+      }
+      const isWarehouse = branch.type === BranchType.WAREHOUSE;
+
+      const isAdmin = hasRole(user, UserRole.SUPER_ADMIN) || hasRole(user, UserRole.ADMIN);
+      const initialStatus = isAdmin ? ExhibitionStatus.ONGOING : ExhibitionStatus.REQUESTED;
+
       const exhibition = exhibitionRepo.create({
         name: dto.name,
         location: dto.location,
@@ -154,34 +169,135 @@ export class ExhibitionsService {
         startDate: new Date(dto.startDate),
         endDate: new Date(dto.endDate),
         requestedById: user.userId,
-        status: ExhibitionStatus.REQUESTED,
-        approvedById: null,
+        status: initialStatus,
+        approvedById: isAdmin ? user.userId : null,
         assignedUserId: dto.assignedUserId || null,
       } as object);
 
       const savedExhibition = await queryRunner.manager.getRepository(Exhibition).save(exhibition);
 
-      // Create stock entries (no quantity movement yet — that happens on dispatch)
-      const stockItems = dto.items.map((item) =>
-        queryRunner.manager.getRepository(ExhibitionStock).create({
+      // Create stock entries and IMMEDIATELY decrement branch/warehouse stock
+      const stockItems = [];
+      for (const item of dto.items) {
+        if (!item.quantityTaken || item.quantityTaken <= 0) {
+          throw new BadRequestException('Quantity taken must be greater than 0');
+        }
+
+        let branchQty = 0;
+        let centralQty = 0;
+
+        if (isWarehouse) {
+          // Warehouse is the direct source
+          centralQty = item.quantityTaken;
+          await decrementCentralStock(queryRunner, item.bookId, centralQty);
+
+          await writeStockMovement(queryRunner, {
+            bookId: item.bookId,
+            branchId,
+            type: 'EXHIBITION_OUT',
+            quantity: -centralQty,
+            performedById: user.userId,
+            referenceType: 'EXHIBITION',
+            referenceId: savedExhibition.id,
+            note: `Dispatched from Central Warehouse for exhibition: ${dto.name}`,
+          });
+        } else {
+          // Check branch shelf stock
+          const [branchInv] = await queryRunner.manager.query(
+            'SELECT quantity FROM branch_inventory WHERE branch_id = ? AND book_id = ?',
+            [branchId, item.bookId]
+          );
+          const branchAvailable = branchInv ? Number(branchInv.quantity) : 0;
+
+          // Determine branch vs central split
+          if (item.quantityFromBranch !== undefined && item.quantityFromCentral !== undefined) {
+            branchQty = Number(item.quantityFromBranch);
+            centralQty = Number(item.quantityFromCentral);
+          } else if (item.quantityFromBranch !== undefined) {
+            branchQty = Number(item.quantityFromBranch);
+            centralQty = item.quantityTaken - branchQty;
+          } else {
+            // Automatic split: take available from branch shelf, deficit from central warehouse
+            branchQty = Math.min(branchAvailable, item.quantityTaken);
+            centralQty = item.quantityTaken - branchQty;
+          }
+
+          if (branchQty < 0 || centralQty < 0 || (branchQty + centralQty !== item.quantityTaken)) {
+            throw new BadRequestException(`Invalid stock split for book. Total must equal ${item.quantityTaken}`);
+          }
+
+          if (branchQty > branchAvailable) {
+            throw new BadRequestException(`Branch only has ${branchAvailable} copies available (attempted to take ${branchQty})`);
+          }
+
+          if (centralQty > 0) {
+            const [centralInv] = await queryRunner.manager.query(
+              'SELECT quantity FROM central_stock WHERE book_id = ?',
+              [item.bookId]
+            );
+            const centralAvailable = centralInv ? Number(centralInv.quantity) : 0;
+            if (centralQty > centralAvailable) {
+              throw new BadRequestException(
+                `Insufficient stock: Branch has ${branchAvailable}, Central Warehouse has ${centralAvailable}, but requested total is ${item.quantityTaken}`
+              );
+            }
+          }
+
+          // Decrement branch stock
+          if (branchQty > 0) {
+            await decrementBranchStock(queryRunner, branchId, item.bookId, branchQty);
+            await writeStockMovement(queryRunner, {
+              bookId: item.bookId,
+              branchId,
+              type: 'EXHIBITION_OUT',
+              quantity: -branchQty,
+              performedById: user.userId,
+              referenceType: 'EXHIBITION',
+              referenceId: savedExhibition.id,
+              note: `Dispatched from branch shelf for exhibition: ${dto.name}`,
+            });
+          }
+
+          // Decrement central warehouse stock for remainder
+          if (centralQty > 0) {
+            await decrementCentralStock(queryRunner, item.bookId, centralQty);
+            await writeStockMovement(queryRunner, {
+              bookId: item.bookId,
+              branchId: null,
+              type: 'EXHIBITION_OUT',
+              quantity: -centralQty,
+              performedById: user.userId,
+              referenceType: 'EXHIBITION',
+              referenceId: savedExhibition.id,
+              note: `Dispatched from Central Warehouse for exhibition: ${dto.name}`,
+            });
+          }
+        }
+
+        const stockItem = queryRunner.manager.getRepository(ExhibitionStock).create({
           exhibitionId: savedExhibition.id,
           bookId: item.bookId,
           quantityTaken: item.quantityTaken,
+          quantityFromBranch: branchQty,
+          quantityFromCentral: centralQty,
           quantitySold: 0,
           quantityReturned: 0,
           quantityDamaged: 0,
           quantityLost: 0,
-        }),
-      );
+        });
+        stockItems.push(stockItem);
+      }
       await queryRunner.manager.getRepository(ExhibitionStock).save(stockItems);
 
       await queryRunner.manager.query(
         'INSERT INTO `audit_log`(`id`,`user_id`,`action`,`entity_type`,`entity_id`,`before_json`,`after_json`,`ip_address`,`created_at`) VALUES (UUID(),?,?,?,?,NULL,?,?,DEFAULT)',
-        [user.userId, 'EXHIBITION_REQUESTED', 'Exhibition', savedExhibition.id, JSON.stringify(savedExhibition), ipAddress],
+        [user.userId, isAdmin ? 'EXHIBITION_CREATED' : 'EXHIBITION_REQUESTED', 'Exhibition', savedExhibition.id, JSON.stringify(savedExhibition), ipAddress],
       );
 
       await queryRunner.commitTransaction();
       this.notificationsService.triggerRefresh('exhibition_changed');
+      this.notificationsService.triggerRefresh('stock_changed');
+      this.notificationsService.triggerRefresh('inventory_changed');
       
       // Notify assigned staff member on creation
       if (dto.assignedUserId) {
@@ -196,8 +312,8 @@ export class ExhibitionsService {
       await this.notificationsService.notifyRoles(
         [UserRole.SUPER_ADMIN, UserRole.ADMIN],
         null,
-        'New Exhibition Request',
-        `A new exhibition "${dto.name}" has been requested.`,
+        isAdmin ? 'New Exhibition Created' : 'New Exhibition Request',
+        `A new exhibition "${dto.name}" has been ${isAdmin ? 'created and stock checked out' : 'requested'}.`,
         'EXHIBITION'
       );
 
@@ -415,64 +531,138 @@ export class ExhibitionsService {
       throw new ConflictException(`Cannot approve exhibition in status ${exhibition.status}`);
     }
 
+    // Since stock was already deducted upon request, approving moves it directly to ONGOING
     await exhibitionRepo.update(id, {
-      status: ExhibitionStatus.APPROVED,
+      status: ExhibitionStatus.ONGOING,
       approvedById: user.userId,
     });
 
     await dataSource.manager.query(
       'INSERT INTO `audit_log`(`id`,`user_id`,`action`,`entity_type`,`entity_id`,`before_json`,`after_json`,`ip_address`,`created_at`) VALUES (UUID(),?,?,?,?,?,?,?,DEFAULT)',
-      [user.userId, 'EXHIBITION_APPROVED', 'Exhibition', id, JSON.stringify({ status: 'REQUESTED' }), JSON.stringify({ status: 'APPROVED', note: dto.note }), ipAddress],
+      [user.userId, 'EXHIBITION_APPROVED', 'Exhibition', id, JSON.stringify({ status: exhibition.status }), JSON.stringify({ status: 'ONGOING', note: dto.note }), ipAddress],
     );
 
     this.notificationsService.triggerRefresh('exhibition_changed');
+    this.notificationsService.triggerRefresh('stock_changed');
+    this.notificationsService.triggerRefresh('inventory_changed');
     
     await this.notificationsService.notifyRoles(
       [UserRole.BRANCH_MANAGER, UserRole.BRANCH_INVENTORY],
       exhibition.sourceBranchId,
       'Exhibition Approved',
-      `Your exhibition request "${exhibition.name}" has been approved!`,
+      `Your exhibition request "${exhibition.name}" has been approved and is now active!`,
       'EXHIBITION'
     );
 
     return this.findOne(id, user);
   }
 
-  // ── Reject exhibition ─────────────────────────────────────────────────────────
+  // ── Reject exhibition (restores checked-out stock) ─────────────────────────────
   async rejectExhibition(
     id: string,
     dto: ReviewExhibitionDto,
     user: JwtPayload,
     ipAddress: string,
   ): Promise<Exhibition> {
-    const { exhibitionRepo, dataSource } = await this.getRepos();
+    const { dataSource } = await this.getRepos();
     const exhibition = await this.findOne(id, user);
 
     if (exhibition.status !== ExhibitionStatus.REQUESTED && exhibition.status !== ExhibitionStatus.EXPIRED) {
       throw new ConflictException(`Cannot reject exhibition in status ${exhibition.status}`);
     }
 
-    await exhibitionRepo.update(id, { 
-      status: ExhibitionStatus.REJECTED,
-      rejectionReason: dto.note || null,
-    });
+    const queryRunner = dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    await dataSource.manager.query(
-      'INSERT INTO `audit_log`(`id`,`user_id`,`action`,`entity_type`,`entity_id`,`before_json`,`after_json`,`ip_address`,`created_at`) VALUES (UUID(),?,?,?,?,?,?,?,DEFAULT)',
-      [user.userId, 'EXHIBITION_REJECTED', 'Exhibition', id, JSON.stringify({ status: 'REQUESTED' }), JSON.stringify({ status: 'REJECTED', note: dto.note }), ipAddress],
-    );
+    try {
+      const isWarehouse = exhibition.sourceBranch?.type === BranchType.WAREHOUSE;
 
-    this.notificationsService.triggerRefresh('exhibition_changed');
-    
-    await this.notificationsService.notifyRoles(
-      [UserRole.BRANCH_MANAGER, UserRole.BRANCH_INVENTORY],
-      exhibition.sourceBranchId,
-      'Exhibition Rejected',
-      `Your exhibition request "${exhibition.name}" has been rejected. Note: ${dto.note || 'No reason given'}`,
-      'EXHIBITION'
-    );
+      // Restore checked-out stock back to branch and/or central inventory
+      if (exhibition.stock && exhibition.stock.length > 0) {
+        for (const stockItem of exhibition.stock) {
+          const branchQty = Number(stockItem.quantityFromBranch || 0);
+          const centralQty = Number(stockItem.quantityFromCentral || 0);
 
-    return this.findOne(id, user);
+          if (branchQty > 0 || centralQty > 0) {
+            if (branchQty > 0) {
+              await incrementBranchStock(queryRunner, exhibition.sourceBranchId, stockItem.bookId, branchQty);
+              await writeStockMovement(queryRunner, {
+                bookId: stockItem.bookId,
+                branchId: exhibition.sourceBranchId,
+                type: 'EXHIBITION_RETURN',
+                quantity: branchQty,
+                performedById: user.userId,
+                referenceType: 'EXHIBITION',
+                referenceId: id,
+                note: `Exhibition rejected: branch shelf stock restored`,
+              });
+            }
+            if (centralQty > 0) {
+              await incrementCentralStock(queryRunner, stockItem.bookId, centralQty);
+              await writeStockMovement(queryRunner, {
+                bookId: stockItem.bookId,
+                branchId: null,
+                type: 'EXHIBITION_RETURN',
+                quantity: centralQty,
+                performedById: user.userId,
+                referenceType: 'EXHIBITION',
+                referenceId: id,
+                note: `Exhibition rejected: central warehouse stock restored`,
+              });
+            }
+          } else {
+            // Legacy fallback if split fields are unset
+            if (isWarehouse) {
+              await incrementCentralStock(queryRunner, stockItem.bookId, stockItem.quantityTaken);
+            } else {
+              await incrementBranchStock(queryRunner, exhibition.sourceBranchId, stockItem.bookId, stockItem.quantityTaken);
+            }
+
+            await writeStockMovement(queryRunner, {
+              bookId: stockItem.bookId,
+              branchId: isWarehouse ? null : exhibition.sourceBranchId,
+              type: 'EXHIBITION_RETURN',
+              quantity: stockItem.quantityTaken,
+              performedById: user.userId,
+              referenceType: 'EXHIBITION',
+              referenceId: id,
+              note: `Exhibition rejected: stock restored`,
+            });
+          }
+        }
+      }
+
+      await queryRunner.manager.getRepository(Exhibition).update(id, { 
+        status: ExhibitionStatus.REJECTED,
+        rejectionReason: dto.note || null,
+      });
+
+      await queryRunner.manager.query(
+        'INSERT INTO `audit_log`(`id`,`user_id`,`action`,`entity_type`,`entity_id`,`before_json`,`after_json`,`ip_address`,`created_at`) VALUES (UUID(),?,?,?,?,?,?,?,DEFAULT)',
+        [user.userId, 'EXHIBITION_REJECTED', 'Exhibition', id, JSON.stringify({ status: exhibition.status }), JSON.stringify({ status: 'REJECTED', note: dto.note }), ipAddress],
+      );
+
+      await queryRunner.commitTransaction();
+      this.notificationsService.triggerRefresh('exhibition_changed');
+      this.notificationsService.triggerRefresh('stock_changed');
+      this.notificationsService.triggerRefresh('inventory_changed');
+      
+      await this.notificationsService.notifyRoles(
+        [UserRole.BRANCH_MANAGER, UserRole.BRANCH_INVENTORY],
+        exhibition.sourceBranchId,
+        'Exhibition Rejected',
+        `Your exhibition request "${exhibition.name}" has been rejected and books restored to inventory. Note: ${dto.note || 'No reason given'}`,
+        'EXHIBITION'
+      );
+
+      return this.findOne(id, user);
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
   }
 
   // ── Dispatch — decrement branch stock, mark ONGOING ───────────────────────────
@@ -629,15 +819,24 @@ export class ExhibitionsService {
           });
         }
 
-        // Return unsold + returned books back to branch inventory
+        // Return unsold + returned books back to branch/central inventory
         const qtyToReturn = closeItem.quantityReturned;
         if (qtyToReturn > 0) {
-          await incrementBranchStock(
-            queryRunner,
-            exhibition.sourceBranchId,
-            stockItem.bookId,
-            qtyToReturn,
-          );
+          const isWarehouse = exhibition.sourceBranch?.type === BranchType.WAREHOUSE;
+          if (isWarehouse) {
+            await incrementCentralStock(
+              queryRunner,
+              stockItem.bookId,
+              qtyToReturn,
+            );
+          } else {
+            await incrementBranchStock(
+              queryRunner,
+              exhibition.sourceBranchId,
+              stockItem.bookId,
+              qtyToReturn,
+            );
+          }
 
           await writeStockMovement(queryRunner, {
             bookId: stockItem.bookId,
@@ -692,6 +891,7 @@ export class ExhibitionsService {
       await queryRunner.commitTransaction();
       this.notificationsService.triggerRefresh('exhibition_changed');
       this.notificationsService.triggerRefresh('stock_changed');
+      this.notificationsService.triggerRefresh('inventory_changed');
 
       await this.notificationsService.notifyRoles(
         [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.FINANCE],

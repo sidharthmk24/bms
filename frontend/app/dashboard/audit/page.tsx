@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useApiData } from '@/hooks/useApiData';
 import { Loader2, AlertCircle, Search, Shield, History, ArrowRight, ChevronDown, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { matchKeywords } from '@/lib/searchUtils';
 
 // ── Common entity-type categories ──────────────────────────────────────────
 const ENTITY_CATEGORIES: Record<string, string[]> = {
@@ -174,12 +175,16 @@ export default function AuditLogPage() {
     return logs.filter((log: any) => {
       // Text search
       if (searchTerm) {
-        const q = searchTerm.toLowerCase();
-        const match =
-          log.action?.toLowerCase().includes(q) ||
-          log.entityType?.toLowerCase().includes(q) ||
-          log.user?.name?.toLowerCase().includes(q) ||
-          log.ipAddress?.includes(searchTerm);
+        const match = matchKeywords(
+          searchTerm,
+          log.action,
+          log.entityType,
+          log.user?.name,
+          log.user?.primaryRole,
+          log.user?.branch?.name,
+          log.ipAddress,
+          log.entityId
+        );
         if (!match) return false;
       }
 

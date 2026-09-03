@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useApiData } from '@/hooks/useApiData';
 import { api } from '@/lib/api';
-import { Loader2, Plus, Tent, CheckCircle, XCircle, Send, ArchiveRestore, AlertCircle } from 'lucide-react';
+import { Loader2, Plus, Tent, CheckCircle, XCircle, Send, ArchiveRestore, AlertCircle, Eye } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Dropdown } from '@/components/Dropdown';
 import { BranchInventoryExhibitionsView } from './BranchInventoryExhibitionsView';
@@ -63,10 +63,17 @@ export default function ExhibitionsPage() {
   const [assignedUserId, setAssignedUserId] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [cart, setCart] = useState<{bookId: string, quantityRequested: number, title?: string}[]>([]);
+  const [cart, setCart] = useState<{
+    bookId: string;
+    quantityRequested: number;
+    quantityFromBranch?: number;
+    quantityFromCentral?: number;
+    title?: string;
+  }[]>([]);
   
   const [bookInput, setBookInput] = useState('');
-  const [qtyInput, setQtyInput] = useState(5);
+  const [branchQtyInput, setBranchQtyInput] = useState(0);
+  const [warehouseQtyInput, setWarehouseQtyInput] = useState(0);
   
   // Close/Reconciliation State
   const [closingExhibition, setClosingExhibition] = useState<any | null>(null);
@@ -86,6 +93,18 @@ export default function ExhibitionsPage() {
 
   const activeSourceBranchId = isAdmin ? createBranchId : user?.branchId;
   const [branchInventory, setBranchInventory] = useState<any[]>([]);
+  const [centralInventory, setCentralInventory] = useState<any[]>([]);
+
+  useEffect(() => {
+    // Load central warehouse stock for multi-source availability
+    api.get('/inventory/central-stock?limit=10000')
+      .then(res => {
+        if (res.success) {
+          setCentralInventory(res.data.items || res.data || []);
+        }
+      })
+      .catch(err => console.error('Failed to load central inventory:', err));
+  }, []);
 
   useEffect(() => {
     if (!activeSourceBranchId) {
@@ -107,9 +126,14 @@ export default function ExhibitionsPage() {
       .catch(err => console.error('Failed to load branch inventory:', err));
   }, [activeSourceBranchId, branches]);
 
-  const getBookStockQty = (bookId: string) => {
+  const getBranchStockQty = (bookId: string) => {
     const item = branchInventory.find((bi: any) => bi.bookId === bookId || bi.book?.id === bookId);
-    return item ? item.quantity : 0;
+    return item ? Number(item.quantity) : 0;
+  };
+
+  const getCentralStockQty = (bookId: string) => {
+    const item = centralInventory.find((ci: any) => ci.bookId === bookId || ci.book?.id === bookId);
+    return item ? Number(item.quantity) : 0;
   };
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -155,7 +179,12 @@ export default function ExhibitionsPage() {
         startDate: new Date(startDate).toISOString(),
         endDate: new Date(endDate).toISOString(),
         assignedUserId: assignedUserId || undefined,
-        items: cart.map(i => ({ bookId: i.bookId, quantityTaken: i.quantityRequested }))
+        items: cart.map(i => ({ 
+          bookId: i.bookId, 
+          quantityTaken: i.quantityRequested,
+          quantityFromBranch: i.quantityFromBranch,
+          quantityFromCentral: i.quantityFromCentral,
+        }))
       });
       setIsCreating(false);
       setCart([]);
@@ -304,69 +333,105 @@ export default function ExhibitionsPage() {
                   {getStatusBadge(ex)}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                  <button 
-                    onClick={() => handleViewHistory(ex)}
-                    className="text-blue-600 hover:text-blue-900 font-medium inline-block mr-3"
-                  >
-                    View Details
-                  </button>
-                  {isAdmin && ex.status === 'REQUESTED' && (
-                    <div className="flex justify-end space-x-2 mt-2">
-                      <button onClick={() => handleApproveReject(ex.id, 'reject')} className="text-red-600 hover:text-red-900">Reject</button>
-                      <button onClick={() => handleApproveReject(ex.id, 'approve')} className="text-blue-600 hover:text-blue-900 font-bold">Approve</button>
+                  <div className="flex flex-col items-end gap-1.5">
+                    {/* Line 1: Primary actions */}
+                    <div className="flex items-center justify-end gap-2">
+                      <button 
+                        onClick={() => handleViewHistory(ex)}
+                        className="inline-flex items-center px-3 py-1.5 text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 border border-gray-300 rounded-lg shadow-sm transition-all hover:text-blue-600 hover:border-blue-300 active:scale-95"
+                      >
+                        <Eye className="w-3.5 h-3.5 mr-1 text-gray-500" />
+                        View Details
+                      </button>
+
+                      {isAdmin && ex.status === 'REQUESTED' && (
+                        <button 
+                          onClick={() => handleApproveReject(ex.id, 'approve')} 
+                          className="inline-flex items-center px-2.5 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition-colors"
+                        >
+                          Approve
+                        </button>
+                      )}
+
+                      {ex.requestedById === user?.id && ex.status !== 'CLOSED' && ex.status !== 'ONGOING' && (
+                        <button 
+                          onClick={() => {
+                            setEditingExhibition(ex);
+                            setEditFormData({
+                              name: ex.name || ex.eventName,
+                              location: ex.location,
+                              startDate: ex.startDate ? new Date(ex.startDate).toISOString().split('T')[0] : '',
+                              endDate: ex.endDate ? new Date(ex.endDate).toISOString().split('T')[0] : ''
+                            });
+                          }} 
+                          className="inline-flex items-center px-2.5 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
+                        >
+                          Edit Event
+                        </button>
+                      )}
+
+                      {(ex.status === 'APPROVED' || ex.status === 'EXPIRED') && (
+                        isAdmin ||
+                        (isBranch && ex.branch?.type !== 'WAREHOUSE') ||
+                        (isCentralManager && ex.branch?.type === 'WAREHOUSE')
+                      ) && (
+                        <button 
+                          onClick={() => handleDispatch(ex.id)} 
+                          className="inline-flex items-center px-2.5 py-1.5 text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg transition-colors shadow-sm"
+                        >
+                          <Send className="w-3.5 h-3.5 mr-1" /> Dispatch Stock
+                        </button>
+                      )}
+
+                      {(isAdmin || isBranch) && (ex.status === 'ONGOING' || ex.status === 'OVERDUE') && (
+                        <button 
+                          onClick={() => {
+                            setClosingExhibition(ex);
+                            setReconciliation(ex.stock.map((s: any) => ({
+                              stockId: s.id,
+                              title: s.book?.title,
+                              quantityTaken: s.quantityTaken,
+                              quantitySold: s.quantityTaken, // Default assume all sold
+                              quantityReturned: 0,
+                              quantityDamaged: 0,
+                              quantityLost: 0,
+                              quantityCredit: 0
+                            })));
+                          }} 
+                          className="inline-flex items-center px-2.5 py-1.5 text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-colors shadow-sm"
+                        >
+                          <ArchiveRestore className="w-3.5 h-3.5 mr-1" /> Close & Reconcile
+                        </button>
+                      )}
                     </div>
-                  )}
-                  {isAdmin && ex.status !== 'CLOSED' && (
-                    <button onClick={() => {
-                      setAssigningExhibition(ex);
-                      setAssignBranchId('');
-                      setAssignUserId(ex.assignedUserId || '');
-                    }} className="text-green-600 hover:text-green-900 flex items-center justify-end w-full mt-2">
-                      Assign
-                    </button>
-                  )}
-                  {ex.requestedById === user?.id && ex.status !== 'CLOSED' && ex.status !== 'ONGOING' && (
-                    <button onClick={() => {
-                      setEditingExhibition(ex);
-                      setEditFormData({
-                        name: ex.name || ex.eventName,
-                        location: ex.location,
-                        startDate: ex.startDate ? new Date(ex.startDate).toISOString().split('T')[0] : '',
-                        endDate: ex.endDate ? new Date(ex.endDate).toISOString().split('T')[0] : ''
-                      });
-                    }} className="text-blue-600 hover:text-blue-900 flex items-center justify-end w-full mt-2">
-                      Edit Event
-                    </button>
-                  )}
-                  {(ex.status === 'APPROVED' || ex.status === 'EXPIRED') && (
-                    isAdmin ||
-                    (isBranch && ex.branch?.type !== 'WAREHOUSE') ||
-                    (isCentralManager && ex.branch?.type === 'WAREHOUSE')
-                  ) && (
-                    <button onClick={() => handleDispatch(ex.id)} className="text-purple-600 hover:text-purple-900 flex items-center justify-end w-full">
-                      <Send className="w-4 h-4 mr-1" /> Dispatch Stock
-                    </button>
-                  )}
-                  {isBranch && (ex.status === 'ONGOING' || ex.status === 'OVERDUE') && (
-                    <button 
-                      onClick={() => {
-                        setClosingExhibition(ex);
-                        setReconciliation(ex.stock.map((s: any) => ({
-                          stockId: s.id,
-                          title: s.book?.title,
-                          quantityTaken: s.quantityTaken,
-                          quantitySold: s.quantityTaken, // Default assume all sold
-                          quantityReturned: 0,
-                          quantityDamaged: 0,
-                          quantityLost: 0,
-                          quantityCredit: 0
-                        })));
-                      }} 
-                      className="text-amber-600 hover:text-amber-900 flex items-center justify-end w-full"
-                    >
-                      <ArchiveRestore className="w-4 h-4 mr-1" /> Close & Reconcile
-                    </button>
-                  )}
+
+                    {/* Line 2: Assign and Reject */}
+                    {((isAdmin && ex.status === 'REQUESTED') || (isAdmin && ex.status !== 'CLOSED')) && (
+                      <div className="flex items-center justify-end gap-2">
+                        {isAdmin && ex.status !== 'CLOSED' && (
+                          <button 
+                            onClick={() => {
+                              setAssigningExhibition(ex);
+                              setAssignBranchId('');
+                              setAssignUserId(ex.assignedUserId || '');
+                            }} 
+                            className="inline-flex items-center px-2.5 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors"
+                          >
+                            Assign
+                          </button>
+                        )}
+
+                        {isAdmin && ex.status === 'REQUESTED' && (
+                          <button 
+                            onClick={() => handleApproveReject(ex.id, 'reject')} 
+                            className="inline-flex items-center px-2.5 py-1.5 text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition-colors"
+                          >
+                            Reject
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
@@ -382,7 +447,14 @@ export default function ExhibitionsPage() {
         {isCreating && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-6">
-              <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center"><Tent className="w-5 h-5 mr-2"/> Request Exhibition</h3>
+              <h3 className="text-lg font-bold text-gray-900 mb-2 flex items-center"><Tent className="w-5 h-5 mr-2"/> {isAdmin ? 'Create Exhibition' : 'Request Exhibition'}</h3>
+              
+              <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-800 flex items-start">
+                <AlertCircle className="w-4 h-4 mr-2 text-blue-600 shrink-0 mt-0.5" />
+                <span>
+                  <strong>Immediate Inventory Check-Out:</strong> Selecting books for this event will immediately deduct them from the branch shelf inventory so they cannot be sold to walk-in customers while away at the exhibition.
+                </span>
+              </div>
               
               <div className="grid grid-cols-2 gap-4 mb-4">
                 <div className="col-span-2">
@@ -441,61 +513,204 @@ export default function ExhibitionsPage() {
 
               <div className="border-t pt-4 mb-4">
                 <h4 className="text-sm font-medium text-gray-700 mb-2">Requested Stock</h4>
-                <div className="flex space-x-2">
-                  <div className="flex-1">
+                <div className="space-y-3">
+                  <div>
                     <Dropdown
                       searchable={true}
                       value={bookInput}
-                      onChange={(val) => setBookInput(val)}
+                      onChange={(val) => {
+                        setBookInput(val);
+                        if (val) {
+                          const bStock = getBranchStockQty(val);
+                          const cStock = getCentralStockQty(val);
+                          const selectedBranch = branches.find((br: any) => br.id === activeSourceBranchId);
+                          const isWarehouse = selectedBranch?.type === 'WAREHOUSE';
+                          if (isWarehouse) {
+                            setBranchQtyInput(0);
+                            setWarehouseQtyInput(Math.min(5, cStock));
+                          } else {
+                            const defaultTotal = 5;
+                            const defaultBranch = Math.min(defaultTotal, bStock);
+                            const defaultWarehouse = Math.min(Math.max(0, defaultTotal - defaultBranch), cStock);
+                            setBranchQtyInput(defaultBranch);
+                            setWarehouseQtyInput(defaultWarehouse);
+                          }
+                        } else {
+                          setBranchQtyInput(0);
+                          setWarehouseQtyInput(0);
+                        }
+                      }}
                       placeholder="Search by title, ISBN, or barcode..."
                       options={(catalog?.books || catalog?.items || catalog?.data || (Array.isArray(catalog) ? catalog : [])).map((b: any) => {
-                        const stock = getBookStockQty(b.id);
+                        const bStock = getBranchStockQty(b.id);
+                        const cStock = getCentralStockQty(b.id);
+                        const selectedBranch = branches.find((br: any) => br.id === activeSourceBranchId);
+                        const isWarehouse = selectedBranch?.type === 'WAREHOUSE';
+                        const totalStock = isWarehouse ? cStock : (bStock + cStock);
+                        const badgeText = isWarehouse 
+                          ? `Wh: ${cStock}` 
+                          : `Branch: ${bStock} | Wh: ${cStock} (Total: ${totalStock})`;
+
                         return {
                           value: b.id,
                           label: b.title,
                           isbn: b.isbn,
                           barcode: b.barcode,
                           sublabel: `ISBN: ${b.isbn || 'N/A'}${b.barcode ? ` • Barcode: ${b.barcode}` : ''}`,
-                          badge: `Stock: ${stock}`,
-                          badgeClassName: stock > 0 ? 'bg-neutral-100 text-black border border-neutral-300' : 'bg-neutral-100 text-neutral-500 border border-neutral-200'
+                          badge: badgeText,
+                          badgeClassName: totalStock > 0 ? 'bg-neutral-100 text-black border border-neutral-300' : 'bg-neutral-100 text-neutral-500 border border-neutral-200'
                         };
                       })}
                     />
                   </div>
-                  <input type="number" min="1" value={qtyInput} onChange={e => setQtyInput(Number(e.target.value))} placeholder="Qty" className="w-20 block px-3 py-2 border border-gray-300 rounded-lg sm:text-sm" />
-                  <button 
-                    onClick={() => {
-                      if (bookInput && qtyInput > 0) {
-                        const bookList = catalog?.books || catalog?.items || catalog?.data || (Array.isArray(catalog) ? catalog : []);
-                        const book = bookList.find((b: any) => b.id === bookInput);
-                        const existingItemIndex = cart.findIndex(i => i.bookId === bookInput);
-                        if (existingItemIndex >= 0) {
-                          const newCart = [...cart];
-                          newCart[existingItemIndex].quantityRequested += qtyInput;
-                          setCart(newCart);
-                        } else {
-                          setCart([...cart, { bookId: bookInput, quantityRequested: qtyInput, title: book?.title }]);
-                        }
-                        setBookInput('');
-                      }
-                    }}
-                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg text-sm font-medium"
-                  >Add</button>
+
+                  {bookInput && (
+                    <div className="p-3 bg-neutral-50 border border-neutral-200 rounded-xl space-y-3">
+                      <div className="flex flex-wrap items-center justify-between text-xs text-neutral-600 gap-2">
+                        <span className="font-semibold text-gray-800">Customize Source Split:</span>
+                        <div className="flex items-center gap-3 font-semibold">
+                          <span className="text-blue-700">🏪 Branch Shelf: {getBranchStockQty(bookInput)}</span>
+                          <span className="text-purple-700">🏭 Warehouse: {getCentralStockQty(bookInput)}</span>
+                          <span className="text-black font-bold">Total Available: {getBranchStockQty(bookInput) + getCentralStockQty(bookInput)}</span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-neutral-700 mb-1">
+                            From Branch Shelf (Max: {getBranchStockQty(bookInput)})
+                          </label>
+                          <input 
+                            type="number" 
+                            min="0" 
+                            max={getBranchStockQty(bookInput)}
+                            value={branchQtyInput} 
+                            onChange={e => setBranchQtyInput(Math.max(0, Number(e.target.value)))} 
+                            className="block w-full px-3 py-1.5 border border-neutral-300 rounded-lg text-sm font-semibold focus:ring-black focus:border-black bg-white" 
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-semibold text-neutral-700 mb-1">
+                            From Warehouse (Max: {getCentralStockQty(bookInput)})
+                          </label>
+                          <input 
+                            type="number" 
+                            min="0" 
+                            max={getCentralStockQty(bookInput)}
+                            value={warehouseQtyInput} 
+                            onChange={e => setWarehouseQtyInput(Math.max(0, Number(e.target.value)))} 
+                            className="block w-full px-3 py-1.5 border border-neutral-300 rounded-lg text-sm font-semibold focus:ring-black focus:border-black bg-white" 
+                          />
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 bg-white border border-neutral-200 rounded-lg px-3 py-1 text-center shadow-xs">
+                            <div className="text-[10px] uppercase font-bold text-neutral-400">Total</div>
+                            <div className="text-base font-bold text-black">{branchQtyInput + warehouseQtyInput}</div>
+                          </div>
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              const bStock = getBranchStockQty(bookInput);
+                              const cStock = getCentralStockQty(bookInput);
+                              const totalToTake = branchQtyInput + warehouseQtyInput;
+
+                              if (totalToTake <= 0) {
+                                alert('Please enter at least 1 book to take.');
+                                return;
+                              }
+                              if (branchQtyInput > bStock) {
+                                alert(`Cannot take ${branchQtyInput} from branch. Branch only has ${bStock} available.`);
+                                return;
+                              }
+                              if (warehouseQtyInput > cStock) {
+                                alert(`Cannot take ${warehouseQtyInput} from warehouse. Warehouse only has ${cStock} available.`);
+                                return;
+                              }
+
+                              const bookList = catalog?.books || catalog?.items || catalog?.data || (Array.isArray(catalog) ? catalog : []);
+                              const book = bookList.find((b: any) => b.id === bookInput);
+
+                              const existingItemIndex = cart.findIndex(i => i.bookId === bookInput);
+                              if (existingItemIndex >= 0) {
+                                const newCart = [...cart];
+                                const newB = (newCart[existingItemIndex].quantityFromBranch || 0) + branchQtyInput;
+                                const newC = (newCart[existingItemIndex].quantityFromCentral || 0) + warehouseQtyInput;
+                                if (newB > bStock) {
+                                  alert(`Total from branch would be ${newB}, exceeding branch stock of ${bStock}.`);
+                                  return;
+                                }
+                                if (newC > cStock) {
+                                  alert(`Total from warehouse would be ${newC}, exceeding warehouse stock of ${cStock}.`);
+                                  return;
+                                }
+                                newCart[existingItemIndex].quantityFromBranch = newB;
+                                newCart[existingItemIndex].quantityFromCentral = newC;
+                                newCart[existingItemIndex].quantityRequested = newB + newC;
+                                setCart(newCart);
+                              } else {
+                                setCart([...cart, { 
+                                  bookId: bookInput, 
+                                  quantityRequested: totalToTake, 
+                                  quantityFromBranch: branchQtyInput,
+                                  quantityFromCentral: warehouseQtyInput,
+                                  title: book?.title 
+                                }]);
+                              }
+                              setBookInput('');
+                              setBranchQtyInput(0);
+                              setWarehouseQtyInput(0);
+                            }}
+                            disabled={(branchQtyInput + warehouseQtyInput) <= 0}
+                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-lg text-xs font-bold transition-all shrink-0 shadow-sm"
+                          >
+                            Add to Event
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              <div className="border rounded-lg max-h-40 overflow-y-auto mb-6">
+              <div className="border rounded-lg max-h-48 overflow-y-auto mb-6">
                 <table className="min-w-full divide-y divide-gray-200">
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <thead className="bg-gray-50 text-[11px] text-gray-500 uppercase">
+                    <tr>
+                      <th className="px-4 py-2 text-left">Book</th>
+                      <th className="px-4 py-2 text-right">Total Qty</th>
+                      <th className="px-4 py-2 text-left">Stock Allocation</th>
+                      <th className="px-4 py-2 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200 text-xs">
                     {cart.map((item, idx) => (
                       <tr key={idx}>
-                        <td className="px-4 py-2 text-sm text-gray-900">{item.title}</td>
-                        <td className="px-4 py-2 text-sm text-right font-medium">{item.quantityRequested}</td>
+                        <td className="px-4 py-2 font-medium text-gray-900">{item.title}</td>
+                        <td className="px-4 py-2 text-right font-bold text-gray-900">{item.quantityRequested}</td>
+                        <td className="px-4 py-2 text-gray-600">
+                          {(item.quantityFromBranch ?? 0) > 0 && (item.quantityFromCentral ?? 0) > 0 ? (
+                            <span className="inline-flex items-center gap-1.5">
+                              <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-medium">Branch: {item.quantityFromBranch}</span>
+                              <span className="px-2 py-0.5 rounded bg-purple-50 text-purple-700 font-medium">Warehouse: {item.quantityFromCentral}</span>
+                            </span>
+                          ) : (item.quantityFromCentral ?? 0) > 0 ? (
+                            <span className="px-2 py-0.5 rounded bg-purple-50 text-purple-700 font-medium">Warehouse: {item.quantityFromCentral}</span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-medium">Branch: {item.quantityFromBranch ?? item.quantityRequested}</span>
+                          )}
+                        </td>
                         <td className="px-4 py-2 text-right">
-                          <button onClick={() => setCart(cart.filter((_, i) => i !== idx))} className="text-red-500 text-xs">Remove</button>
+                          <button onClick={() => setCart(cart.filter((_, i) => i !== idx))} className="text-red-500 hover:text-red-700 font-medium text-xs">Remove</button>
                         </td>
                       </tr>
                     ))}
+                    {cart.length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="px-4 py-6 text-center text-gray-400 italic">No books added yet.</td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>

@@ -10,7 +10,8 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const { email, password } = body;
     const userAgent = req.headers.get('user-agent') || 'Unknown';
-    const result = await authService.setupPassword(email, password, userAgent);
+    const ipAddress = req.headers.get('x-forwarded-for') || '127.0.0.1';
+    const result = await authService.setupPassword(email, password, userAgent, ipAddress);
     return apiSuccess(result);
   } catch (error: any) {
     const status = error.statusCode || 500;

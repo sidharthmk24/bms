@@ -4,10 +4,41 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
-export class PurchaseOrderItemDto {
-  @IsUUID()
+export class NewBookInlineDto {
   @IsNotEmpty()
-  bookId: string;
+  title: string;
+
+  @IsNotEmpty()
+  isbn: string;
+
+  @IsOptional()
+  barcode?: string;
+
+  @IsOptional()
+  authorName?: string;
+
+  @IsOptional()
+  categoryName?: string;
+
+  @IsOptional()
+  publisherName?: string;
+
+  @IsOptional()
+  @IsNumber()
+  price?: number;
+}
+
+export class PurchaseOrderItemDto {
+  @IsOptional()
+  bookId?: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => NewBookInlineDto)
+  newBook?: NewBookInlineDto;
+
+  @IsOptional()
+  pmsTitle?: any;
 
   @IsNumber()
   @Min(1)
@@ -19,9 +50,11 @@ export class PurchaseOrderItemDto {
 }
 
 export class CreatePurchaseOrderDto {
-  @IsUUID()
-  @IsNotEmpty()
-  supplierId: string;
+  @IsOptional()
+  supplierId?: string;
+
+  @IsOptional()
+  supplierName?: string;
 
   @IsOptional()
   @IsDateString()

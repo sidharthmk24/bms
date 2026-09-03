@@ -16,6 +16,8 @@ import {
 } from 'lucide-react';
 import CreateTransferModal from '@/components/CreateTransferModal';
 import TransferDetailsModal from '@/components/TransferDetailsModal';
+import { Pagination } from '@/components/Pagination';
+import { matchKeywords } from '@/lib/searchUtils';
 
 export default function StockTransfersPage() {
   const { user } = useAuth();
@@ -27,17 +29,22 @@ export default function StockTransfersPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
   // Modals state
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [selectedTransferId, setSelectedTransferId] = useState<string | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
-  const fetchTransfers = async () => {
-    setLoading(true);
+  const fetchTransfers = async (showSpinner = false) => {
+    if (showSpinner) setLoading(true);
     setError(null);
     try {
       const queryParams = new URLSearchParams();
       if (statusFilter) queryParams.append('status', statusFilter);
+      queryParams.append('_t', String(Date.now()));
       
       const response = await api.get(`/transfers?${queryParams.toString()}`);
       if (response.success && response.data) {
@@ -47,15 +54,29 @@ export default function StockTransfersPage() {
       console.error('Failed to fetch transfers:', err);
       setError('Failed to load stock transfers.');
     } finally {
-      setLoading(false);
+      if (showSpinner) setLoading(false);
     }
   };
 
+  const handleTransferUpdated = (updatedTransfer?: any) => {
+    if (updatedTransfer && updatedTransfer.id) {
+      setTransfers(prev => prev.map(t => t.id === updatedTransfer.id ? { ...t, ...updatedTransfer } : t));
+    }
+    fetchTransfers(false);
+  };
+
+  const handleTransferCreated = (newTransfer?: any) => {
+    if (newTransfer && newTransfer.id) {
+      setTransfers(prev => [newTransfer, ...prev.filter(t => t.id !== newTransfer.id)]);
+    }
+    fetchTransfers(false);
+  };
+
   useEffect(() => {
-    fetchTransfers();
+    fetchTransfers(true);
 
     const handleMutation = () => {
-      fetchTransfers();
+      fetchTransfers(false);
     };
 
     window.addEventListener('app:data-mutated', handleMutation);
@@ -89,18 +110,21 @@ export default function StockTransfersPage() {
 
   // Filter transfers by search query locally
   const filteredTransfers = transfers.filter((t) => {
-    const term = searchQuery.toLowerCase();
-    if (!term) return true;
-    return (
-      t.transferNumber.toLowerCase().includes(term) ||
-      t.fromBranch.name.toLowerCase().includes(term) ||
-      t.toBranch.name.toLowerCase().includes(term) ||
-      t.requestedBy?.name?.toLowerCase().includes(term) ||
-      t.items?.some((i: any) => 
-        i.book?.title?.toLowerCase().includes(term) ||
-        i.book?.isbn?.toLowerCase().includes(term) ||
-        i.book?.barcode?.toLowerCase().includes(term)
-      )
+    const bookTitles = t.items?.map((i: any) => i.book?.title || '').join(' ') || '';
+    const isbns = t.items?.map((i: any) => i.book?.isbn || '').join(' ') || '';
+    const barcodes = t.items?.map((i: any) => i.book?.barcode || '').join(' ') || '';
+    const authors = t.items?.map((i: any) => i.book?.author?.name || '').join(' ') || '';
+    return matchKeywords(
+      searchQuery,
+      t.transferNumber,
+      t.fromBranch?.name,
+      t.toBranch?.name,
+      t.requestedBy?.name,
+      t.status,
+      bookTitles,
+      isbns,
+      barcodes,
+      authors
     );
   });
 
@@ -147,7 +171,10 @@ export default function StockTransfersPage() {
           ].map((tab) => (
             <button
               key={tab.value}
-              onClick={() => setStatusFilter(tab.value)}
+              onClick={() => {
+                setStatusFilter(tab.value);
+                setCurrentPage(1);
+              }}
               className={`px-4 py-2 text-xs font-semibold rounded-lg border transition whitespace-nowrap ${
                 statusFilter === tab.value
                   ? 'bg-blue-600 border-blue-600 text-white font-bold shadow-md shadow-blue-500/10'
@@ -163,9 +190,12 @@ export default function StockTransfersPage() {
         <div className="relative md:w-64 w-full">
           <input
             type="text"
-            placeholder="Search by ID or branch..."
+            placeholder="Search ID, branch, book, keywords..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setCurrentPage(1);
+            }}
             className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
@@ -213,7 +243,7 @@ export default function StockTransfersPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-sm text-slate-600">
-                {filteredTransfers.map((t) => (
+                {filteredTransfers.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((t) => (
                   <tr
                     key={t.id}
                     onClick={() => handleRowClick(t.id)}
@@ -240,6 +270,17 @@ export default function StockTransfersPage() {
               </tbody>
             </table>
           </div>
+
+          <Pagination
+            currentPage={currentPage}
+            totalItems={filteredTransfers.length}
+            pageSize={pageSize}
+            onPageChange={(page) => setCurrentPage(page)}
+            onPageSizeChange={(size) => {
+              setPageSize(size);
+              setCurrentPage(1);
+            }}
+          />
         </div>
       )}
 
@@ -247,7 +288,7 @@ export default function StockTransfersPage() {
       <CreateTransferModal
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
-        onSuccess={fetchTransfers}
+        onSuccess={handleTransferCreated}
       />
 
       <TransferDetailsModal
@@ -257,7 +298,7 @@ export default function StockTransfersPage() {
           setIsDetailsOpen(false);
           setSelectedTransferId(null);
         }}
-        onSuccess={fetchTransfers}
+        onSuccess={handleTransferUpdated}
       />
     </div>
   );

@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 import { Loader2, Plus, Shield, UserX, UserCheck, Settings } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Dropdown } from '@/components/Dropdown';
+import { Pagination } from '@/components/Pagination';
 
 export default function UsersManagementPage() {
   const { user } = useAuth();
@@ -16,6 +17,10 @@ export default function UsersManagementPage() {
   const { data: branches, loading: branchesLoading } = useApiData<any[]>('/branches', []);
 
   const usersList = usersResponse?.data || usersResponse || [];
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -102,7 +107,7 @@ export default function UsersManagementPage() {
         }
       } else {
         await api.post('/users', payload);
-        alert(`User created! Default password is: defaultpassword123`);
+        alert(`User provisioned successfully! An email has been sent to ${payload.email} to set up their password.`);
       }
       setIsModalOpen(false);
     } catch (err: any) {
@@ -156,7 +161,7 @@ export default function UsersManagementPage() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {usersList.map((u: any) => (
+                {usersList.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((u: any) => (
                   <tr key={u.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-bold text-gray-900">{u.name}</div>
@@ -202,6 +207,17 @@ export default function UsersManagementPage() {
             </table>
           </div>
         )}
+
+        <Pagination
+          currentPage={currentPage}
+          totalItems={usersList.length}
+          pageSize={pageSize}
+          onPageChange={(page) => setCurrentPage(page)}
+          onPageSizeChange={(size) => {
+            setPageSize(size);
+            setCurrentPage(1);
+          }}
+        />
       </div>
 
       <AnimatePresence>

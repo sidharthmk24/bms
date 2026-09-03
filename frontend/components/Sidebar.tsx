@@ -58,14 +58,14 @@ export default function Sidebar() {
     { name: 'All Bills', href: '/dashboard/bills', icon: Receipt, roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE', 'BRANCH_MANAGER', 'BRANCH_FRONT_OFFICE'] },
     { name: 'EOD Sales', href: '/dashboard/eod-sales', icon: BarChart2, roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE'] },
     { name: 'Inventory', href: '/dashboard/inventory', icon: Boxes, roles: ['BRANCH_INVENTORY', 'BRANCH_MANAGER', 'SUPER_ADMIN', 'ADMIN', 'BRANCH_FRONT_OFFICE'] },
-    { name: 'Central Stock', href: '/dashboard/central-stock', icon: Store, roles: ['CENTRAL_INVENTORY_MANAGER', 'SUPER_ADMIN', 'ADMIN'] },
+    { name: 'Warehouse Stock', href: '/dashboard/central-stock', icon: Store, roles: ['CENTRAL_INVENTORY_MANAGER', 'SUPER_ADMIN', 'ADMIN'] },
     { name: 'Purchase Orders', href: '/dashboard/purchase-orders', icon: Truck, roles: ['CENTRAL_INVENTORY_MANAGER', 'SUPER_ADMIN', 'ADMIN'] },
     { name: 'Restock', href: '/dashboard/restock', icon: TrendingUp, roles: ['BRANCH_INVENTORY', 'BRANCH_MANAGER', 'CENTRAL_INVENTORY_MANAGER'] },
     { name: 'Stock Transfers', href: '/dashboard/transfers', icon: ArrowLeftRight, roles: ['BRANCH_INVENTORY', 'BRANCH_MANAGER', 'CENTRAL_INVENTORY_MANAGER', 'SUPER_ADMIN', 'ADMIN'] },
     { name: 'Exhibitions', href: '/dashboard/exhibitions', icon: Store, roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE', 'CENTRAL_INVENTORY_MANAGER', 'BRANCH_MANAGER', 'BRANCH_INVENTORY', 'BRANCH_FRONT_OFFICE'] },
     { name: 'Credit Copies', href: '/dashboard/credit-copies', icon: FileText, roles: ['BRANCH_MANAGER', 'SUPER_ADMIN', 'ADMIN'] },
     // { name: 'Enquiries', href: '/dashboard/enquiries', icon: MessageSquare, roles: ['BRANCH_FRONT_OFFICE', 'BRANCH_MANAGER', 'CENTRAL_INVENTORY_MANAGER', 'SUPER_ADMIN', 'ADMIN'] },
-    { name: 'Catalog', href: '/dashboard/catalog', icon: BookOpen, roles: ['SUPER_ADMIN' , 'ADMIN', 'CENTRAL_INVENTORY_MANAGER'] },
+    // { name: 'Catalog', href: '/dashboard/catalog', icon: BookOpen, roles: ['SUPER_ADMIN' , 'ADMIN', 'CENTRAL_INVENTORY_MANAGER'] },
     // { name: 'Finance', href: '/dashboard/finance', icon: FileText, roles: ['FINANCE', 'SUPER_ADMIN'] },
     { name: 'Users', href: '/dashboard/users', icon: Users, roles: ['SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER'] },
     { name: 'Branches', href: '/dashboard/branches', icon: Store, roles: ['SUPER_ADMIN', 'ADMIN'] },
@@ -108,31 +108,7 @@ export default function Sidebar() {
         </button>
       </div>
       
-      <div className="p-4 flex-1 flex flex-col gap-6">
-        {/* User Card */}
-        <div className={`bg-white rounded-2xl border border-slate-200/60 shadow-sm flex relative overflow-hidden group hover:shadow-md transition-shadow duration-300 ${isCollapsed ? 'justify-center items-center p-2' : 'px-4 py-3.5 flex-col gap-1'}`}>
-          <div className="absolute inset-0 bg-gradient-to-r from-blue-50/50 to-indigo-50/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-          {isCollapsed ? (
-             <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold relative z-10 text-sm">
-               {user.name.charAt(0)}
-             </div>
-          ) : (
-            <div className="relative">
-              <p className="text-sm font-bold text-slate-800 tracking-tight">{user.name}</p>
-              <p className="text-xs font-medium text-slate-500 flex items-center gap-2 mt-1">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                </span>
-                <span className="capitalize">
-                  {(user.role || user.primaryRole || '').replace(/_/g, ' ').toLowerCase()}
-                  {user.branch?.name ? ` • ${user.branch.name}` : ''}
-                </span>
-              </p>
-            </div>
-          )}
-        </div>
-
+      <div className="p-4 flex-1 flex flex-col gap-4">
         {/* Navigation */}
         <nav className="space-y-1.5 flex-1">
           {!isCollapsed && <div className="px-3 text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Main Menu</div>}

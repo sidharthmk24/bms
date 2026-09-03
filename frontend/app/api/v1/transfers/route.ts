@@ -4,6 +4,9 @@ import { TransfersService } from '@/lib/services/transfers.service';
 
 const transfersService = new TransfersService();
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 async function getTransfersHandler(req: AuthenticatedRequest) {
   try {
     const status = req.nextUrl.searchParams.get('status') || undefined;
@@ -12,7 +15,9 @@ async function getTransfersHandler(req: AuthenticatedRequest) {
     const limit = req.nextUrl.searchParams.get('limit') || undefined;
     
     const data = await transfersService.getTransfers({ status, branchId, page, limit }, req.user);
-    return apiSuccess(data);
+    const res = apiSuccess(data);
+    res.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    return res;
   } catch (error: any) {
     console.error('Transfers GET API Error:', error);
     return apiError(error);

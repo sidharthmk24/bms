@@ -292,7 +292,7 @@ export default function ExpensesPage() {
 
               <button
                 onClick={() => setShowExportModal(true)}
-                className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors shrink-0"
+                className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-[black] rounded-lg hover:bg-[#000000d4] transition-colors shrink-0 cursor-pointer"
               >
                 <Download className="w-4 h-4 mr-2" />
                 Export to Excel

@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDown, Check } from 'lucide-react';
+import { matchKeywords } from '@/lib/searchUtils';
 
 export interface DropdownOption {
   label: string;
@@ -182,16 +183,17 @@ export function Dropdown({
             )}
             <ul className="py-1">
               {(() => {
-                const query = searchQuery.trim().toLowerCase();
-                const displayOptions = searchable && query !== ''
-                  ? options.filter((opt) => {
-                      const labelMatch = opt.label?.toLowerCase().includes(query);
-                      const sublabelMatch = opt.sublabel?.toLowerCase().includes(query);
-                      const isbnMatch = opt.isbn?.toLowerCase().includes(query);
-                      const barcodeMatch = opt.barcode?.toLowerCase().includes(query);
-                      const badgeMatch = opt.badge?.toLowerCase().includes(query);
-                      return labelMatch || sublabelMatch || isbnMatch || barcodeMatch || badgeMatch;
-                    })
+                const displayOptions = searchable && searchQuery.trim() !== ''
+                  ? options.filter((opt) =>
+                      matchKeywords(
+                        searchQuery,
+                        opt.label,
+                        opt.sublabel,
+                        opt.isbn,
+                        opt.barcode,
+                        opt.badge
+                      )
+                    )
                   : options;
 
                 if (displayOptions.length === 0) {

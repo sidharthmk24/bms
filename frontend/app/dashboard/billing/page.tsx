@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { api } from '@/lib/api';
-import { Search, Plus, Minus, Trash2, Receipt, AlertCircle, Loader2, Printer, CheckCircle2, MessageCircle } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, Receipt, AlertCircle, Loader2, Printer, CheckCircle2, MessageCircle, User, Phone } from 'lucide-react';
 import { generateBillPDF } from '@/lib/pdfUtils';
 import { useApiData } from '@/hooks/useApiData';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -46,6 +46,65 @@ export default function BillingPage() {
   const [enquiryTitle, setEnquiryTitle] = useState('');
 
   const barcodeInputRef = useRef<HTMLInputElement>(null);
+
+  // Customer Autocomplete State
+  const [customerSuggestions, setCustomerSuggestions] = useState<{
+    customerName: string;
+    customerPhone: string | null;
+    lastVisit: string;
+  }[]>([]);
+  const [isSearchingCustomers, setIsSearchingCustomers] = useState(false);
+  const [activeSearchField, setActiveSearchField] = useState<'name' | 'phone' | null>(null);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const customerDropdownRef = useRef<HTMLDivElement>(null);
+
+  const triggerCustomerSearch = (query: string, field: 'name' | 'phone') => {
+    setActiveSearchField(field);
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    if (!query || query.trim().length < 2) {
+      setCustomerSuggestions([]);
+      setIsSearchingCustomers(false);
+      return;
+    }
+
+    setIsSearchingCustomers(true);
+    searchTimeoutRef.current = setTimeout(async () => {
+      try {
+        const res = await api.get(`/billing/customers?q=${encodeURIComponent(query.trim())}`);
+        if (res.success && Array.isArray(res.data)) {
+          setCustomerSuggestions(res.data);
+        } else {
+          setCustomerSuggestions([]);
+        }
+      } catch (err) {
+        console.error('Failed to search customers:', err);
+        setCustomerSuggestions([]);
+      } finally {
+        setIsSearchingCustomers(false);
+      }
+    }, 250);
+  };
+
+  const selectCustomer = (cust: { customerName: string; customerPhone: string | null }) => {
+    setCustomerName(cust.customerName);
+    setCustomerPhone(cust.customerPhone || '');
+    if (phoneError) setPhoneError('');
+    setCustomerSuggestions([]);
+    setActiveSearchField(null);
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (customerDropdownRef.current && !customerDropdownRef.current.contains(e.target as Node)) {
+        setActiveSearchField(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Keep scanner input focused when clicking around (tablet POS behavior)
   useEffect(() => {
@@ -184,6 +243,8 @@ export default function BillingPage() {
     setSelectedExhibitionId('');
     setCompletedBill(null);
     setCompletedCart([]);
+    setCustomerSuggestions([]);
+    setActiveSearchField(null);
     setSmsSent(false);
     setSmsError('');
     setTimeout(() => {
@@ -429,35 +490,136 @@ export default function BillingPage() {
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex-1 flex flex-col">
               <h3 className="font-semibold text-gray-800 mb-4 border-b pb-2">Checkout Details</h3>
               
-              <div className="space-y-4 flex-1">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Customer Name <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={customerName}
-                    onChange={e => setCustomerName(e.target.value)}
-                    placeholder="Enter customer name"
-                    className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  />
+              <div className="space-y-4 flex-1" ref={customerDropdownRef}>
+                {/* Customer Name Field with Autocomplete */}
+                <div className="relative">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Customer Name <span className="text-red-500">*</span>
+                    </label>
+                    <span className="text-[11px] text-gray-400">Search past customers</span>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      required
+                      value={customerName}
+                      onChange={e => {
+                        setCustomerName(e.target.value);
+                        triggerCustomerSearch(e.target.value, 'name');
+                      }}
+                      onFocus={() => {
+                        if (customerName.trim().length >= 2) {
+                          triggerCustomerSearch(customerName, 'name');
+                        }
+                      }}
+                      placeholder="Enter or search customer name"
+                      className="block w-full pl-3 pr-8 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-black sm:text-sm transition-all"
+                    />
+                    {isSearchingCustomers && activeSearchField === 'name' ? (
+                      <Loader2 className="w-4 h-4 text-gray-400 animate-spin absolute right-2.5 top-2.5" />
+                    ) : (
+                      <User className="w-4 h-4 text-gray-400 absolute right-2.5 top-2.5 pointer-events-none" />
+                    )}
+                  </div>
+
+                  {/* Dropdown for Name Search */}
+                  {activeSearchField === 'name' && customerSuggestions.length > 0 && (
+                    <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl max-h-56 overflow-y-auto divide-y divide-gray-100">
+                      <div className="px-3 py-1.5 bg-gray-50 text-[10px] font-bold text-gray-500 uppercase tracking-wider flex items-center justify-between">
+                        <span>Past Customers Found</span>
+                        <span>{customerSuggestions.length} result{customerSuggestions.length !== 1 ? 's' : ''}</span>
+                      </div>
+                      {customerSuggestions.map((cust, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => selectCustomer(cust)}
+                          className="w-full text-left px-3 py-2.5 hover:bg-neutral-50 transition-colors flex items-center justify-between group cursor-pointer"
+                        >
+                          <div className="flex-1 min-w-0 pr-2">
+                            <p className="text-sm font-semibold text-gray-900 group-hover:text-black truncate">
+                              {cust.customerName}
+                            </p>
+                            <p className="text-xs text-gray-500 font-mono">
+                              {cust.customerPhone ? `📞 ${cust.customerPhone}` : 'No phone recorded'}
+                            </p>
+                          </div>
+                          {cust.lastVisit && (
+                            <span className="text-[10px] text-gray-400 shrink-0">
+                              {new Date(cust.lastVisit).toLocaleDateString()}
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Customer Phone (Optional)</label>
-                  <input
-                    type="text"
-                    value={customerPhone}
-                    onChange={e => {
-                      setCustomerPhone(e.target.value);
-                      if (phoneError) setPhoneError('');
-                    }}
-                    placeholder="10-digit number"
-                    className={`block w-full px-3 py-2 border rounded-lg focus:ring-blue-500 focus:border-blue-500 sm:text-sm ${
-                      phoneError ? 'border-red-500 bg-red-50' : 'border-gray-300'
-                    }`}
-                  />
+
+                {/* Customer Phone Field with Autocomplete */}
+                <div className="relative">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-sm font-medium text-gray-700">Customer Phone (Optional)</label>
+                    <span className="text-[11px] text-gray-400">Search by phone</span>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={customerPhone}
+                      onChange={e => {
+                        setCustomerPhone(e.target.value);
+                        if (phoneError) setPhoneError('');
+                        triggerCustomerSearch(e.target.value, 'phone');
+                      }}
+                      onFocus={() => {
+                        if (customerPhone.trim().length >= 2) {
+                          triggerCustomerSearch(customerPhone, 'phone');
+                        }
+                      }}
+                      placeholder="10-digit phone number"
+                      className={`block w-full pl-3 pr-8 py-2 border rounded-lg focus:ring-2 focus:ring-black focus:border-black sm:text-sm transition-all ${
+                        phoneError ? 'border-red-500 bg-red-50' : 'border-gray-300'
+                      }`}
+                    />
+                    {isSearchingCustomers && activeSearchField === 'phone' ? (
+                      <Loader2 className="w-4 h-4 text-gray-400 animate-spin absolute right-2.5 top-2.5" />
+                    ) : (
+                      <Phone className="w-4 h-4 text-gray-400 absolute right-2.5 top-2.5 pointer-events-none" />
+                    )}
+                  </div>
                   {phoneError && <p className="text-xs text-red-500 mt-1">{phoneError}</p>}
+
+                  {/* Dropdown for Phone Search */}
+                  {activeSearchField === 'phone' && customerSuggestions.length > 0 && (
+                    <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl max-h-56 overflow-y-auto divide-y divide-gray-100">
+                      <div className="px-3 py-1.5 bg-gray-50 text-[10px] font-bold text-gray-500 uppercase tracking-wider flex items-center justify-between">
+                        <span>Past Customers Found</span>
+                        <span>{customerSuggestions.length} result{customerSuggestions.length !== 1 ? 's' : ''}</span>
+                      </div>
+                      {customerSuggestions.map((cust, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => selectCustomer(cust)}
+                          className="w-full text-left px-3 py-2.5 hover:bg-neutral-50 transition-colors flex items-center justify-between group cursor-pointer"
+                        >
+                          <div className="flex-1 min-w-0 pr-2">
+                            <p className="text-sm font-semibold text-gray-900 group-hover:text-black truncate">
+                              {cust.customerName}
+                            </p>
+                            <p className="text-xs text-gray-500 font-mono">
+                              {cust.customerPhone ? `📞 ${cust.customerPhone}` : 'No phone recorded'}
+                            </p>
+                          </div>
+                          {cust.lastVisit && (
+                            <span className="text-[10px] text-gray-400 shrink-0">
+                              {new Date(cust.lastVisit).toLocaleDateString()}
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* {ongoingExhibitions.length > 0 && (

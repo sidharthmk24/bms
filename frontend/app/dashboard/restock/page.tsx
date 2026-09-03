@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 import { Loader2, Plus, AlertCircle, CheckCircle, XCircle, Send, ArchiveRestore } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Dropdown } from '@/components/Dropdown';
+import { Pagination } from '@/components/Pagination';
 
 export default function RestockRequestsPage() {
   const { user } = useAuth();
@@ -15,6 +16,10 @@ export default function RestockRequestsPage() {
   const { data: requestsResponse, loading, error } = useApiData<any>('/restock', []);
   const requests = requestsResponse?.items || (Array.isArray(requestsResponse) ? requestsResponse : []);
   const { data: catalog } = useApiData<any>('/catalog/books?limit=1000', []);
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   // Creation State (Branch)
   const [isCreating, setIsCreating] = useState(false);
@@ -122,7 +127,7 @@ export default function RestockRequestsPage() {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {(requests || []).map((req: any) => (
+            {(requests || []).slice((currentPage - 1) * pageSize, currentPage * pageSize).map((req: any) => (
               <tr key={req.id}>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="text-sm font-bold text-gray-900">#{req.id.split('-')[0]}</div>
@@ -163,10 +168,21 @@ export default function RestockRequestsPage() {
               </tr>
             ))}
             {requests?.length === 0 && (
-              <tr><td colSpan={5} className="px-6 py-8 text-center text-gray-500">No restock requests found.</td></tr>
+              <tr><td colSpan={5} className="px-6 py-12 text-center text-gray-500 text-sm">No restock requests found.</td></tr>
             )}
           </tbody>
         </table>
+
+        <Pagination
+          currentPage={currentPage}
+          totalItems={(requests || []).length}
+          pageSize={pageSize}
+          onPageChange={(page) => setCurrentPage(page)}
+          onPageSizeChange={(size) => {
+            setPageSize(size);
+            setCurrentPage(1);
+          }}
+        />
       </div>
 
       {/* Creation Modal (Branch) */}

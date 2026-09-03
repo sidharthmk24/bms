@@ -38,6 +38,12 @@ export class ExhibitionStock {
   quantityTaken: number;
 
   @Column({ type: 'int', default: 0 })
+  quantityFromBranch: number;
+
+  @Column({ type: 'int', default: 0 })
+  quantityFromCentral: number;
+
+  @Column({ type: 'int', default: 0 })
   quantitySold: number;
 
   @Column({ type: 'int', default: 0 })

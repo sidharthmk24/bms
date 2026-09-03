@@ -14,10 +14,13 @@ import {
   BadRequestException, 
   NotFoundException 
 } from '../errors';
+import { EmailService } from './email.service';
 type ResetPasswordDto = { token: string; newPassword: string };
 type ChangePasswordDto = { currentPassword: string; newPassword: string };
 
 export class AuthService {
+  private emailService = new EmailService();
+
   private async getRepos() {
     const ds = await getDataSource();
     return {
@@ -35,7 +38,7 @@ export class AuthService {
       relations: ['branch', 'roles'],
     });
 
-    if (user && bcrypt.compareSync(pass, user.passwordHash)) {
+    if (user && user.passwordHash && user.passwordHash !== 'PENDING_SETUP' && bcrypt.compareSync(pass, user.passwordHash)) {
       const { passwordHash, ...result } = user;
       return result;
     }
@@ -49,17 +52,18 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new NotFoundException('Account not found');
+      throw new NotFoundException('Account not found with this email address.');
     }
 
     return {
       exists: true,
       status: user.passwordHash === 'PENDING_SETUP' ? 'PENDING_SETUP' : 'ACTIVE',
+      name: user.name,
     };
   }
 
-  async setupPassword(email: string, password: string, userAgent: string) {
-    const { userRepo } = await this.getRepos();
+  async setupPassword(email: string, password: string, userAgent: string, ipAddress: string = '127.0.0.1') {
+    const { userRepo, auditRepo } = await this.getRepos();
     const user = await userRepo.findOne({
       where: { email, isActive: true },
       relations: ['branch', 'roles'],
@@ -69,14 +73,29 @@ export class AuthService {
       throw new NotFoundException('Account not found');
     }
 
+    if (!password || password.length < 6) {
+      throw new BadRequestException('Password must be at least 6 characters long.');
+    }
+
     if (user.passwordHash !== 'PENDING_SETUP') {
-      throw new BadRequestException('Account is already setup. Please use normal login.');
+      throw new BadRequestException('Account password has already been set. Please use normal sign in.');
     }
 
     const passwordHash = bcrypt.hashSync(password, 10);
     await userRepo.update(user.id, { passwordHash });
 
     user.passwordHash = passwordHash;
+
+    await auditRepo.save({
+      userId: user.id,
+      action: 'USER_PASSWORD_SETUP',
+      entityType: 'User',
+      entityId: user.id,
+      beforeJson: null,
+      afterJson: { email: user.email, action: 'SETUP_PASSWORD' },
+      ipAddress,
+    });
+
     return this.login(user, userAgent);
   }
 
@@ -265,13 +284,10 @@ export class AuthService {
       expiresAt,
     });
 
-    const baseUrl = process.env.APP_URL || 'http://localhost:3000';
+    const baseUrl = (process.env.APP_URL || 'http://localhost:3000').trim();
     const resetLink = `${baseUrl}/reset-password?token=${token}`;
 
-    console.log('\n' + '✉️ '.repeat(20));
-    console.log(`[MOCK EMAIL] Password Reset Link for ${user.name} (${user.email})`);
-    console.log(`Link: ${resetLink}`);
-    console.log('✉️ '.repeat(20) + '\n');
+    await this.emailService.sendPasswordResetEmail(user.email, user.name, resetLink);
   }
 
   async resetPassword(dto: ResetPasswordDto, ipAddress: string) {

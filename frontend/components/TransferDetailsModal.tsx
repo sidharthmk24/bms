@@ -1,16 +1,16 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
-import { X, Check, ArrowRight, Loader2, Ban, RefreshCw, Clipboard, FileText, CheckCircle2 } from 'lucide-react';
+import { X, Check, ArrowRight, Loader2, Ban, RefreshCw, Clipboard, FileText, CheckCircle2, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface TransferDetailsModalProps {
   transferId: string | null;
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (updatedTransfer?: any) => void;
 }
 
 export default function TransferDetailsModal({ transferId, isOpen, onClose, onSuccess }: TransferDetailsModalProps) {
@@ -41,41 +41,39 @@ export default function TransferDetailsModal({ transferId, isOpen, onClose, onSu
     }
   };
 
-  useState(() => {
-    if (isOpen && transferId) {
-      fetchTransferDetails();
-    }
-  });
-
-  // Re-fetch details when modal opens or transferId changes
-  useState(() => {
+  useEffect(() => {
     if (isOpen && transferId) {
       setRejectMode(false);
       setRejectionNote('');
       fetchTransferDetails();
     }
-  });
-
-  // Triggering the fetch on prop changes
-  const lastIdRef = useState(transferId);
-  if (isOpen && transferId !== lastIdRef[0]) {
-    lastIdRef[1](transferId);
-    setRejectMode(false);
-    setRejectionNote('');
-    fetchTransferDetails();
-  }
+  }, [isOpen, transferId]);
 
   const handleDispatch = async () => {
     if (!transfer) return;
     setActionLoading(true);
     setError(null);
+
+    // Instant optimistic update
+    const optimistic = {
+      ...transfer,
+      status: 'DISPATCHED',
+      items: transfer.items?.map((i: any) => ({
+        ...i,
+        quantityDispatched: i.quantityRequested
+      }))
+    };
+    setTransfer(optimistic);
+    onSuccess(optimistic);
+
     try {
       const response = await api.post(`/transfers/${transfer.id}/dispatch`);
-      if (response.success) {
-        onSuccess();
-        onClose();
-      }
+      const updated = response.data || optimistic;
+      setTransfer(updated);
+      onSuccess(updated);
+      setTimeout(() => onClose(), 400);
     } catch (err: any) {
+      setTransfer(transfer);
       setError(err.response?.data?.message || 'Failed to dispatch transfer.');
     } finally {
       setActionLoading(false);
@@ -86,13 +84,27 @@ export default function TransferDetailsModal({ transferId, isOpen, onClose, onSu
     if (!transfer) return;
     setActionLoading(true);
     setError(null);
+
+    // Instant optimistic update
+    const optimistic = {
+      ...transfer,
+      status: 'RECEIVED',
+      items: transfer.items?.map((i: any) => ({
+        ...i,
+        quantityReceived: i.quantityDispatched || i.quantityRequested
+      }))
+    };
+    setTransfer(optimistic);
+    onSuccess(optimistic);
+
     try {
       const response = await api.post(`/transfers/${transfer.id}/receive`);
-      if (response.success) {
-        onSuccess();
-        onClose();
-      }
+      const updated = response.data || optimistic;
+      setTransfer(updated);
+      onSuccess(updated);
+      setTimeout(() => onClose(), 400);
     } catch (err: any) {
+      setTransfer(transfer);
       setError(err.response?.data?.message || 'Failed to receive transfer.');
     } finally {
       setActionLoading(false);
@@ -103,13 +115,19 @@ export default function TransferDetailsModal({ transferId, isOpen, onClose, onSu
     if (!transfer) return;
     setActionLoading(true);
     setError(null);
+
+    const optimistic = { ...transfer, status: 'REJECTED' };
+    setTransfer(optimistic);
+    onSuccess(optimistic);
+
     try {
       const response = await api.post(`/transfers/${transfer.id}/reject`, { note: rejectionNote });
-      if (response.success) {
-        onSuccess();
-        onClose();
-      }
+      const updated = response.data || optimistic;
+      setTransfer(updated);
+      onSuccess(updated);
+      setTimeout(() => onClose(), 400);
     } catch (err: any) {
+      setTransfer(transfer);
       setError(err.response?.data?.message || 'Failed to reject transfer.');
     } finally {
       setActionLoading(false);
@@ -121,13 +139,19 @@ export default function TransferDetailsModal({ transferId, isOpen, onClose, onSu
     if (!confirm('Are you sure you want to cancel this transfer request?')) return;
     setActionLoading(true);
     setError(null);
+
+    const optimistic = { ...transfer, status: 'CANCELLED' };
+    setTransfer(optimistic);
+    onSuccess(optimistic);
+
     try {
       const response = await api.post(`/transfers/${transfer.id}/cancel`);
-      if (response.success) {
-        onSuccess();
-        onClose();
-      }
+      const updated = response.data || optimistic;
+      setTransfer(updated);
+      onSuccess(updated);
+      setTimeout(() => onClose(), 400);
     } catch (err: any) {
+      setTransfer(transfer);
       setError(err.response?.data?.message || 'Failed to cancel transfer.');
     } finally {
       setActionLoading(false);
@@ -136,15 +160,43 @@ export default function TransferDetailsModal({ transferId, isOpen, onClose, onSu
 
   if (!isOpen) return null;
 
-  const isChainRole = user?.roles?.some(r => ['SUPER_ADMIN', 'ADMIN', 'CENTRAL_INVENTORY_MANAGER'].includes(r));
-  const isSourceBranchManager = user?.branchId === transfer?.fromBranchId && user?.roles?.includes('BRANCH_MANAGER');
-  const isDestBranch = user?.branchId === transfer?.toBranchId;
+  const isSuperAdmin = user?.roles?.includes('SUPER_ADMIN');
+  const isAdmin = user?.roles?.includes('ADMIN');
+  const isCentralInventory = user?.roles?.includes('CENTRAL_INVENTORY_MANAGER');
+
+  const isFromWarehouse = transfer?.fromBranch?.type === 'WAREHOUSE';
+  const isToWarehouse = transfer?.toBranch?.type === 'WAREHOUSE';
+
+  const isSourceBranchUser = user?.branchId === transfer?.fromBranchId;
+  const isDestBranchUser = user?.branchId === transfer?.toBranchId;
 
   // Actions visibility
-  const canDispatch = transfer?.status === 'PENDING' && (isSourceBranchManager || isChainRole);
-  const canReceive = transfer?.status === 'DISPATCHED' && (isDestBranch || isChainRole);
-  const canReject = transfer?.status === 'PENDING' && (isSourceBranchManager || isChainRole);
-  const canCancel = transfer?.status === 'PENDING' && (isDestBranch || isChainRole);
+  // Dispatch: Source location dispatches (Central Inventory / Admin if from Warehouse, or Source Branch Manager if from Store)
+  const canDispatch = transfer?.status === 'PENDING' && (
+    (isFromWarehouse && (isCentralInventory || isAdmin || isSuperAdmin || isSourceBranchUser)) ||
+    (!isFromWarehouse && (isSourceBranchUser || isAdmin || isSuperAdmin))
+  );
+
+  // Confirm Receipt: ONLY the Destination branch confirms receipt!
+  // - If destination is Warehouse: Central Inventory Manager, Admin, Super Admin
+  // - If destination is Retail Store: ONLY the Destination Branch Manager / Staff at that branch (or Super Admin override)
+  const canReceive = transfer?.status === 'DISPATCHED' && (
+    (isToWarehouse && (isCentralInventory || isAdmin || isSuperAdmin || isDestBranchUser)) ||
+    (!isToWarehouse && (isDestBranchUser || isSuperAdmin))
+  );
+
+  // Reject: Source location can reject pending request
+  const canReject = transfer?.status === 'PENDING' && (
+    (isFromWarehouse && (isCentralInventory || isAdmin || isSuperAdmin)) ||
+    isSourceBranchUser
+  );
+
+  // Cancel: Destination branch requester can cancel their own pending request
+  const canCancel = transfer?.status === 'PENDING' && (
+    isDestBranchUser ||
+    (isToWarehouse && isCentralInventory) ||
+    isSuperAdmin
+  );
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -297,6 +349,32 @@ export default function TransferDetailsModal({ transferId, isOpen, onClose, onSu
                       >
                         Confirm Reject
                       </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Awaiting Receipt Notice for non-destination users */}
+                {transfer.status === 'DISPATCHED' && !canReceive && (
+                  <div className="p-3.5 bg-sky-50 border border-sky-200/80 rounded-xl text-xs text-sky-800 flex items-center gap-2.5">
+                    <Clock className="w-4 h-4 text-sky-600 shrink-0" />
+                    <div>
+                      <p className="font-bold text-sky-900">In Transit — Awaiting Destination Receipt</p>
+                      <p className="text-sky-700 mt-0.5">
+                        Stock has been dispatched. Physical receipt and stock confirmation must be confirmed by the destination branch manager at <strong>{transfer.toBranch?.name}</strong>.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Awaiting Dispatch Notice for non-source users */}
+                {transfer.status === 'PENDING' && !canDispatch && (
+                  <div className="p-3.5 bg-amber-50 border border-amber-200/80 rounded-xl text-xs text-amber-800 flex items-center gap-2.5">
+                    <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+                    <div>
+                      <p className="font-bold text-amber-900">Pending Dispatch</p>
+                      <p className="text-amber-700 mt-0.5">
+                        Transfer request submitted. Awaiting dispatch confirmation by <strong>{transfer.fromBranch?.name}</strong>.
+                      </p>
                     </div>
                   </div>
                 )}

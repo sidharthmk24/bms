@@ -142,15 +142,12 @@ export class UsersService {
       }
     }
 
-    // Generate a temporary 8-character password
-    const temporaryPassword = crypto.randomBytes(4).toString('hex');
-    const passwordHash = await bcrypt.hash(temporaryPassword, 10);
-
+    // Set initial password status to PENDING_SETUP so user creates their password on first login
     const newUser = userRepo.create({
       ...dto,
       roles: dto.roles.map(r => ({ role: r })),
       branchId: finalBranchId,
-      passwordHash,
+      passwordHash: 'PENDING_SETUP',
       isActive: true,
       createdById: currentUser.userId,
     });
@@ -180,8 +177,8 @@ export class UsersService {
 
     this.notificationsService.triggerRefresh('user_changed');
 
-    // Send the welcome email with login details
-    await this.emailService.sendWelcomeEmail(savedUser.email, savedUser.name, temporaryPassword);
+    // Send the welcome email with setup instructions
+    await this.emailService.sendWelcomeEmail(savedUser.email, savedUser.name);
 
     return plainUser;
   }
@@ -354,12 +351,9 @@ export class UsersService {
       expiresAt,
     });
 
-    const baseUrl = process.env.APP_URL || 'http://localhost:3000';
+    const baseUrl = (process.env.APP_URL || 'http://localhost:3000').trim();
     const setupLink = `${baseUrl}/reset-password?token=${token}`;
 
-    console.log('\n' + '✉️ '.repeat(20));
-    console.log(`[MOCK EMAIL] Setup/Reset Password Link for ${user.name} (${user.email})`);
-    console.log(`Link: ${setupLink}`);
-    console.log('✉️ '.repeat(20) + '\n');
+    await this.emailService.sendPasswordResetEmail(user.email, user.name, setupLink);
   }
 }

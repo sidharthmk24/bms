@@ -8,6 +8,11 @@ import { Author } from './author.entity';
 import { Publisher } from './publisher.entity';
 import { Category } from './category.entity';
 
+export enum PublishType {
+  KAIRALI_BOOKS = 'KAIRALI_BOOKS',
+  OTHER = 'OTHER',
+}
+
 /**
  * Book — the master catalog, shared across all branches.
  *
@@ -78,6 +83,12 @@ export class Book {
 
   @Column({ type: 'boolean', default: true })
   isActive: boolean;
+
+  @Column({ type: 'varchar', length: 50, default: 'OTHER' })
+  publishType: string;
+
+  @Column({ name: 'pms_title_id', type: 'varchar', length: 100, nullable: true })
+  pmsTitleId: string | null;
 
   @CreateDateColumn()
   createdAt: Date;

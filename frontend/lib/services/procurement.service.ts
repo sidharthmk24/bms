@@ -39,16 +39,49 @@ export class ProcurementService {
 
       let totalCost = 0;
       for (const item of createDto.items) {
-        totalCost += item.quantityOrdered * item.unitCost;
+        let cost = Number(item.unitCost);
+        if (item.bookId && !item.newBook) {
+          const [dbBook] = await queryRunner.manager.query('SELECT cost_price FROM book WHERE id = ?', [item.bookId]);
+          if (dbBook && dbBook.cost_price !== null && dbBook.cost_price !== undefined) {
+            cost = Number(dbBook.cost_price);
+          }
+        }
+        totalCost += item.quantityOrdered * cost;
       }
 
+      const userId = user.userId || (user as any).sub || (user as any).id;
       const expectedDate = createDto.expectedDate ? new Date(createDto.expectedDate).toISOString().split('T')[0] : null;
+
+      const { v4: uuidv4 } = await import('uuid');
+
+      // Resolve or create Supplier
+      let finalSupplierId = createDto.supplierId;
+      if ((!finalSupplierId || finalSupplierId === 'OTHER') && createDto.supplierName?.trim()) {
+        const sName = createDto.supplierName.trim();
+        const [existingSupplier] = await queryRunner.manager.query(
+          'SELECT id FROM supplier WHERE name = ?',
+          [sName],
+        );
+        if (existingSupplier) {
+          finalSupplierId = existingSupplier.id;
+        } else {
+          finalSupplierId = uuidv4();
+          await queryRunner.manager.query(
+            'INSERT INTO supplier (id, name, created_at, updated_at) VALUES (?, ?, NOW(), NOW())',
+            [finalSupplierId, sName],
+          );
+        }
+      }
+
+      if (!finalSupplierId || finalSupplierId === 'OTHER') {
+        throw new BadRequestException('A valid supplier selection or supplier name is required');
+      }
 
       // Insert PO using raw SQL to avoid TypeORM hot-reload entity class mismatch
       await queryRunner.manager.query(
         `INSERT INTO purchase_order (id, order_number, supplier_id, expected_date, placed_by_id, status, total_cost, created_at, updated_at)
          VALUES (UUID(), ?, ?, ?, ?, 'DRAFT', ?, NOW(), NOW())`,
-        [orderNumber, createDto.supplierId, expectedDate, user.userId, totalCost],
+        [orderNumber, finalSupplierId, expectedDate, userId, totalCost],
       );
 
       // Fetch the saved PO id
@@ -60,10 +93,211 @@ export class ProcurementService {
 
       // Insert each item using raw SQL
       for (const item of createDto.items) {
+        let finalBookId = item.bookId;
+
+        // If PMS Title is provided
+        if (!finalBookId && item.pmsTitle) {
+          const pt = item.pmsTitle;
+          const isbn = pt.isbn?.trim() || `PMS-${String(pt.pmsTitleId).substring(0, 8)}`;
+          const title = pt.title?.trim();
+          const barcode = pt.isbn?.trim() || isbn;
+
+          // Check if book exists by pms_title_id or isbn/barcode
+          const existingBookRows = await queryRunner.manager.query(
+            'SELECT id FROM book WHERE pms_title_id = ? OR isbn = ? OR barcode = ?',
+            [pt.pmsTitleId, isbn, barcode],
+          );
+
+          if (existingBookRows && existingBookRows.length > 0) {
+            finalBookId = existingBookRows[0].id;
+            await queryRunner.manager.query(
+              'UPDATE book SET publish_type = ?, pms_title_id = ? WHERE id = ?',
+              ['KAIRALI_BOOKS', pt.pmsTitleId, finalBookId],
+            );
+          } else {
+            // Resolve or create Author
+            let authorId = null;
+            if (pt.authorName?.trim()) {
+              const aName = pt.authorName.trim();
+              const existingAuthors = await queryRunner.manager.query('SELECT id FROM author WHERE name = ?', [aName]);
+              if (existingAuthors && existingAuthors.length > 0) {
+                authorId = existingAuthors[0].id;
+              } else {
+                authorId = uuidv4();
+                await queryRunner.manager.query(
+                  'INSERT INTO author (id, name, created_at, updated_at) VALUES (?, ?, NOW(), NOW())',
+                  [authorId, aName],
+                );
+              }
+            }
+
+            // Resolve or create Category
+            let categoryId = null;
+            const cName = pt.category?.trim() || 'General';
+            const existingCategories = await queryRunner.manager.query('SELECT id FROM category WHERE name = ?', [cName]);
+            if (existingCategories && existingCategories.length > 0) {
+              categoryId = existingCategories[0].id;
+            } else {
+              categoryId = uuidv4();
+              await queryRunner.manager.query(
+                'INSERT INTO category (id, name, created_at, updated_at) VALUES (?, ?, NOW(), NOW())',
+                [categoryId, cName],
+              );
+            }
+
+            // Resolve or create Kairali Books Publisher
+            let publisherId = null;
+            const existingPublishers = await queryRunner.manager.query("SELECT id FROM publisher WHERE name LIKE '%Kairali%'");
+            if (existingPublishers && existingPublishers.length > 0) {
+              publisherId = existingPublishers[0].id;
+            } else {
+              publisherId = uuidv4();
+              await queryRunner.manager.query(
+                'INSERT INTO publisher (id, name, created_at, updated_at) VALUES (?, ?, NOW(), NOW())',
+                [publisherId, 'Kairali Books'],
+              );
+            }
+
+            finalBookId = uuidv4();
+            const sellingPrice = pt.price ? Number(pt.price) : Math.round(Number(item.unitCost) * 1.4);
+
+            await queryRunner.manager.query(
+              `INSERT INTO book (id, title, isbn, barcode, description, price, cost_price, author_id, category_id, publisher_id, publish_type, pms_title_id, is_active, created_at, updated_at)
+               VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, 'KAIRALI_BOOKS', ?, 1, NOW(), NOW())`,
+              [
+                finalBookId,
+                title,
+                isbn,
+                barcode,
+                sellingPrice,
+                Number(item.unitCost),
+                authorId,
+                categoryId,
+                publisherId,
+                pt.pmsTitleId,
+              ],
+            );
+
+            // Pre-seed central stock record with 0 quantity
+            await queryRunner.manager.query(
+              `INSERT INTO central_stock (id, book_id, quantity, reorder_threshold, created_at, updated_at)
+               VALUES (UUID(), ?, 0, 15, NOW(), NOW())
+               ON DUPLICATE KEY UPDATE updated_at = NOW()`,
+              [finalBookId],
+            );
+          }
+        } else if (!finalBookId && item.newBook) {
+          const nb = item.newBook;
+          const isbn = nb.isbn?.trim();
+          const title = nb.title?.trim();
+          const barcode = nb.barcode?.trim() || isbn;
+
+          if (!title || !isbn) {
+            throw new BadRequestException('New book title and ISBN are required');
+          }
+
+          // Check if book with this ISBN or barcode already exists
+          const existingBookRows = await queryRunner.manager.query(
+            'SELECT id FROM book WHERE isbn = ? OR barcode = ?',
+            [isbn, barcode],
+          );
+
+          if (existingBookRows && existingBookRows.length > 0) {
+            finalBookId = existingBookRows[0].id;
+          } else {
+            // Resolve or create Author
+            let authorId = null;
+            if (nb.authorName?.trim()) {
+              const aName = nb.authorName.trim();
+              const existingAuthors = await queryRunner.manager.query('SELECT id FROM author WHERE name = ?', [aName]);
+              if (existingAuthors && existingAuthors.length > 0) {
+                authorId = existingAuthors[0].id;
+              } else {
+                authorId = uuidv4();
+                await queryRunner.manager.query(
+                  'INSERT INTO author (id, name, created_at, updated_at) VALUES (?, ?, NOW(), NOW())',
+                  [authorId, aName],
+                );
+              }
+            }
+
+            // Resolve or create Category
+            let categoryId = null;
+            if (nb.categoryName?.trim()) {
+              const cName = nb.categoryName.trim();
+              const existingCategories = await queryRunner.manager.query('SELECT id FROM category WHERE name = ?', [cName]);
+              if (existingCategories && existingCategories.length > 0) {
+                categoryId = existingCategories[0].id;
+              } else {
+                categoryId = uuidv4();
+                await queryRunner.manager.query(
+                  'INSERT INTO category (id, name, created_at, updated_at) VALUES (?, ?, NOW(), NOW())',
+                  [categoryId, cName],
+                );
+              }
+            }
+
+            // Resolve or create Publisher
+            let publisherId = null;
+            if (nb.publisherName?.trim()) {
+              const pName = nb.publisherName.trim();
+              const existingPublishers = await queryRunner.manager.query('SELECT id FROM publisher WHERE name = ?', [pName]);
+              if (existingPublishers && existingPublishers.length > 0) {
+                publisherId = existingPublishers[0].id;
+              } else {
+                publisherId = uuidv4();
+                await queryRunner.manager.query(
+                  'INSERT INTO publisher (id, name, created_at, updated_at) VALUES (?, ?, NOW(), NOW())',
+                  [publisherId, pName],
+                );
+              }
+            }
+
+            finalBookId = uuidv4();
+            const sellingPrice = nb.price !== undefined && nb.price !== null && !isNaN(Number(nb.price)) 
+              ? Number(nb.price) 
+              : Math.round(Number(item.unitCost) * 1.4);
+
+            await queryRunner.manager.query(
+              `INSERT INTO book (id, title, isbn, barcode, description, price, cost_price, author_id, category_id, publisher_id, publish_type, is_active, created_at, updated_at)
+               VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, 'OTHER', 1, NOW(), NOW())`,
+              [
+                finalBookId,
+                title,
+                isbn,
+                barcode,
+                sellingPrice,
+                Number(item.unitCost),
+                authorId,
+                categoryId,
+                publisherId,
+              ],
+            );
+
+            // Pre-seed central stock record with 0 quantity so it exists for warehouse lookups
+            await queryRunner.manager.query(
+              `INSERT INTO central_stock (id, book_id, quantity, reorder_threshold, created_at, updated_at)
+               VALUES (UUID(), ?, 0, 15, NOW(), NOW())
+               ON DUPLICATE KEY UPDATE updated_at = NOW()`,
+              [finalBookId],
+            );
+          }
+        }
+
+        let finalUnitCost = Number(item.unitCost);
+
+        // If existing book, enforce book's fixed cost price if available
+        if (item.bookId && !item.newBook) {
+          const [dbBook] = await queryRunner.manager.query('SELECT cost_price, price FROM book WHERE id = ?', [item.bookId]);
+          if (dbBook && dbBook.cost_price !== null && dbBook.cost_price !== undefined) {
+            finalUnitCost = Number(dbBook.cost_price);
+          }
+        }
+
         await queryRunner.manager.query(
           `INSERT INTO purchase_order_item (id, purchase_order_id, book_id, quantity_ordered, unit_cost, quantity_received, created_at, updated_at)
            VALUES (UUID(), ?, ?, ?, ?, 0, NOW(), NOW())`,
-          [savedPoId, item.bookId, item.quantityOrdered, item.unitCost],
+          [savedPoId, finalBookId, item.quantityOrdered, finalUnitCost],
         );
       }
 
@@ -71,7 +305,7 @@ export class ProcurementService {
       await queryRunner.manager.query(
         'INSERT INTO `audit_log`(`id`, `user_id`, `action`, `entity_type`, `entity_id`, `before_json`, `after_json`, `ip_address`, `created_at`) VALUES (UUID(), ?, ?, ?, ?, ?, ?, ?, DEFAULT)',
         [
-          user.userId,
+          userId,
           'PURCHASE_ORDER_CREATED',
           'PurchaseOrder',
           savedPoId,

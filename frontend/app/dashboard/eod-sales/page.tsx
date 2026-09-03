@@ -16,7 +16,11 @@ import {
   ChevronLeft,
   ChevronRight,
   AlertCircle,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react';
+import { Dropdown } from '@/components/Dropdown';
 import { generateBillPDF } from '@/lib/pdfUtils';
 
 const PAYMENT_MODE_COLORS: Record<string, string> = {
@@ -50,6 +54,37 @@ export default function EODSalesPage() {
   const [bills, setBills]   = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError]   = useState<string | null>(null);
+
+  // Sorting State
+  type SortField = 'createdAt' | 'totalAmount' | 'billNumber' | 'customerName';
+  type SortDirection = 'asc' | 'desc';
+  const [sortField, setSortField] = useState<SortField>('createdAt');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+
+  const toggleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection(field === 'totalAmount' || field === 'createdAt' ? 'desc' : 'asc');
+    }
+  };
+
+  const sortedBills = useMemo(() => {
+    return [...bills].sort((a: any, b: any) => {
+      let comparison = 0;
+      if (sortField === 'createdAt') {
+        comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      } else if (sortField === 'totalAmount') {
+        comparison = Number(a.totalAmount || 0) - Number(b.totalAmount || 0);
+      } else if (sortField === 'billNumber') {
+        comparison = (a.billNumber || '').localeCompare(b.billNumber || '');
+      } else if (sortField === 'customerName') {
+        comparison = (a.customerName || 'Walk-in').localeCompare(b.customerName || 'Walk-in');
+      }
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+  }, [bills, sortField, sortDirection]);
 
   const { startDate, endDate, displayLabel } = useMemo(() => {
     if (viewMode === 'day') {
@@ -228,20 +263,92 @@ export default function EODSalesPage() {
 
       {/* Bills table */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-gray-900">Bills</h3>
-          <span className="text-xs text-gray-400">{bills.length} record{bills.length !== 1 ? 's' : ''}</span>
+        <div className="px-6 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-gray-900">Bills</h3>
+            <span className="text-xs text-gray-400">({bills.length} record{bills.length !== 1 ? 's' : ''})</span>
+          </div>
+
+          <div className="w-full sm:w-52 shrink-0">
+            <Dropdown
+              value={`${sortField}_${sortDirection}`}
+              onChange={(val) => {
+                const [f, d] = val.split('_') as [SortField, SortDirection];
+                setSortField(f);
+                setSortDirection(d);
+              }}
+              options={[
+                { value: 'createdAt_desc', label: 'Time: Newest First' },
+                { value: 'createdAt_asc', label: 'Time: Oldest First' },
+                { value: 'totalAmount_desc', label: 'Amount: High-Low' },
+                { value: 'totalAmount_asc', label: 'Amount: Low-High' },
+                { value: 'billNumber_asc', label: 'Bill No: A-Z' },
+                { value: 'billNumber_desc', label: 'Bill No: Z-A' },
+                { value: 'customerName_asc', label: 'Customer: A-Z' },
+                { value: 'customerName_desc', label: 'Customer: Z-A' },
+              ]}
+              selectClassName="!py-2 !rounded-xl !text-xs font-bold border-neutral-300 bg-white"
+            />
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead className="bg-gray-50 text-xs text-gray-500 uppercase border-b">
               <tr>
-                <th className="px-6 py-3">Bill No.</th>
-                <th className="px-6 py-3">Time</th>
-                <th className="px-6 py-3">Customer</th>
+                <th 
+                  onClick={() => toggleSort('billNumber')}
+                  className="px-6 py-3 cursor-pointer select-none hover:bg-gray-100 hover:text-black transition-colors group"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span>Bill No.</span>
+                    {sortField === 'billNumber' ? (
+                      sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-black font-bold" /> : <ArrowDown className="w-3.5 h-3.5 text-black font-bold" />
+                    ) : (
+                      <ArrowUpDown className="w-3 h-3 text-neutral-400 opacity-50 group-hover:opacity-100 transition-opacity" />
+                    )}
+                  </div>
+                </th>
+                <th 
+                  onClick={() => toggleSort('createdAt')}
+                  className="px-6 py-3 cursor-pointer select-none hover:bg-gray-100 hover:text-black transition-colors group"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span>Time</span>
+                    {sortField === 'createdAt' ? (
+                      sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-black font-bold" /> : <ArrowDown className="w-3.5 h-3.5 text-black font-bold" />
+                    ) : (
+                      <ArrowUpDown className="w-3 h-3 text-neutral-400 opacity-50 group-hover:opacity-100 transition-opacity" />
+                    )}
+                  </div>
+                </th>
+                <th 
+                  onClick={() => toggleSort('customerName')}
+                  className="px-6 py-3 cursor-pointer select-none hover:bg-gray-100 hover:text-black transition-colors group"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span>Customer</span>
+                    {sortField === 'customerName' ? (
+                      sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-black font-bold" /> : <ArrowDown className="w-3.5 h-3.5 text-black font-bold" />
+                    ) : (
+                      <ArrowUpDown className="w-3 h-3 text-neutral-400 opacity-50 group-hover:opacity-100 transition-opacity" />
+                    )}
+                  </div>
+                </th>
                 <th className="px-6 py-3">Mode</th>
                 <th className="px-6 py-3">Items</th>
-                <th className="px-6 py-3 text-right">Amount</th>
+                <th 
+                  onClick={() => toggleSort('totalAmount')}
+                  className="px-6 py-3 text-right cursor-pointer select-none hover:bg-gray-100 hover:text-black transition-colors group"
+                >
+                  <div className="flex items-center justify-end gap-1.5">
+                    <span>Amount</span>
+                    {sortField === 'totalAmount' ? (
+                      sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-black font-bold" /> : <ArrowDown className="w-3.5 h-3.5 text-black font-bold" />
+                    ) : (
+                      <ArrowUpDown className="w-3 h-3 text-neutral-400 opacity-50 group-hover:opacity-100 transition-opacity" />
+                    )}
+                  </div>
+                </th>
                 <th className="px-6 py-3 text-center">Status</th>
                 <th className="px-6 py-3 text-center">PDF</th>
               </tr>
@@ -262,7 +369,7 @@ export default function EODSalesPage() {
                   </td>
                 </tr>
               ) : (
-                bills.map((bill: any) => (
+                sortedBills.map((bill: any) => (
                   <tr key={bill.id} className={`hover:bg-gray-50 transition-colors ${bill.status === 'VOIDED' ? 'opacity-55' : ''}`}>
                     <td className="px-6 py-3 font-mono text-xs font-semibold text-gray-800">{bill.billNumber}</td>
                     <td className="px-6 py-3 text-gray-500 whitespace-nowrap">

@@ -356,4 +356,45 @@ export class BillingService {
       await queryRunner.release();
     }
   }
+
+  // ── SEARCH RETURNING CUSTOMERS ──────────────────────────────────────────────
+  async searchCustomers(
+    query: string,
+    currentUser: JwtPayload
+  ): Promise<{ customerName: string; customerPhone: string | null; lastVisit: string }[]> {
+    if (!query || !query.trim() || query.trim().length < 2) {
+      return [];
+    }
+
+    const { dataSource } = await this.getRepos();
+    const searchTerm = `%${query.trim()}%`;
+
+    // Query distinct customers from past bills and enquiries
+    const rawRows = await dataSource.query(
+      `
+      SELECT customer_name as customerName, customer_phone as customerPhone, MAX(created_at) as lastVisit
+      FROM (
+        SELECT customer_name, customer_phone, created_at
+        FROM bill
+        WHERE customer_name IS NOT NULL AND TRIM(customer_name) != ''
+          AND (customer_name LIKE ? OR customer_phone LIKE ?)
+        UNION ALL
+        SELECT customer_name, customer_phone, created_at
+        FROM book_enquiry
+        WHERE customer_name IS NOT NULL AND TRIM(customer_name) != ''
+          AND (customer_name LIKE ? OR customer_phone LIKE ?)
+      ) AS combined
+      GROUP BY customer_name, customer_phone
+      ORDER BY lastVisit DESC
+      LIMIT 10
+      `,
+      [searchTerm, searchTerm, searchTerm, searchTerm]
+    );
+
+    return rawRows.map((r: any) => ({
+      customerName: r.customerName,
+      customerPhone: r.customerPhone || null,
+      lastVisit: r.lastVisit,
+    }));
+  }
 }
