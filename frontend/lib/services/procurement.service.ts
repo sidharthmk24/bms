@@ -4,6 +4,8 @@ import { getDataSource } from '../db/data-source';
 
 import { PurchaseOrder, PurchaseOrderStatus } from '../api-backend/procurement/entities/purchase-order.entity';
 import { PurchaseOrderItem } from '../api-backend/procurement/entities/purchase-order-item.entity';
+import { PurchaseOrderRequest, PurchaseOrderRequestStatus } from '../api-backend/procurement/entities/purchase-order-request.entity';
+import { UserRole } from '../api-backend/users/enums/user-role.enum';
 import { CreatePurchaseOrderDto } from '../api-backend/procurement/dto/create-purchase-order.dto';
 import { UpdatePurchaseOrderStatusDto, ReceivePurchaseOrderItemDto } from '../api-backend/procurement/dto/update-purchase-order-status.dto';
 
@@ -21,6 +23,7 @@ export class ProcurementService {
     return {
       dataSource: ds,
       purchaseOrderRepo: ds.getRepository(PurchaseOrder),
+      purchaseOrderRequestRepo: ds.getRepository(PurchaseOrderRequest),
     };
   }
 
@@ -315,6 +318,16 @@ export class ProcurementService {
         ],
       );
 
+      // If created from an approved PO request, mark it ORDERED and link PO id
+      if (createDto.poRequestId) {
+        await queryRunner.manager.query(
+          `UPDATE purchase_order_request 
+           SET status = 'ORDERED', purchase_order_id = ?, updated_at = NOW() 
+           WHERE id = ?`,
+          [savedPoId, createDto.poRequestId],
+        );
+      }
+
       await queryRunner.commitTransaction();
       this.notificationsService.triggerRefresh('procurement_changed');
 
@@ -330,7 +343,7 @@ export class ProcurementService {
   async findAll(): Promise<PurchaseOrder[]> {
     const { purchaseOrderRepo } = await this.getRepos();
     return purchaseOrderRepo.find({
-      relations: ['supplier', 'placedBy', 'items'],
+      relations: ['supplier', 'placedBy', 'items', 'items.book'],
       order: { createdAt: 'DESC' },
     });
   }
@@ -516,6 +529,223 @@ export class ProcurementService {
     } catch (error) {
       await queryRunner.rollbackTransaction();
       throw error;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  // ── 5. PURCHASE ORDER REQUESTS (CENTRAL -> ADMIN APPROVAL FLOW) ────────────
+
+  private async ensurePoRequestTableExists(queryRunner: any) {
+    await queryRunner.manager.query(`
+      CREATE TABLE IF NOT EXISTS \`purchase_order_request\` (
+        \`id\` varchar(36) NOT NULL,
+        \`restock_request_id\` varchar(36) NULL,
+        \`restock_request_item_id\` varchar(36) NULL,
+        \`book_id\` varchar(36) NOT NULL,
+        \`quantity\` int NOT NULL,
+        \`estimated_cost\` decimal(10,2) NULL,
+        \`reason\` text NULL,
+        \`status\` enum ('PENDING', 'APPROVED', 'REJECTED', 'ORDERED') NOT NULL DEFAULT 'PENDING',
+        \`requested_by_id\` varchar(36) NOT NULL,
+        \`reviewed_by_id\` varchar(36) NULL,
+        \`review_note\` text NULL,
+        \`reviewed_at\` datetime NULL,
+        \`purchase_order_id\` varchar(36) NULL,
+        \`created_at\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+        \`updated_at\` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+        PRIMARY KEY (\`id\`)
+      ) ENGINE=InnoDB;
+    `);
+  }
+
+  async createPoRequest(
+    dto: {
+      bookId: string;
+      quantity: number;
+      restockRequestId?: string;
+      restockRequestItemId?: string;
+      estimatedCost?: number;
+      reason?: string;
+    },
+    user: JwtPayload,
+    ipAddress: string,
+  ) {
+    if (!dto.bookId) throw new BadRequestException('Book ID is required');
+    if (!dto.quantity || dto.quantity <= 0) throw new BadRequestException('Quantity must be greater than 0');
+
+    const { dataSource } = await this.getRepos();
+    const queryRunner = dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      await this.ensurePoRequestTableExists(queryRunner);
+
+      const [book] = await queryRunner.manager.query('SELECT id, title, isbn FROM book WHERE id = ?', [dto.bookId]);
+      if (!book) throw new NotFoundException(`Book ${dto.bookId} not found`);
+
+      const { v4: uuidv4 } = await import('uuid');
+      const requestId = uuidv4();
+      const userId = user.userId || (user as any).sub || (user as any).id;
+
+      await queryRunner.manager.query(
+        `INSERT INTO purchase_order_request 
+         (id, restock_request_id, restock_request_item_id, book_id, quantity, estimated_cost, reason, status, requested_by_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, NOW(), NOW())`,
+        [
+          requestId,
+          dto.restockRequestId || null,
+          dto.restockRequestItemId || null,
+          dto.bookId,
+          dto.quantity,
+          dto.estimatedCost || null,
+          dto.reason || 'Requested by Central Warehouse for branch restock',
+          userId,
+        ],
+      );
+
+      // Audit log
+      await queryRunner.manager.query(
+        'INSERT INTO `audit_log`(`id`, `user_id`, `action`, `entity_type`, `entity_id`, `before_json`, `after_json`, `ip_address`, `created_at`) VALUES (UUID(), ?, ?, ?, ?, ?, ?, ?, DEFAULT)',
+        [
+          userId,
+          'PO_REQUEST_CREATED',
+          'PurchaseOrderRequest',
+          requestId,
+          null,
+          JSON.stringify({ bookTitle: book.title, quantity: dto.quantity, restockRequestId: dto.restockRequestId }),
+          ipAddress,
+        ],
+      );
+
+      await queryRunner.commitTransaction();
+
+      // Trigger SSE update & notifications to ADMIN and SUPER_ADMIN
+      this.notificationsService.triggerRefresh('procurement_changed');
+      await this.notificationsService.notifyRoles(
+        [UserRole.SUPER_ADMIN, UserRole.ADMIN],
+        null,
+        'Purchase Order Approval Request',
+        `Central Inventory Manager requested approval to order ${dto.quantity} copies of "${book.title}".`,
+        'PURCHASE_ORDER_REQUEST',
+      );
+
+      return await this.findPoRequestById(requestId);
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  async findPoRequestById(id: string) {
+    const { purchaseOrderRequestRepo } = await this.getRepos();
+    return purchaseOrderRequestRepo.findOne({
+      where: { id },
+      relations: [
+        'book',
+        'requestedBy',
+        'reviewedBy',
+        'restockRequest',
+        'restockRequest.branch',
+        'purchaseOrder',
+      ],
+    });
+  }
+
+  async findAllPoRequests(query?: { status?: string; bookId?: string; restockRequestId?: string }) {
+    const { dataSource, purchaseOrderRequestRepo } = await this.getRepos();
+    const queryRunner = dataSource.createQueryRunner();
+    await queryRunner.connect();
+    try {
+      await this.ensurePoRequestTableExists(queryRunner);
+    } finally {
+      await queryRunner.release();
+    }
+
+    const where: any = {};
+    if (query?.status) where.status = query.status;
+    if (query?.bookId) where.bookId = query.bookId;
+    if (query?.restockRequestId) where.restockRequestId = query.restockRequestId;
+
+    return purchaseOrderRequestRepo.find({
+      where,
+      relations: [
+        'book',
+        'requestedBy',
+        'reviewedBy',
+        'restockRequest',
+        'restockRequest.branch',
+        'purchaseOrder',
+      ],
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async reviewPoRequest(
+    id: string,
+    status: 'APPROVED' | 'REJECTED',
+    reviewNote: string | undefined,
+    user: JwtPayload,
+    ipAddress: string,
+  ) {
+    if (status !== 'APPROVED' && status !== 'REJECTED') {
+      throw new BadRequestException('Status must be APPROVED or REJECTED');
+    }
+
+    const poReq = await this.findPoRequestById(id);
+    if (!poReq) throw new NotFoundException(`PO Request ${id} not found`);
+
+    if (poReq.status !== PurchaseOrderRequestStatus.PENDING) {
+      throw new ConflictException(`Only pending requests can be reviewed. Current status: ${poReq.status}`);
+    }
+
+    const { dataSource } = await this.getRepos();
+    const queryRunner = dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const userId = user.userId || (user as any).sub || (user as any).id;
+      await queryRunner.manager.query(
+        `UPDATE purchase_order_request 
+         SET status = ?, reviewed_by_id = ?, review_note = ?, reviewed_at = NOW(), updated_at = NOW()
+         WHERE id = ?`,
+        [status, userId, reviewNote || null, id],
+      );
+
+      // Audit Log
+      await queryRunner.manager.query(
+        'INSERT INTO `audit_log`(`id`, `user_id`, `action`, `entity_type`, `entity_id`, `before_json`, `after_json`, `ip_address`, `created_at`) VALUES (UUID(), ?, ?, ?, ?, ?, ?, ?, DEFAULT)',
+        [
+          userId,
+          `PO_REQUEST_${status}`,
+          'PurchaseOrderRequest',
+          id,
+          JSON.stringify({ status: poReq.status }),
+          JSON.stringify({ status, reviewNote }),
+          ipAddress,
+        ],
+      );
+
+      await queryRunner.commitTransaction();
+
+      // Notify the requester
+      this.notificationsService.triggerRefresh('procurement_changed');
+      const actionText = status === 'APPROVED' ? 'approved' : 'rejected';
+      await this.notificationsService.createNotification(
+        poReq.requestedById,
+        `PO Request ${status === 'APPROVED' ? 'Approved' : 'Rejected'}`,
+        `Your PO request for ${poReq.quantity} copies of "${poReq.book?.title || 'Book'}" has been ${actionText} by management.${reviewNote ? ` Note: ${reviewNote}` : ''}`,
+        status === 'APPROVED' ? 'PURCHASE_ORDER_APPROVED' : 'PURCHASE_ORDER_REJECTED',
+      );
+
+      return await this.findPoRequestById(id);
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
     } finally {
       await queryRunner.release();
     }

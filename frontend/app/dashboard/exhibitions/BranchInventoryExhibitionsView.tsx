@@ -1,9 +1,17 @@
 import React, { useState } from 'react';
-import { Tent, Calendar, MapPin, Search, Package, Book, CheckCircle, XCircle, Eye, ArchiveRestore } from 'lucide-react';
+import { Tent, Calendar, MapPin, Search, Package, Book, CheckCircle, XCircle, Eye, ArchiveRestore, Pencil } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '@/lib/api';
 
-export function BranchInventoryExhibitionsView({ exhibitions, user }: { exhibitions: any[], user: any }) {
+export function BranchInventoryExhibitionsView({ 
+  exhibitions, 
+  user,
+  onEditExhibition 
+}: { 
+  exhibitions: any[], 
+  user: any,
+  onEditExhibition?: (ex: any) => void 
+}) {
   const [viewingExhibition, setViewingExhibition] = useState<any | null>(null);
   const [activeTab, setActiveTab] = useState<'ACTIVE' | 'PAST'>('ACTIVE');
 
@@ -160,13 +168,28 @@ export function BranchInventoryExhibitionsView({ exhibitions, user }: { exhibiti
                 </div>
               </div>
               <div className="bg-gray-50 px-5 py-3 border-t border-gray-100 flex justify-between items-center text-sm" onClick={(e) => e.stopPropagation()}>
-                <button 
-                  onClick={() => setViewingExhibition(ex)} 
-                  className="inline-flex items-center px-3 py-1.5 text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 border border-gray-300 rounded-lg shadow-sm transition-all hover:text-blue-600 hover:border-blue-300 active:scale-95"
-                >
-                  <Eye className="w-3.5 h-3.5 mr-1.5 text-gray-500" />
-                  View Details
-                </button>
+                <div className="flex items-center space-x-2">
+                  <button 
+                    onClick={() => setViewingExhibition(ex)} 
+                    className="inline-flex items-center px-3 py-1.5 text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 border border-gray-300 rounded-lg shadow-sm transition-all hover:text-blue-600 hover:border-blue-300 active:scale-95"
+                  >
+                    <Eye className="w-3.5 h-3.5 mr-1.5 text-gray-500" />
+                    View Details
+                  </button>
+
+                  {ex.status !== 'CLOSED' && ex.status !== 'REJECTED' && onEditExhibition && (
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onEditExhibition(ex);
+                      }} 
+                      className="inline-flex items-center px-2.5 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg shadow-sm transition-all active:scale-95"
+                    >
+                      <Pencil className="w-3.5 h-3.5 mr-1" />
+                      Edit Books & Details
+                    </button>
+                  )}
+                </div>
                 <div className="flex space-x-3 items-center">
                   {(ex.status === 'ONGOING' || ex.status === 'OVERDUE') && (
                     <button 
@@ -350,12 +373,27 @@ export function BranchInventoryExhibitionsView({ exhibitions, user }: { exhibiti
                     <span className="flex items-center"><Calendar className="w-4 h-4 mr-1" /> {new Date(viewingExhibition.startDate).toLocaleDateString()}</span>
                   </div>
                 </div>
-                <button 
-                  onClick={() => setViewingExhibition(null)}
-                  className="text-gray-400 hover:text-gray-600 p-1"
-                >
-                  <XCircle className="w-6 h-6" />
-                </button>
+                <div className="flex items-center space-x-2">
+                  {viewingExhibition.status !== 'CLOSED' && viewingExhibition.status !== 'REJECTED' && onEditExhibition && (
+                    <button 
+                      onClick={() => {
+                        const target = viewingExhibition;
+                        setViewingExhibition(null);
+                        onEditExhibition(target);
+                      }} 
+                      className="inline-flex items-center px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg shadow-sm transition-all active:scale-95"
+                    >
+                      <Pencil className="w-3.5 h-3.5 mr-1.5" />
+                      Edit Books & Details
+                    </button>
+                  )}
+                  <button 
+                    onClick={() => setViewingExhibition(null)}
+                    className="text-gray-400 hover:text-gray-600 p-1"
+                  >
+                    <XCircle className="w-6 h-6" />
+                  </button>
+                </div>
               </div>
 
               {/* Body */}

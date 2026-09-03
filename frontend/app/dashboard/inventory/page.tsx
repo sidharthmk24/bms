@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
-import { Loader2, AlertCircle, Search, Edit2, Bell, Check, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Loader2, AlertCircle, Search, Edit2, Bell, Check, ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, PackagePlus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useApiData } from '@/hooks/useApiData';
 import { Dropdown } from '@/components/Dropdown';
@@ -52,12 +52,21 @@ export default function BranchInventoryPage() {
   const branches = branchesResponse?.items || (Array.isArray(branchesResponse) ? branchesResponse : []);
   const branchName = branches.find((b: any) => b.id === user?.branchId)?.name || 'Branch';
 
-  // Modal State
+  // Catalog for search when requesting stock
+  const { data: catalog } = useApiData<any>('/catalog/books?limit=1000', []);
+
+  // Modal State - Adjust Inventory
   const [isAdjusting, setIsAdjusting] = useState(false);
   const [selectedBook, setSelectedBook] = useState<any>(null);
   const [adjustmentQuantity, setAdjustmentQuantity] = useState(0);
   const [adjustmentReason, setAdjustmentReason] = useState('CORRECTION');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Modal State - Request Stock from Central Warehouse
+  const [isRequestingStock, setIsRequestingStock] = useState(false);
+  const [requestStockBook, setRequestStockBook] = useState<any>(null);
+  const [requestStockQuantity, setRequestStockQuantity] = useState(10);
+  const [isSubmittingStockRequest, setIsSubmittingStockRequest] = useState(false);
 
   const fetchInventory = async () => {
     if (!selectedBranchId) {
@@ -117,6 +126,33 @@ export default function BranchInventoryPage() {
       alert(err.response?.data?.message || 'Failed to notify manager');
     } finally {
       setNotifyingId(null);
+    }
+  };
+
+  const handleRequestStockSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const bookId = requestStockBook?.id;
+    if (!bookId || requestStockQuantity <= 0) return;
+
+    try {
+      setIsSubmittingStockRequest(true);
+      // 1. Submit restock request to central inventory
+      await api.post('/restock', {
+        items: [{ bookId, quantity: requestStockQuantity }]
+      });
+
+      // 2. Also trigger notifications to Central Inventory Manager & Admins
+      if (selectedBranchId) {
+        await api.post(`/inventory/branch/${selectedBranchId}/book/${bookId}/notify-manager`, {}).catch(() => {});
+      }
+
+      setNotifiedItems(prev => ({ ...prev, [bookId]: true }));
+      setIsRequestingStock(false);
+      alert(`Stock request for "${requestStockBook.title}" (${requestStockQuantity} copies) successfully submitted to Central Warehouse!`);
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to submit stock request');
+    } finally {
+      setIsSubmittingStockRequest(false);
     }
   };
 
@@ -247,6 +283,20 @@ export default function BranchInventoryPage() {
               selectClassName="!py-2 !rounded-xl !text-xs font-bold border-neutral-300 bg-white"
             />
           </div>
+
+          {selectedBranchId && (
+            <button
+              onClick={() => {
+                setRequestStockBook(null);
+                setRequestStockQuantity(10);
+                setIsRequestingStock(true);
+              }}
+              className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-black hover:bg-neutral-800 rounded-xl shadow-sm active:scale-95 transition-all shrink-0"
+            >
+              <TrendingUp className="w-4 h-4" />
+              Request Stock
+            </button>
+          )}
         </div>
       </div>
 
@@ -398,32 +448,31 @@ export default function BranchInventoryPage() {
                           </span>
                         )}
 
-                        {/* Notify Manager Option for Low Stock */}
-                        {isLowStock && (
+                        {/* Request Stock Option for Low Stock or Out of Stock */}
+                        {(isLowStock || item.quantity === 0) && (
                           <button
-                            onClick={() => handleNotifyManager(item)}
-                            disabled={isCurrentlyNotifying || isNotified}
-                            className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all duration-150 ${
+                            onClick={() => {
+                              setRequestStockBook(item.book);
+                              setRequestStockQuantity(Math.max(10, (item.reorderThreshold || 5) * 2));
+                              setIsRequestingStock(true);
+                            }}
+                            disabled={isNotified}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all duration-150 ${
                               isNotified
                                 ? 'bg-neutral-100 text-black border-neutral-300 cursor-default'
-                                : 'bg-black text-white hover:bg-neutral-900 border-neutral-800 shadow-sm active:scale-95 disabled:opacity-50'
+                                : 'bg-black text-white hover:bg-neutral-900 border-neutral-800 shadow-sm active:scale-95'
                             }`}
-                            title="Send low stock notification to branch manager"
+                            title="Request stock from Central Warehouse"
                           >
-                            {isCurrentlyNotifying ? (
-                              <>
-                                <Loader2 className="w-3 h-3 animate-spin text-white" />
-                                <span>Notifying...</span>
-                              </>
-                            ) : isNotified ? (
+                            {isNotified ? (
                               <>
                                 <Check className="w-3 h-3 text-black" />
-                                <span>Notified ✓</span>
+                                <span>Requested ✓</span>
                               </>
                             ) : (
                               <>
-                                <Bell className="w-3 h-3 text-white" />
-                                <span>Notify Manager</span>
+                                <TrendingUp className="w-3 h-3 text-white" />
+                                <span>Request Stock</span>
                               </>
                             )}
                           </button>
@@ -535,6 +584,116 @@ export default function BranchInventoryPage() {
                   >
                     {isSubmitting && <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin text-white" />}
                     Confirm Adjustment
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Request Stock from Central Warehouse Modal */}
+      <AnimatePresence>
+        {isRequestingStock && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl shadow-2xl border border-neutral-200 w-full max-w-lg p-6"
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <div className="p-2 rounded-xl bg-neutral-100 text-black">
+                  <TrendingUp className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-black">Request Stock</h3>
+                  <p className="text-xs text-neutral-500">Request stock replenishment from Central Warehouse</p>
+                </div>
+              </div>
+
+              <form onSubmit={handleRequestStockSubmit} className="space-y-4 mt-5">
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-700 mb-1">Book</label>
+                  {requestStockBook ? (
+                    <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-200 flex items-center justify-between">
+                      <div>
+                        <div className="text-sm font-semibold text-black">{requestStockBook.title}</div>
+                        <div className="text-xs text-neutral-500">{requestStockBook.author?.name || 'Author N/A'} • ISBN: {requestStockBook.isbn || 'N/A'}</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setRequestStockBook(null)}
+                        className="text-xs text-neutral-500 hover:text-black font-semibold underline ml-2"
+                      >
+                        Change
+                      </button>
+                    </div>
+                  ) : (
+                    <Dropdown
+                      searchable
+                      value={requestStockBook?.id || ''}
+                      onChange={(val) => {
+                        const bookList = catalog?.books || catalog?.items || catalog?.data || (Array.isArray(catalog) ? catalog : []);
+                        const b = bookList.find((item: any) => item.id === val);
+                        setRequestStockBook(b || null);
+                      }}
+                      placeholder="Search books by title, author, ISBN..."
+                      options={(catalog?.books || catalog?.items || catalog?.data || (Array.isArray(catalog) ? catalog : [])).map((b: any) => ({
+                        value: b.id,
+                        label: b.title,
+                        sublabel: `${b.author?.name || ''} • ISBN: ${b.isbn || 'N/A'}`
+                      }))}
+                    />
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-700 mb-1">Quantity to Request</label>
+                  <input
+                    type="number"
+                    min="1"
+                    required
+                    value={requestStockQuantity}
+                    onChange={(e) => setRequestStockQuantity(Math.max(1, Number(e.target.value)))}
+                    className="block w-full px-3 py-2 border border-neutral-300 rounded-xl focus:ring-black focus:border-black text-sm font-semibold"
+                    placeholder="e.g. 10"
+                  />
+                  <p className="text-[11px] text-neutral-500 mt-1">
+                    Central Inventory Manager, Admin, and Super Admin will be notified to review and dispatch this stock.
+                  </p>
+                </div>
+
+                <div className="p-3 rounded-xl bg-neutral-50 border border-neutral-200/80 text-xs text-neutral-600 space-y-1">
+                  <div className="font-semibold text-black">Delivery Pipeline:</div>
+                  <div>• If Central Warehouse has stock, it will be dispatched to your branch.</div>
+                  <div>• If out of stock chain-wide, a Purchase Order will be initiated to restock the central pool.</div>
+                </div>
+
+                <div className="flex justify-end space-x-2.5 mt-6">
+                  <button
+                    type="button"
+                    onClick={() => setIsRequestingStock(false)}
+                    className="px-4 py-2 text-xs font-semibold text-black bg-white border border-neutral-300 rounded-xl hover:bg-neutral-100 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmittingStockRequest || !requestStockBook?.id || requestStockQuantity <= 0}
+                    className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-black rounded-xl hover:bg-neutral-900 disabled:opacity-50 transition-colors shadow-sm"
+                  >
+                    {isSubmittingStockRequest ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                        <span>Submitting...</span>
+                      </>
+                    ) : (
+                      <>
+                        <TrendingUp className="w-3.5 h-3.5 text-white" />
+                        <span>Submit Stock Request</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </form>

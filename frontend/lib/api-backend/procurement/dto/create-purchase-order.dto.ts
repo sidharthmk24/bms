@@ -64,4 +64,8 @@ export class CreatePurchaseOrderDto {
   @ValidateNested({ each: true })
   @Type(() => PurchaseOrderItemDto)
   items: PurchaseOrderItemDto[];
+
+  @IsOptional()
+  @IsUUID(4)
+  poRequestId?: string;
 }

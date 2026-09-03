@@ -5,7 +5,7 @@ import {
 } from 'typeorm';
 import { Branch } from '../../branches/entities/branch.entity';
 import { User } from '../../users/entities/user.entity';
-import { RestockRequestItem } from './restock-request-item.entity';
+import type { RestockRequestItem } from './restock-request-item.entity';
 
 export enum RestockRequestStatus {
   PENDING = 'PENDING',
@@ -58,7 +58,7 @@ export class RestockRequest {
   @Column({ type: 'datetime', nullable: true })
   reviewedAt: Date | null;
 
-  @OneToMany(() => RestockRequestItem, (item) => item.restockRequest)
+  @OneToMany('RestockRequestItem', (item: any) => item.restockRequest)
   items: RestockRequestItem[];
 
   @CreateDateColumn()

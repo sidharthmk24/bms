@@ -60,7 +60,7 @@ export default function Sidebar() {
     { name: 'Inventory', href: '/dashboard/inventory', icon: Boxes, roles: ['BRANCH_INVENTORY', 'BRANCH_MANAGER', 'SUPER_ADMIN', 'ADMIN', 'BRANCH_FRONT_OFFICE'] },
     { name: 'Warehouse Stock', href: '/dashboard/central-stock', icon: Store, roles: ['CENTRAL_INVENTORY_MANAGER', 'SUPER_ADMIN', 'ADMIN'] },
     { name: 'Purchase Orders', href: '/dashboard/purchase-orders', icon: Truck, roles: ['CENTRAL_INVENTORY_MANAGER', 'SUPER_ADMIN', 'ADMIN'] },
-    { name: 'Restock', href: '/dashboard/restock', icon: TrendingUp, roles: ['BRANCH_INVENTORY', 'BRANCH_MANAGER', 'CENTRAL_INVENTORY_MANAGER'] },
+    { name: 'Restock Requests', href: '/dashboard/restock', icon: TrendingUp, roles: ['CENTRAL_INVENTORY_MANAGER', 'SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'BRANCH_INVENTORY'] },
     { name: 'Stock Transfers', href: '/dashboard/transfers', icon: ArrowLeftRight, roles: ['BRANCH_INVENTORY', 'BRANCH_MANAGER', 'CENTRAL_INVENTORY_MANAGER', 'SUPER_ADMIN', 'ADMIN'] },
     { name: 'Exhibitions', href: '/dashboard/exhibitions', icon: Store, roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE', 'CENTRAL_INVENTORY_MANAGER', 'BRANCH_MANAGER', 'BRANCH_INVENTORY', 'BRANCH_FRONT_OFFICE'] },
     { name: 'Credit Copies', href: '/dashboard/credit-copies', icon: FileText, roles: ['BRANCH_MANAGER', 'SUPER_ADMIN', 'ADMIN'] },

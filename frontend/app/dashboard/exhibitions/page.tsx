@@ -4,7 +4,10 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useApiData } from '@/hooks/useApiData';
 import { api } from '@/lib/api';
-import { Loader2, Plus, Tent, CheckCircle, XCircle, Send, ArchiveRestore, AlertCircle, Eye } from 'lucide-react';
+import { 
+  Loader2, Plus, Tent, CheckCircle, XCircle, Send, ArchiveRestore, 
+  AlertCircle, Eye, Pencil, Trash2, BookOpen 
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Dropdown } from '@/components/Dropdown';
 import { BranchInventoryExhibitionsView } from './BranchInventoryExhibitionsView';
@@ -85,13 +88,29 @@ export default function ExhibitionsPage() {
 
   // Edit & Assign State
   const [editingExhibition, setEditingExhibition] = useState<any | null>(null);
-  const [editFormData, setEditFormData] = useState({ name: '', location: '', startDate: '', endDate: '' });
-  
+  const [editFormData, setEditFormData] = useState({ name: '', location: '', startDate: '', endDate: '', assignedUserId: '' });
+  const [editCart, setEditCart] = useState<{
+    bookId: string;
+    title: string;
+    isbn?: string;
+    barcode?: string;
+    quantityRequested: number;
+    quantityFromBranch?: number;
+    quantityFromCentral?: number;
+    originalQuantity?: number;
+    originalFromBranch?: number;
+    originalFromCentral?: number;
+    quantitySold?: number;
+  }[]>([]);
+  const [editBookInput, setEditBookInput] = useState('');
+  const [editBranchQtyInput, setEditBranchQtyInput] = useState(0);
+  const [editWarehouseQtyInput, setEditWarehouseQtyInput] = useState(0);
+
   const [assigningExhibition, setAssigningExhibition] = useState<any | null>(null);
   const [assignBranchId, setAssignBranchId] = useState('');
   const [assignUserId, setAssignUserId] = useState('');
 
-  const activeSourceBranchId = isAdmin ? createBranchId : user?.branchId;
+  const activeSourceBranchId = editingExhibition?.sourceBranchId || (isAdmin ? createBranchId : user?.branchId);
   const [branchInventory, setBranchInventory] = useState<any[]>([]);
   const [centralInventory, setCentralInventory] = useState<any[]>([]);
 
@@ -138,17 +157,168 @@ export default function ExhibitionsPage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const handleOpenEdit = (ex: any) => {
+    setEditingExhibition(ex);
+    setEditFormData({
+      name: ex.name || ex.eventName || '',
+      location: ex.location || '',
+      startDate: ex.startDate ? new Date(ex.startDate).toISOString().split('T')[0] : '',
+      endDate: ex.endDate ? new Date(ex.endDate).toISOString().split('T')[0] : '',
+      assignedUserId: ex.assignedUserId || '',
+    });
+    const items = (ex.stock || []).map((s: any) => ({
+      bookId: s.bookId || s.book?.id,
+      title: s.book?.title || 'Book Title',
+      isbn: s.book?.isbn || '',
+      barcode: s.book?.barcode || '',
+      quantityRequested: Number(s.quantityTaken || 0),
+      quantityFromBranch: Number(s.quantityFromBranch ?? 0),
+      quantityFromCentral: Number(s.quantityFromCentral ?? 0),
+      originalQuantity: Number(s.quantityTaken || 0),
+      originalFromBranch: Number(s.quantityFromBranch ?? 0),
+      originalFromCentral: Number(s.quantityFromCentral ?? 0),
+      quantitySold: Number(s.quantitySold || 0),
+    }));
+    setEditCart(items);
+    setEditBookInput('');
+    setEditBranchQtyInput(0);
+    setEditWarehouseQtyInput(0);
+  };
+
+  const handleEditQuantityChange = (idx: number, newQty: number) => {
+    if (newQty < 0) return;
+    const item = editCart[idx];
+    if (item.quantitySold && newQty < item.quantitySold) {
+      alert(`Cannot reduce quantity below ${item.quantitySold} because ${item.quantitySold} copies were already sold.`);
+      return;
+    }
+
+    const updated = [...editCart];
+    const isWarehouse = branches.find((b: any) => b.id === (editingExhibition?.sourceBranchId))?.type === 'WAREHOUSE';
+
+    if (isWarehouse) {
+      updated[idx] = {
+        ...item,
+        quantityRequested: newQty,
+        quantityFromBranch: 0,
+        quantityFromCentral: newQty,
+      };
+    } else {
+      const origTotal = item.originalQuantity ?? item.quantityRequested;
+      const origBranch = item.originalFromBranch ?? item.quantityFromBranch ?? 0;
+      const origCentral = item.originalFromCentral ?? item.quantityFromCentral ?? 0;
+
+      let newBranch = origBranch;
+      let newCentral = origCentral;
+
+      const diff = newQty - origTotal;
+      if (diff > 0) {
+        const availableShelf = getBranchStockQty(item.bookId);
+        const addShelf = Math.min(availableShelf, diff);
+        const addCentral = diff - addShelf;
+        newBranch = origBranch + addShelf;
+        newCentral = origCentral + addCentral;
+      } else if (diff < 0) {
+        let toReturn = Math.abs(diff);
+        const returnCentral = Math.min(origCentral, toReturn);
+        newCentral = origCentral - returnCentral;
+        toReturn -= returnCentral;
+        const returnBranch = Math.min(origBranch, toReturn);
+        newBranch = origBranch - returnBranch;
+      } else {
+        newBranch = origBranch;
+        newCentral = origCentral;
+      }
+
+      updated[idx] = {
+        ...item,
+        quantityRequested: newQty,
+        quantityFromBranch: newBranch,
+        quantityFromCentral: newCentral,
+      };
+    }
+
+    setEditCart(updated);
+  };
+
+  const handleAddBookToEditCart = () => {
+    if (!editBookInput) return;
+    const existingIndex = editCart.findIndex(i => i.bookId === editBookInput);
+    if (existingIndex >= 0) {
+      alert('This book is already in the exhibition list. You can adjust its quantity in the table above.');
+      return;
+    }
+
+    const totalQty = editBranchQtyInput + editWarehouseQtyInput;
+    if (totalQty <= 0) {
+      alert('Please enter a quantity greater than 0.');
+      return;
+    }
+
+    const catalogList = catalog?.books || catalog?.items || catalog?.data || (Array.isArray(catalog) ? catalog : []);
+    const book = catalogList.find((b: any) => b.id === editBookInput);
+
+    setEditCart([
+      ...editCart,
+      {
+        bookId: editBookInput,
+        title: book?.title || 'Selected Book',
+        isbn: book?.isbn,
+        barcode: book?.barcode,
+        quantityRequested: totalQty,
+        quantityFromBranch: editBranchQtyInput,
+        quantityFromCentral: editWarehouseQtyInput,
+        originalQuantity: 0,
+        originalFromBranch: 0,
+        originalFromCentral: 0,
+        quantitySold: 0,
+      }
+    ]);
+
+    setEditBookInput('');
+    setEditBranchQtyInput(0);
+    setEditWarehouseQtyInput(0);
+  };
+
+  const handleRemoveFromEditCart = (idx: number) => {
+    const item = editCart[idx];
+    if (item.quantitySold && item.quantitySold > 0) {
+      alert(`Cannot remove "${item.title}" because ${item.quantitySold} copies have already been sold.`);
+      return;
+    }
+    setEditCart(editCart.filter((_, i) => i !== idx));
+  };
+
   const handleEdit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!editingExhibition) return;
+    if (editCart.length === 0) {
+      alert('The exhibition must contain at least one book.');
+      return;
+    }
+
     try {
       setIsSubmitting(true);
-      await api.patch(`/exhibitions/${editingExhibition.id}`, {
+      const res = await api.patch(`/exhibitions/${editingExhibition.id}`, {
         name: editFormData.name,
         location: editFormData.location,
         startDate: new Date(editFormData.startDate).toISOString(),
         endDate: new Date(editFormData.endDate).toISOString(),
+        assignedUserId: isAdmin ? (editFormData.assignedUserId || null) : undefined,
+        items: editCart.map(i => ({
+          bookId: i.bookId,
+          quantityTaken: i.quantityRequested,
+          quantityFromBranch: i.quantityFromBranch,
+          quantityFromCentral: i.quantityFromCentral,
+        })),
       });
-      setEditingExhibition(null);
+
+      if (res.success) {
+        setEditingExhibition(null);
+        if (viewingExhibitionHistory?.id === editingExhibition.id) {
+          handleViewHistory({ ...viewingExhibitionHistory, ...res.data });
+        }
+      }
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to update exhibition');
     } finally {
@@ -281,27 +451,31 @@ export default function ExhibitionsPage() {
     return <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin text-blue-600" /></div>;
   }
 
-  if (isStaffOnly) {
-    return <BranchInventoryExhibitionsView exhibitions={exhibitions || []} user={user} />;
-  }
-
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight text-gray-900">Exhibitions & Events</h2>
-          <p className="text-sm text-gray-500">Manage off-site book sales events.</p>
-        </div>
-        {(isBranch || isAdmin) && (
-          <button
-            onClick={() => setIsCreating(true)}
-            className="flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            {isAdmin ? 'Create Exhibition' : 'Request Exhibition'}
-          </button>
-        )}
-      </div>
+      {isStaffOnly ? (
+        <BranchInventoryExhibitionsView 
+          exhibitions={exhibitions || []} 
+          user={user} 
+          onEditExhibition={handleOpenEdit}
+        />
+      ) : (
+        <>
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-2xl font-bold tracking-tight text-gray-900">Exhibitions & Events</h2>
+              <p className="text-sm text-gray-500">Manage off-site book sales events.</p>
+            </div>
+            {(isBranch || isAdmin) && (
+              <button
+                onClick={() => setIsCreating(true)}
+                className="flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                {isAdmin ? 'Create Exhibition' : 'Request Exhibition'}
+              </button>
+            )}
+          </div>
 
       <div className="bg-white shadow-sm border border-gray-200 rounded-xl overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200">
@@ -353,20 +527,17 @@ export default function ExhibitionsPage() {
                         </button>
                       )}
 
-                      {ex.requestedById === user?.id && ex.status !== 'CLOSED' && ex.status !== 'ONGOING' && (
+                      {ex.status !== 'CLOSED' && ex.status !== 'REJECTED' && (
+                        isAdmin ||
+                        ex.requestedById === user?.id ||
+                        ex.assignedUserId === user?.id ||
+                        (isBranchManager && ex.sourceBranchId === user?.branchId)
+                      ) && (
                         <button 
-                          onClick={() => {
-                            setEditingExhibition(ex);
-                            setEditFormData({
-                              name: ex.name || ex.eventName,
-                              location: ex.location,
-                              startDate: ex.startDate ? new Date(ex.startDate).toISOString().split('T')[0] : '',
-                              endDate: ex.endDate ? new Date(ex.endDate).toISOString().split('T')[0] : ''
-                            });
-                          }} 
-                          className="inline-flex items-center px-2.5 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
+                          onClick={() => handleOpenEdit(ex)} 
+                          className="inline-flex items-center px-2.5 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors shadow-sm"
                         >
-                          Edit Event
+                          <Pencil className="w-3.5 h-3.5 mr-1" /> Edit / Manage Stock
                         </button>
                       )}
 
@@ -441,6 +612,8 @@ export default function ExhibitionsPage() {
           </tbody>
         </table>
       </div>
+    </>
+  )}
 
       {/* Creation Modal */}
       <AnimatePresence>
@@ -839,38 +1012,359 @@ export default function ExhibitionsPage() {
         )}
       </AnimatePresence>
 
-      {/* Edit Exhibition Modal */}
+      {/* Edit Exhibition & Manage Stock Modal */}
       <AnimatePresence>
         {editingExhibition && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6">
-              <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center"><Tent className="w-5 h-5 mr-2"/> Edit Exhibition Details</h3>
-              <form onSubmit={handleEdit} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Event Name</label>
-                  <input required type="text" value={editFormData.name} onChange={e => setEditFormData({...editFormData, name: e.target.value})} className="block w-full px-3 py-2 border rounded-lg sm:text-sm" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
-                  <input required type="text" value={editFormData.location} onChange={e => setEditFormData({...editFormData, location: e.target.value})} className="block w-full px-3 py-2 border rounded-lg sm:text-sm" />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
-                    <input required type="date" value={editFormData.startDate} onChange={e => setEditFormData({...editFormData, startDate: e.target.value})} className="block w-full px-3 py-2 border rounded-lg sm:text-sm" />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }} 
+              animate={{ opacity: 1, scale: 1 }} 
+              exit={{ opacity: 0, scale: 0.95 }} 
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden"
+            >
+              {/* Header */}
+              <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-blue-50/50 to-indigo-50/50 flex justify-between items-center shrink-0">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-blue-600 text-white rounded-xl shadow-sm">
+                    <Tent className="w-5 h-5" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
-                    <input required type="date" value={editFormData.endDate} onChange={e => setEditFormData({...editFormData, endDate: e.target.value})} className="block w-full px-3 py-2 border rounded-lg sm:text-sm" />
+                    <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                      Edit Exhibition & Manage Stock
+                    </h3>
+                    <p className="text-xs text-gray-500">
+                      Adjust event details, reduce or increase book quantities, or allocate new titles.
+                    </p>
                   </div>
                 </div>
-                <div className="flex justify-end space-x-3 mt-6 pt-4 border-t">
-                  <button type="button" onClick={() => setEditingExhibition(null)} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
-                  <button type="submit" disabled={isSubmitting} className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50">
-                    {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : 'Save Changes'}
-                  </button>
+                <button 
+                  onClick={() => setEditingExhibition(null)} 
+                  className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
+                >
+                  <XCircle className="w-6 h-6" />
+                </button>
+              </div>
+
+              {/* Scrollable Form Body */}
+              <form id="edit-exhibition-form" onSubmit={handleEdit} className="flex-1 overflow-y-auto p-6 space-y-6">
+                {/* 1. Basic Details Card */}
+                <div className="bg-gray-50/80 border border-gray-200 rounded-xl p-4 space-y-4">
+                  <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wider">Event Details</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Event Name</label>
+                      <input 
+                        required 
+                        type="text" 
+                        value={editFormData.name} 
+                        onChange={e => setEditFormData({...editFormData, name: e.target.value})} 
+                        className="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-blue-500 focus:border-blue-500" 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Location</label>
+                      <input 
+                        required 
+                        type="text" 
+                        value={editFormData.location} 
+                        onChange={e => setEditFormData({...editFormData, location: e.target.value})} 
+                        className="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-blue-500 focus:border-blue-500" 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Start Date</label>
+                      <input 
+                        required 
+                        type="date" 
+                        value={editFormData.startDate} 
+                        onChange={e => setEditFormData({...editFormData, startDate: e.target.value})} 
+                        className="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-blue-500 focus:border-blue-500" 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">End Date</label>
+                      <input 
+                        required 
+                        type="date" 
+                        value={editFormData.endDate} 
+                        onChange={e => setEditFormData({...editFormData, endDate: e.target.value})} 
+                        className="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-blue-500 focus:border-blue-500" 
+                      />
+                    </div>
+                  </div>
+
+                  {isAdmin && (
+                    <div className="pt-2 border-t border-gray-200">
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Assigned Staff</label>
+                      <Dropdown
+                        value={editFormData.assignedUserId}
+                        onChange={(val) => setEditFormData({ ...editFormData, assignedUserId: val })}
+                        placeholder="Select assigned staff..."
+                        options={(usersResponse?.data || usersResponse || [])
+                          .map((u: any) => ({
+                            value: u.id,
+                            label: `${u.name} (${u.roles?.map((r: any) => r.role).join(', ') || u.primaryRole})`
+                          }))}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. Stock Allocation Table */}
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                        <BookOpen className="w-4 h-4 text-blue-600" />
+                        Allocated Books & Quantities
+                      </h4>
+                      <p className="text-xs text-gray-500">
+                        Total {editCart.length} titles • {editCart.reduce((acc, curr) => acc + (curr.quantityRequested || 0), 0)} copies allocated
+                      </p>
+                    </div>
+
+                    <div className="text-xs text-blue-800 bg-blue-50 px-3 py-1 rounded-full border border-blue-200">
+                      💡 Lowering a quantity returns excess books to shelf/warehouse automatically.
+                    </div>
+                  </div>
+
+                  <div className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50 text-xs font-medium text-gray-600 uppercase">
+                        <tr>
+                          <th className="px-4 py-3 text-left">Book Title & ISBN</th>
+                          <th className="px-3 py-3 text-center">Current Qty</th>
+                          <th className="px-4 py-3 text-center">New Quantity</th>
+                          <th className="px-4 py-3 text-left">Stock Adjustment Status</th>
+                          <th className="px-3 py-3 text-right">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200 text-xs">
+                        {editCart.map((item, idx) => {
+                          const orig = item.originalQuantity ?? item.quantityRequested;
+                          const delta = item.quantityRequested - orig;
+                          const isSold = (item.quantitySold || 0) > 0;
+
+                          return (
+                            <tr key={idx} className="hover:bg-gray-50/80 transition-colors">
+                              <td className="px-4 py-3">
+                                <div className="font-semibold text-gray-900">{item.title}</div>
+                                <div className="text-[11px] text-gray-500">
+                                  {item.isbn && <span>ISBN: {item.isbn}</span>}
+                                  {item.barcode && <span className="ml-2">• Barcode: {item.barcode}</span>}
+                                </div>
+                                {isSold && (
+                                  <div className="text-[11px] text-amber-600 font-medium mt-0.5">
+                                    ★ {item.quantitySold} copies already sold (minimum required: {item.quantitySold})
+                                  </div>
+                                )}
+                              </td>
+
+                              <td className="px-3 py-3 text-center font-bold text-gray-700 text-sm">
+                                {orig}
+                              </td>
+
+                              <td className="px-4 py-3">
+                                <div className="flex items-center justify-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleEditQuantityChange(idx, Math.max((item.quantitySold || 0), item.quantityRequested - 1))}
+                                    disabled={item.quantityRequested <= (item.quantitySold || 0)}
+                                    className="w-7 h-7 rounded border border-gray-300 bg-gray-50 hover:bg-gray-100 flex items-center justify-center font-bold text-gray-700 disabled:opacity-40"
+                                  >
+                                    -
+                                  </button>
+                                  <input
+                                    type="number"
+                                    min={item.quantitySold || 0}
+                                    value={item.quantityRequested}
+                                    onChange={(e) => handleEditQuantityChange(idx, Number(e.target.value))}
+                                    className="w-16 px-2 py-1 text-center font-bold text-sm border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => handleEditQuantityChange(idx, item.quantityRequested + 1)}
+                                    className="w-7 h-7 rounded border border-gray-300 bg-gray-50 hover:bg-gray-100 flex items-center justify-center font-bold text-gray-700"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                              </td>
+
+                              <td className="px-4 py-3">
+                                {delta < 0 ? (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
+                                    ↓ Returning {Math.abs(delta)} to stock
+                                  </span>
+                                ) : delta > 0 ? (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">
+                                    ↑ Taking +{delta} from stock
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                                    No change
+                                  </span>
+                                )}
+                              </td>
+
+                              <td className="px-3 py-3 text-right">
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveFromEditCart(idx)}
+                                  disabled={isSold}
+                                  title={isSold ? "Cannot remove book with recorded sales" : "Remove book from exhibition"}
+                                  className="text-red-500 hover:text-red-700 p-1.5 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+
+                        {editCart.length === 0 && (
+                          <tr>
+                            <td colSpan={5} className="px-4 py-8 text-center text-gray-400 italic">
+                              No books currently added. Please add at least one book below.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* 3. Add Books Section */}
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center">
+                    <Plus className="w-4 h-4 mr-1.5 text-blue-600" />
+                    Add More Books to Exhibition
+                  </h4>
+
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                    <div className="md:col-span-6">
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Select Book from Catalog</label>
+                      <Dropdown
+                        searchable={true}
+                        value={editBookInput}
+                        onChange={(val) => {
+                          setEditBookInput(val);
+                          if (val) {
+                            const bStock = getBranchStockQty(val);
+                            const cStock = getCentralStockQty(val);
+                            const selectedBranch = branches.find((br: any) => br.id === (editingExhibition?.sourceBranchId));
+                            const isWarehouse = selectedBranch?.type === 'WAREHOUSE';
+                            if (isWarehouse) {
+                              setEditBranchQtyInput(0);
+                              setEditWarehouseQtyInput(Math.min(5, cStock));
+                            } else {
+                              const defaultTotal = 5;
+                              const defaultBranch = Math.min(defaultTotal, bStock);
+                              const defaultWarehouse = Math.min(Math.max(0, defaultTotal - defaultBranch), cStock);
+                              setEditBranchQtyInput(defaultBranch);
+                              setEditWarehouseQtyInput(defaultWarehouse);
+                            }
+                          } else {
+                            setEditBranchQtyInput(0);
+                            setEditWarehouseQtyInput(0);
+                          }
+                        }}
+                        placeholder="Search title, ISBN, or barcode..."
+                        options={(catalog?.books || catalog?.items || catalog?.data || (Array.isArray(catalog) ? catalog : [])).map((b: any) => {
+                          const bStock = getBranchStockQty(b.id);
+                          const cStock = getCentralStockQty(b.id);
+                          const selectedBranch = branches.find((br: any) => br.id === (editingExhibition?.sourceBranchId));
+                          const isWarehouse = selectedBranch?.type === 'WAREHOUSE';
+                          const totalStock = isWarehouse ? cStock : (bStock + cStock);
+                          const badgeText = isWarehouse 
+                            ? `Wh: ${cStock}` 
+                            : `Branch: ${bStock} | Wh: ${cStock} (Total: ${totalStock})`;
+
+                          return {
+                            value: b.id,
+                            label: b.title,
+                            isbn: b.isbn,
+                            barcode: b.barcode,
+                            sublabel: `ISBN: ${b.isbn || 'N/A'}${b.barcode ? ` • Barcode: ${b.barcode}` : ''}`,
+                            badge: badgeText,
+                            badgeClassName: totalStock > 0 ? 'bg-neutral-100 text-black border border-neutral-300' : 'bg-neutral-100 text-neutral-500 border border-neutral-200'
+                          };
+                        })}
+                      />
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">
+                        Branch Shelf ({getBranchStockQty(editBookInput)})
+                      </label>
+                      <input 
+                        type="number" 
+                        min="0"
+                        value={editBranchQtyInput} 
+                        onChange={e => setEditBranchQtyInput(Math.max(0, Number(e.target.value)))}
+                        disabled={!editBookInput || branches.find((b: any) => b.id === editingExhibition?.sourceBranchId)?.type === 'WAREHOUSE'}
+                        className="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white disabled:bg-gray-100" 
+                      />
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">
+                        Warehouse ({getCentralStockQty(editBookInput)})
+                      </label>
+                      <input 
+                        type="number" 
+                        min="0"
+                        value={editWarehouseQtyInput} 
+                        onChange={e => setEditWarehouseQtyInput(Math.max(0, Number(e.target.value)))}
+                        disabled={!editBookInput}
+                        className="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white disabled:bg-gray-100" 
+                      />
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <button
+                        type="button"
+                        onClick={handleAddBookToEditCart}
+                        disabled={!editBookInput || (editBranchQtyInput + editWarehouseQtyInput <= 0)}
+                        className="w-full inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg shadow-sm transition-colors"
+                      >
+                        <Plus className="w-4 h-4 mr-1" /> Add
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </form>
+
+              {/* Footer */}
+              <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between shrink-0">
+                <div className="text-xs text-gray-500">
+                  Total Titles: <strong className="text-gray-900">{editCart.length}</strong> • Total Copies: <strong className="text-gray-900">{editCart.reduce((acc, curr) => acc + (curr.quantityRequested || 0), 0)}</strong>
+                </div>
+
+                <div className="flex items-center space-x-3">
+                  <button 
+                    type="button" 
+                    onClick={() => setEditingExhibition(null)} 
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit" 
+                    form="edit-exhibition-form"
+                    disabled={isSubmitting || editCart.length === 0} 
+                    className="inline-flex items-center px-5 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg shadow-sm transition-colors"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving Changes...
+                      </>
+                    ) : (
+                      'Save Changes & Adjust Stock'
+                    )}
+                  </button>
+                </div>
+              </div>
             </motion.div>
           </div>
         )}
@@ -951,12 +1445,22 @@ export default function ExhibitionsPage() {
                     Source: <strong className="text-gray-700">{viewingExhibitionHistory.branch?.name || viewingExhibitionHistory.sourceBranchName}</strong>
                   </p>
                 </div>
-                <button 
-                  onClick={() => setViewingExhibitionHistory(null)}
-                  className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition"
-                >
-                  <XCircle className="w-6 h-6" />
-                </button>
+                <div className="flex items-center gap-2">
+                  {viewingExhibitionHistory.status !== 'CLOSED' && viewingExhibitionHistory.status !== 'REJECTED' && (
+                    <button
+                      onClick={() => handleOpenEdit(viewingExhibitionHistory)}
+                      className="inline-flex items-center px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors shadow-sm"
+                    >
+                      <Pencil className="w-3.5 h-3.5 mr-1" /> Edit Exhibition & Stock
+                    </button>
+                  )}
+                  <button 
+                    onClick={() => setViewingExhibitionHistory(null)}
+                    className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition"
+                  >
+                    <XCircle className="w-6 h-6" />
+                  </button>
+                </div>
               </div>
 
               {loadingHistory ? (

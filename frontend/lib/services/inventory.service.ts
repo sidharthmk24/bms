@@ -675,7 +675,7 @@ export class InventoryService {
     const threshold = inventoryItem?.reorderThreshold ?? 5;
 
     await this.notificationsService.notifyRoles(
-      [UserRole.BRANCH_MANAGER, UserRole.ADMIN, UserRole.SUPER_ADMIN],
+      [UserRole.BRANCH_MANAGER, UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.CENTRAL_INVENTORY_MANAGER],
       branchId,
       'Low Stock Alert: ' + book.title,
       `Staff member ${currentUser.email || 'staff'} reported low stock for "${book.title}" at ${branch.name} (Current stock: ${quantity}, Threshold: ${threshold}). Please arrange for a restock.`,

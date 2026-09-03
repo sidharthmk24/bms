@@ -3,7 +3,7 @@ import {
   CreateDateColumn, UpdateDateColumn,
   ManyToOne, JoinColumn,
 } from 'typeorm';
-import { RestockRequest } from './restock-request.entity';
+import type { RestockRequest } from './restock-request.entity';
 import { Book } from '../../catalog/entities/book.entity';
 
 @Entity('restock_request_item')
@@ -14,7 +14,7 @@ export class RestockRequestItem {
   @Column({ name: 'restock_request_id', type: 'varchar', length: 36 })
   restockRequestId: string;
 
-  @ManyToOne(() => RestockRequest, { onDelete: 'CASCADE' })
+  @ManyToOne('RestockRequest', 'items', { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'restock_request_id' })
   restockRequest: RestockRequest;
 

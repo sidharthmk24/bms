@@ -201,6 +201,16 @@ export default function NotificationDropdown() {
 
     // 7. Purchase orders / Procurement
     if (
+      type === 'PURCHASE_ORDER_REQUEST' ||
+      type === 'PURCHASE_ORDER_APPROVED' ||
+      type === 'PURCHASE_ORDER_REJECTED' ||
+      title.includes('po request') ||
+      message.includes('po request')
+    ) {
+      return { url: '/dashboard/purchase-orders?tab=requests', label: 'PO Requests' };
+    }
+
+    if (
       type === 'PURCHASE_ORDER' || 
       type === 'PROCUREMENT' || 
       title.includes('purchase order') || 

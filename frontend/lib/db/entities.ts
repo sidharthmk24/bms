@@ -20,6 +20,7 @@ import { CentralStock } from "../api-backend/inventory/entities/central-stock.en
 import { StockMovement } from "../api-backend/inventory/entities/stock-movement.entity";
 import { PurchaseOrderItem } from "../api-backend/procurement/entities/purchase-order-item.entity";
 import { PurchaseOrder } from "../api-backend/procurement/entities/purchase-order.entity";
+import { PurchaseOrderRequest } from "../api-backend/procurement/entities/purchase-order-request.entity";
 import { RestockRequestItem } from "../api-backend/restock/entities/restock-request-item.entity";
 import { RestockRequest } from "../api-backend/restock/entities/restock-request.entity";
 import { SystemSetting } from "../api-backend/settings/entities/system-setting.entity";
@@ -54,6 +55,7 @@ export const entities = [
   StockMovement,
   PurchaseOrderItem,
   PurchaseOrder,
+  PurchaseOrderRequest,
   RestockRequestItem,
   RestockRequest,
   SystemSetting,

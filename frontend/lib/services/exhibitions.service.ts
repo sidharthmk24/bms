@@ -339,13 +339,15 @@ export class ExhibitionsService {
     // Permission checks
     const isAdmin = hasRole(user, UserRole.SUPER_ADMIN) || hasRole(user, UserRole.ADMIN);
     const isCreator = exhibition.requestedById === user.userId;
+    const isAssigned = exhibition.assignedUserId === user.userId;
+    const isBranchManager = hasRole(user, UserRole.BRANCH_MANAGER) && user.branchId === exhibition.sourceBranchId;
 
-    if (!isAdmin && !isCreator) {
+    if (!isAdmin && !isCreator && !isAssigned && !isBranchManager) {
       throw new ForbiddenException('You do not have permission to update this exhibition');
     }
 
-    if (exhibition.status === ExhibitionStatus.CLOSED) {
-      throw new ConflictException('Cannot update a closed exhibition');
+    if (exhibition.status === ExhibitionStatus.CLOSED || exhibition.status === ExhibitionStatus.REJECTED) {
+      throw new ConflictException(`Cannot update an exhibition in ${exhibition.status} status`);
     }
 
     const updates: Partial<Exhibition> = {};
@@ -364,7 +366,7 @@ export class ExhibitionsService {
       }
     }
 
-    // Creators can update details if not closed. Admins can do it anytime (unless closed).
+    // Creators/Admins/Assigned staff can update details if not closed
     if (dto.name !== undefined) updates.name = dto.name;
     if (dto.location !== undefined) updates.location = dto.location;
     if (dto.startDate !== undefined) updates.startDate = new Date(dto.startDate);
@@ -378,7 +380,9 @@ export class ExhibitionsService {
       updates.assignedUserId = dto.assignedUserId;
     }
 
-    if (Object.keys(updates).length === 0) {
+    const hasItemUpdates = Array.isArray(dto.items);
+
+    if (Object.keys(updates).length === 0 && !hasItemUpdates) {
       return exhibition;
     }
 
@@ -388,7 +392,333 @@ export class ExhibitionsService {
     await queryRunner.startTransaction();
 
     try {
-      await queryRunner.manager.getRepository(Exhibition).update({ id }, updates);
+      if (Object.keys(updates).length > 0) {
+        await queryRunner.manager.getRepository(Exhibition).update({ id }, updates);
+      }
+
+      // Reconcile and adjust stock items if dto.items was provided
+      if (hasItemUpdates && dto.items) {
+        if (dto.items.length === 0) {
+          throw new BadRequestException('Exhibition must contain at least one book item');
+        }
+
+        const [branch] = await queryRunner.manager.query(
+          'SELECT id, name, type FROM branch WHERE id = ?',
+          [exhibition.sourceBranchId]
+        );
+        const isWarehouse = branch?.type === BranchType.WAREHOUSE;
+
+        const currentStocks = await queryRunner.manager.find(ExhibitionStock, {
+          where: { exhibitionId: id },
+        });
+
+        const currentStockMap = new Map(currentStocks.map(s => [s.bookId, s]));
+        const newStockMap = new Map(dto.items.map(i => [i.bookId, i]));
+
+        // 1. Removed books: return all remaining copies to shelf/warehouse
+        for (const existing of currentStocks) {
+          if (!newStockMap.has(existing.bookId)) {
+            if (existing.quantitySold > 0) {
+              throw new BadRequestException(
+                `Cannot remove book with already recorded sales (${existing.quantitySold} copies sold)`
+              );
+            }
+
+            const branchQty = Number(existing.quantityFromBranch || 0);
+            const centralQty = Number(existing.quantityFromCentral || 0);
+
+            if (branchQty > 0) {
+              await incrementBranchStock(queryRunner, exhibition.sourceBranchId, existing.bookId, branchQty);
+              await writeStockMovement(queryRunner, {
+                bookId: existing.bookId,
+                branchId: exhibition.sourceBranchId,
+                type: 'EXHIBITION_RETURN',
+                quantity: branchQty,
+                performedById: user.userId,
+                referenceType: 'EXHIBITION',
+                referenceId: id,
+                note: `Book removed from exhibition: returned to branch shelf`,
+              });
+            }
+
+            if (centralQty > 0 || (isWarehouse && existing.quantityTaken > 0)) {
+              const cQty = isWarehouse ? existing.quantityTaken : centralQty;
+              await incrementCentralStock(queryRunner, existing.bookId, cQty);
+              await writeStockMovement(queryRunner, {
+                bookId: existing.bookId,
+                branchId: null,
+                type: 'EXHIBITION_RETURN',
+                quantity: cQty,
+                performedById: user.userId,
+                referenceType: 'EXHIBITION',
+                referenceId: id,
+                note: `Book removed from exhibition: returned to central warehouse`,
+              });
+            }
+
+            await queryRunner.manager.delete(ExhibitionStock, { id: existing.id });
+          }
+        }
+
+        // 2. Added or Updated books
+        for (const item of dto.items) {
+          if (!item.quantityTaken || item.quantityTaken <= 0) {
+            throw new BadRequestException('Quantity taken must be greater than 0');
+          }
+
+          const existing = currentStockMap.get(item.bookId);
+
+          if (!existing) {
+            // New book added to exhibition
+            let branchQty = 0;
+            let centralQty = 0;
+
+            if (isWarehouse) {
+              centralQty = item.quantityTaken;
+              const [cInv] = await queryRunner.manager.query(
+                'SELECT quantity FROM central_stock WHERE book_id = ?',
+                [item.bookId]
+              );
+              const cAvail = cInv ? Number(cInv.quantity) : 0;
+              if (centralQty > cAvail) {
+                throw new BadRequestException(
+                  `Insufficient warehouse stock: available ${cAvail}, requested ${centralQty}`
+                );
+              }
+              await decrementCentralStock(queryRunner, item.bookId, centralQty);
+              await writeStockMovement(queryRunner, {
+                bookId: item.bookId,
+                branchId: exhibition.sourceBranchId,
+                type: 'EXHIBITION_OUT',
+                quantity: -centralQty,
+                performedById: user.userId,
+                referenceType: 'EXHIBITION',
+                referenceId: id,
+                note: `Additional book added to exhibition from warehouse`,
+              });
+            } else {
+              const [bInv] = await queryRunner.manager.query(
+                'SELECT quantity FROM branch_inventory WHERE branch_id = ? AND book_id = ?',
+                [exhibition.sourceBranchId, item.bookId]
+              );
+              const bAvail = bInv ? Number(bInv.quantity) : 0;
+
+              if (item.quantityFromBranch !== undefined && item.quantityFromCentral !== undefined) {
+                branchQty = Number(item.quantityFromBranch);
+                centralQty = Number(item.quantityFromCentral);
+              } else if (item.quantityFromBranch !== undefined) {
+                branchQty = Number(item.quantityFromBranch);
+                centralQty = item.quantityTaken - branchQty;
+              } else {
+                branchQty = Math.min(bAvail, item.quantityTaken);
+                centralQty = item.quantityTaken - branchQty;
+              }
+
+              if (branchQty < 0 || centralQty < 0 || branchQty + centralQty !== item.quantityTaken) {
+                throw new BadRequestException(
+                  `Invalid split for book. Branch + Central must equal ${item.quantityTaken}`
+                );
+              }
+              if (branchQty > bAvail) {
+                throw new BadRequestException(
+                  `Branch shelf only has ${bAvail} available (attempted ${branchQty})`
+                );
+              }
+              if (centralQty > 0) {
+                const [cInv] = await queryRunner.manager.query(
+                  'SELECT quantity FROM central_stock WHERE book_id = ?',
+                  [item.bookId]
+                );
+                const cAvail = cInv ? Number(cInv.quantity) : 0;
+                if (centralQty > cAvail) {
+                  throw new BadRequestException(
+                    `Insufficient warehouse stock: available ${cAvail}, requested ${centralQty}`
+                  );
+                }
+              }
+
+              if (branchQty > 0) {
+                await decrementBranchStock(queryRunner, exhibition.sourceBranchId, item.bookId, branchQty);
+                await writeStockMovement(queryRunner, {
+                  bookId: item.bookId,
+                  branchId: exhibition.sourceBranchId,
+                  type: 'EXHIBITION_OUT',
+                  quantity: -branchQty,
+                  performedById: user.userId,
+                  referenceType: 'EXHIBITION',
+                  referenceId: id,
+                  note: `New book added to exhibition from branch shelf`,
+                });
+              }
+
+              if (centralQty > 0) {
+                await decrementCentralStock(queryRunner, item.bookId, centralQty);
+                await writeStockMovement(queryRunner, {
+                  bookId: item.bookId,
+                  branchId: null,
+                  type: 'EXHIBITION_OUT',
+                  quantity: -centralQty,
+                  performedById: user.userId,
+                  referenceType: 'EXHIBITION',
+                  referenceId: id,
+                  note: `New book added to exhibition from central warehouse`,
+                });
+              }
+            }
+
+            const newStockEntry = queryRunner.manager.create(ExhibitionStock, {
+              exhibitionId: id,
+              bookId: item.bookId,
+              quantityTaken: item.quantityTaken,
+              quantityFromBranch: branchQty,
+              quantityFromCentral: centralQty,
+              quantitySold: 0,
+              quantityReturned: 0,
+              quantityDamaged: 0,
+              quantityLost: 0,
+              quantityCredit: 0,
+            });
+            await queryRunner.manager.save(newStockEntry);
+          } else {
+            // Existing book quantity adjustment
+            if (item.quantityTaken < (existing.quantitySold || 0)) {
+              throw new BadRequestException(
+                `Quantity cannot be less than already sold quantity (${existing.quantitySold} copies sold)`
+              );
+            }
+
+            let targetBranchQty = Number(existing.quantityFromBranch || 0);
+            let targetCentralQty = Number(existing.quantityFromCentral || 0);
+
+            if (isWarehouse) {
+              targetBranchQty = 0;
+              targetCentralQty = item.quantityTaken;
+            } else if (item.quantityFromBranch !== undefined && item.quantityFromCentral !== undefined) {
+              targetBranchQty = Number(item.quantityFromBranch);
+              targetCentralQty = Number(item.quantityFromCentral);
+              if (targetBranchQty + targetCentralQty !== item.quantityTaken) {
+                throw new BadRequestException(
+                  `Branch + Central split must equal total quantity ${item.quantityTaken}`
+                );
+              }
+            } else {
+              // Automatically adjust split proportionally/reasonably
+              const deltaTotal = item.quantityTaken - existing.quantityTaken;
+              if (deltaTotal > 0) {
+                // Taking more stock
+                const [bInv] = await queryRunner.manager.query(
+                  'SELECT quantity FROM branch_inventory WHERE branch_id = ? AND book_id = ?',
+                  [exhibition.sourceBranchId, item.bookId]
+                );
+                const bAvail = bInv ? Number(bInv.quantity) : 0;
+                const addFromBranch = Math.min(bAvail, deltaTotal);
+                const addFromCentral = deltaTotal - addFromBranch;
+
+                targetBranchQty = (existing.quantityFromBranch || 0) + addFromBranch;
+                targetCentralQty = (existing.quantityFromCentral || 0) + addFromCentral;
+              } else if (deltaTotal < 0) {
+                // Returning excess stock
+                let reduceRemaining = Math.abs(deltaTotal);
+                // Return central warehouse portion first if any
+                const reduceCentral = Math.min(existing.quantityFromCentral || 0, reduceRemaining);
+                targetCentralQty = (existing.quantityFromCentral || 0) - reduceCentral;
+                reduceRemaining -= reduceCentral;
+
+                // Return branch shelf portion
+                const reduceBranch = Math.min(existing.quantityFromBranch || 0, reduceRemaining);
+                targetBranchQty = (existing.quantityFromBranch || 0) - reduceBranch;
+              }
+            }
+
+            const branchDelta = targetBranchQty - (existing.quantityFromBranch || 0);
+            const centralDelta = targetCentralQty - (existing.quantityFromCentral || 0);
+
+            if (branchDelta !== 0 || centralDelta !== 0 || item.quantityTaken !== existing.quantityTaken) {
+              // Adjust Branch
+              if (branchDelta > 0) {
+                const [bInv] = await queryRunner.manager.query(
+                  'SELECT quantity FROM branch_inventory WHERE branch_id = ? AND book_id = ?',
+                  [exhibition.sourceBranchId, item.bookId]
+                );
+                const bAvail = bInv ? Number(bInv.quantity) : 0;
+                if (branchDelta > bAvail) {
+                  throw new BadRequestException(
+                    `Branch shelf only has ${bAvail} copies available (needed ${branchDelta})`
+                  );
+                }
+                await decrementBranchStock(queryRunner, exhibition.sourceBranchId, item.bookId, branchDelta);
+                await writeStockMovement(queryRunner, {
+                  bookId: item.bookId,
+                  branchId: exhibition.sourceBranchId,
+                  type: 'EXHIBITION_OUT',
+                  quantity: -branchDelta,
+                  performedById: user.userId,
+                  referenceType: 'EXHIBITION',
+                  referenceId: id,
+                  note: `Increased stock for exhibition from branch shelf`,
+                });
+              } else if (branchDelta < 0) {
+                const retQty = Math.abs(branchDelta);
+                await incrementBranchStock(queryRunner, exhibition.sourceBranchId, item.bookId, retQty);
+                await writeStockMovement(queryRunner, {
+                  bookId: item.bookId,
+                  branchId: exhibition.sourceBranchId,
+                  type: 'EXHIBITION_RETURN',
+                  quantity: retQty,
+                  performedById: user.userId,
+                  referenceType: 'EXHIBITION',
+                  referenceId: id,
+                  note: `Reduced stock from exhibition: returned to branch shelf`,
+                });
+              }
+
+              // Adjust Central
+              if (centralDelta > 0) {
+                const [cInv] = await queryRunner.manager.query(
+                  'SELECT quantity FROM central_stock WHERE book_id = ?',
+                  [item.bookId]
+                );
+                const cAvail = cInv ? Number(cInv.quantity) : 0;
+                if (centralDelta > cAvail) {
+                  throw new BadRequestException(
+                    `Warehouse only has ${cAvail} copies available (needed ${centralDelta})`
+                  );
+                }
+                await decrementCentralStock(queryRunner, item.bookId, centralDelta);
+                await writeStockMovement(queryRunner, {
+                  bookId: item.bookId,
+                  branchId: null,
+                  type: 'EXHIBITION_OUT',
+                  quantity: -centralDelta,
+                  performedById: user.userId,
+                  referenceType: 'EXHIBITION',
+                  referenceId: id,
+                  note: `Increased stock for exhibition from central warehouse`,
+                });
+              } else if (centralDelta < 0) {
+                const retQty = Math.abs(centralDelta);
+                await incrementCentralStock(queryRunner, item.bookId, retQty);
+                await writeStockMovement(queryRunner, {
+                  bookId: item.bookId,
+                  branchId: null,
+                  type: 'EXHIBITION_RETURN',
+                  quantity: retQty,
+                  performedById: user.userId,
+                  referenceType: 'EXHIBITION',
+                  referenceId: id,
+                  note: `Reduced stock from exhibition: returned to central warehouse`,
+                });
+              }
+
+              await queryRunner.manager.update(ExhibitionStock, { id: existing.id }, {
+                quantityTaken: item.quantityTaken,
+                quantityFromBranch: targetBranchQty,
+                quantityFromCentral: targetCentralQty,
+              });
+            }
+          }
+        }
+      }
 
       const updatedExhibition = await queryRunner.manager.getRepository(Exhibition).findOne({ where: { id } });
 
@@ -399,6 +729,8 @@ export class ExhibitionsService {
 
       await queryRunner.commitTransaction();
       this.notificationsService.triggerRefresh('exhibition_changed');
+      this.notificationsService.triggerRefresh('stock_changed');
+      this.notificationsService.triggerRefresh('inventory_changed');
 
       const previousAssignedUserId = exhibition.assignedUserId;
       const newAssignedUserId = updates.assignedUserId;

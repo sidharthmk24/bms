@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useApiData } from '@/hooks/useApiData';
 import { api } from '@/lib/api';
@@ -8,7 +8,25 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Dropdown } from '@/components/Dropdown';
 import { Pagination } from '@/components/Pagination';
 import { matchKeywords } from '@/lib/searchUtils';
-import { Loader2, Plus, Send, PackageCheck, CheckCircle2, ShoppingBag, Search, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { 
+  Loader2, 
+  Plus, 
+  Send, 
+  PackageCheck, 
+  CheckCircle2, 
+  ShoppingBag, 
+  Search, 
+  ArrowUpDown, 
+  ArrowUp, 
+  ArrowDown,
+  Clock,
+  X,
+  XCircle,
+  Building2,
+  Check,
+  Package,
+  ShoppingCart
+} from 'lucide-react';
 
 const COMMON_CATEGORIES = [
   'Technology & Programming',
@@ -28,11 +46,28 @@ const COMMON_CATEGORIES = [
 export default function PurchaseOrdersPage() {
   const { user } = useAuth();
   const canReceive = user?.roles?.some(r => ['SUPER_ADMIN', 'CENTRAL_INVENTORY_MANAGER', 'ADMIN'].includes(r));
+  const canReviewRequests = user?.roles?.some(r => ['SUPER_ADMIN', 'ADMIN'].includes(r));
   
-  const { data: pos, loading, error } = useApiData<any[]>('/procurement', []);
+  const { data: pos, loading, error, refetch: refetchPOs } = useApiData<any[]>('/procurement', []);
   const { data: catalog } = useApiData<any>('/catalog/books?limit=1000', []);
   const { data: suppliers } = useApiData<any[]>('/catalog/suppliers', []);
   const { data: pmsTitles } = useApiData<any[]>('/pms/titles', []);
+
+  // PO Requests state
+  const { data: poRequestsResponse, refetch: refetchPoRequests } = useApiData<any>('/procurement/requests', []);
+  const poRequests = Array.isArray(poRequestsResponse) ? poRequestsResponse : (poRequestsResponse?.items || []);
+
+  const [activeTab, setActiveTab] = useState<'orders' | 'requests'>('orders');
+  const [linkedPoRequestId, setLinkedPoRequestId] = useState<string | null>(null);
+
+  // Approval Requests filters & states
+  const [requestStatusFilter, setRequestStatusFilter] = useState('');
+  const [requestSearchTerm, setRequestSearchTerm] = useState('');
+  const [rejectingReqId, setRejectingReqId] = useState<string | null>(null);
+  const [rejectNote, setRejectNote] = useState('');
+  const [isRejecting, setIsRejecting] = useState(false);
+
+  const pendingRequestsCount = poRequests.filter((r: any) => r.status === 'PENDING').length;
 
   // Create PO State
   const [isCreating, setIsCreating] = useState(false);
@@ -108,6 +143,35 @@ export default function PurchaseOrdersPage() {
   
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get('tab');
+    if (tab === 'requests') {
+      setActiveTab('requests');
+    }
+    const poRequestId = params.get('poRequestId');
+    const bookId = params.get('bookId');
+    const qty = params.get('qty');
+    if (poRequestId && bookId && catalog) {
+      const bookList = catalog?.books || catalog?.items || catalog?.data || (Array.isArray(catalog) ? catalog : []);
+      const foundBook = bookList.find((b: any) => b.id === bookId);
+      if (foundBook) {
+        setCart([
+          {
+            bookId,
+            isNewBook: false,
+            title: foundBook.title,
+            quantity: qty ? Number(qty) : 10,
+            unitCost: Number(foundBook.costPrice || 0) > 0 ? Number(foundBook.costPrice) : 100,
+          }
+        ]);
+        setLinkedPoRequestId(poRequestId);
+        setIsCreating(true);
+      }
+    }
+  }, [catalog]);
+
   const handleCreate = async () => {
     if (!selectedSupplier) {
       alert('Please select a supplier');
@@ -128,6 +192,7 @@ export default function PurchaseOrdersPage() {
         supplierId: selectedSupplier === 'OTHER' ? undefined : selectedSupplier,
         supplierName: selectedSupplier === 'OTHER' ? customSupplier.trim() : undefined,
         expectedDate: expectedDate || undefined,
+        poRequestId: linkedPoRequestId || undefined,
         items: cart.map(i => ({ 
           bookId: i.bookId, 
           newBook: i.newBook, 
@@ -141,12 +206,48 @@ export default function PurchaseOrdersPage() {
       setSelectedSupplier('');
       setCustomSupplier('');
       setExpectedDate('');
+      setLinkedPoRequestId(null);
+      await Promise.all([refetchPOs(), refetchPoRequests()]);
       alert('Purchase Order Created Successfully');
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to create PO');
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleReviewRequest = async (id: string, status: 'APPROVED' | 'REJECTED', note?: string) => {
+    try {
+      setIsRejecting(true);
+      await api.patch(`/procurement/requests/${id}/review`, {
+        status,
+        reviewNote: note,
+      });
+      await refetchPoRequests();
+      setRejectingReqId(null);
+      setRejectNote('');
+      alert(`PO Request ${status.toLowerCase()} successfully.`);
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to review request');
+    } finally {
+      setIsRejecting(false);
+    }
+  };
+
+  const handleStartPoFromRequest = (req: any) => {
+    const bookTitle = req.book?.title || 'Selected Book';
+    const unitCost = Number(req.book?.costPrice || req.estimatedCost || 0);
+    setCart([
+      {
+        bookId: req.bookId,
+        isNewBook: false,
+        title: bookTitle,
+        quantity: req.quantity,
+        unitCost: unitCost > 0 ? unitCost : 100,
+      }
+    ]);
+    setLinkedPoRequestId(req.id);
+    setIsCreating(true);
   };
 
   const handleStatusUpdate = async (id: string, status: string, items?: any[]) => {
@@ -181,9 +282,22 @@ export default function PurchaseOrdersPage() {
     return <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin text-blue-600" /></div>;
   }
 
+  const bookList = catalog?.books || catalog?.items || catalog?.data || (Array.isArray(catalog) ? catalog : []);
+
+  const getBookTitle = (item: any) => {
+    if (item?.book?.title) return item.book.title;
+    if (item?.title) return item.title;
+    if (item?.newBook?.title) return item.newBook.title;
+    if (item?.bookId) {
+      const found = bookList.find((b: any) => b.id === item.bookId);
+      if (found?.title) return found.title;
+    }
+    return 'Untitled Book';
+  };
+
   const filteredPOs = (pos || []).filter((po: any) => {
-    const bookTitles = po.items?.map((i: any) => i.book?.title || i.title || '').join(' ') || '';
-    const isbns = po.items?.map((i: any) => i.book?.isbn || i.isbn || '').join(' ') || '';
+    const bookTitles = po.items?.map((i: any) => getBookTitle(i)).join(' ') || '';
+    const isbns = po.items?.map((i: any) => i.book?.isbn || i.isbn || i.newBook?.isbn || '').join(' ') || '';
     return matchKeywords(
       searchTerm,
       po.orderNumber,
@@ -220,191 +334,437 @@ export default function PurchaseOrdersPage() {
 
   const paginatedPOs = sortedPOs.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
+  const filteredPoRequests = (poRequests || []).filter((req: any) => {
+    if (requestStatusFilter && req.status !== requestStatusFilter) return false;
+    if (requestSearchTerm.trim()) {
+      const term = requestSearchTerm.toLowerCase();
+      const titleMatch = req.book?.title?.toLowerCase().includes(term);
+      const isbnMatch = req.book?.isbn?.toLowerCase().includes(term);
+      const branchMatch = req.restockRequest?.branch?.name?.toLowerCase().includes(term);
+      const requesterMatch = req.requestedBy?.name?.toLowerCase().includes(term);
+      return titleMatch || isbnMatch || branchMatch || requesterMatch;
+    }
+    return true;
+  });
+
   return (
     <div className="space-y-6">
+      {/* Top Banner & Tab Switcher */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-gray-900">Purchase Orders</h2>
-          <p className="text-sm text-gray-500">Manage procurement from external suppliers.</p>
+          <p className="text-sm text-gray-500">Manage procurement and view stock approval requests.</p>
         </div>
-        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
-          <div className="relative w-full sm:w-64">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search className="h-4 w-4 text-neutral-400" />
-            </div>
-            <input
-              type="text"
-              placeholder="Search PO #, supplier, book, keywords..."
-              value={searchTerm}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="block w-full pl-10 pr-3 py-2 border border-neutral-300 rounded-xl focus:ring-black focus:border-black text-sm"
-            />
-          </div>
 
-          <div className="w-52 shrink-0">
-            <Dropdown
-              value={`${sortField}_${sortDirection}`}
-              onChange={(val) => {
-                const [f, d] = val.split('_') as [POSortField, POSortDirection];
-                setSortField(f);
-                setSortDirection(d);
-              }}
-              options={[
-                { value: 'date_desc', label: 'Date: Newest First' },
-                { value: 'date_asc', label: 'Date: Oldest First' },
-                { value: 'totalCost_desc', label: 'Cost: High-Low' },
-                { value: 'totalCost_asc', label: 'Cost: Low-High' },
-                { value: 'status_asc', label: 'Needs Action First' },
-                // { value: 'supplier_asc', label: 'Supplier: A-Z' },
-                // { value: 'orderNumber_asc', label: 'Order #: A-Z' },
-              ]}
-              selectClassName="!py-2 !rounded-xl !text-xs font-bold border-neutral-300 bg-white"
-            />
-          </div>
-
+        {/* Tab Switcher */}
+        <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-xl border border-gray-200">
           <button
-            onClick={() => setIsCreating(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-black hover:bg-neutral-800 rounded-xl shadow-sm active:scale-95 transition-all shrink-0"
+            onClick={() => setActiveTab('orders')}
+            className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all ${
+              activeTab === 'orders'
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-500 hover:text-gray-900'
+            }`}
           >
-            <Plus className="w-4 h-4" />
-            Create PO
+            Purchase Orders
+          </button>
+          <button
+            onClick={() => setActiveTab('requests')}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all ${
+              activeTab === 'requests'
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-500 hover:text-gray-900'
+            }`}
+          >
+            <span>Approval Requests</span>
+            {pendingRequestsCount > 0 && (
+              <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500 text-white animate-pulse">
+                {pendingRequestsCount}
+              </span>
+            )}
           </button>
         </div>
       </div>
 
-      <div className="bg-white shadow-sm border border-gray-200 rounded-xl overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th 
-                scope="col" 
-                onClick={() => toggleSort('orderNumber')}
-                className="group px-6 py-3 text-left text-xs font-bold text-neutral-600 uppercase tracking-wider cursor-pointer select-none hover:bg-neutral-100/80 hover:text-black transition-colors"
-              >
-                <div className="flex items-center gap-1.5">
-                  <span>Order No / Date</span>
-                  {sortField === 'orderNumber' || sortField === 'date' ? (
-                    sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-black font-bold" /> : <ArrowDown className="w-3.5 h-3.5 text-black font-bold" />
-                  ) : (
-                    <ArrowUpDown className="w-3 h-3 text-neutral-400 opacity-50 group-hover:opacity-100 transition-opacity" />
-                  )}
-                </div>
-              </th>
-              <th 
-                scope="col" 
-                onClick={() => toggleSort('supplier')}
-                className="group px-6 py-3 text-left text-xs font-bold text-neutral-600 uppercase tracking-wider cursor-pointer select-none hover:bg-neutral-100/80 hover:text-black transition-colors"
-              >
-                <div className="flex items-center gap-1.5">
-                  <span>Supplier</span>
-                  {sortField === 'supplier' ? (
-                    sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-black font-bold" /> : <ArrowDown className="w-3.5 h-3.5 text-black font-bold" />
-                  ) : (
-                    <ArrowUpDown className="w-3 h-3 text-neutral-400 opacity-50 group-hover:opacity-100 transition-opacity" />
-                  )}
-                </div>
-              </th>
-              <th 
-                scope="col" 
-                onClick={() => toggleSort('totalCost')}
-                className="group px-6 py-3 text-right text-xs font-bold text-neutral-600 uppercase tracking-wider cursor-pointer select-none hover:bg-neutral-100/80 hover:text-black transition-colors"
-              >
-                <div className="flex items-center justify-end gap-1.5">
-                  <span>Total Cost</span>
-                  {sortField === 'totalCost' ? (
-                    sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-black font-bold" /> : <ArrowDown className="w-3.5 h-3.5 text-black font-bold" />
-                  ) : (
-                    <ArrowUpDown className="w-3 h-3 text-neutral-400 opacity-50 group-hover:opacity-100 transition-opacity" />
-                  )}
-                </div>
-              </th>
-              <th 
-                scope="col" 
-                onClick={() => toggleSort('status')}
-                className="group px-6 py-3 text-center text-xs font-bold text-neutral-600 uppercase tracking-wider cursor-pointer select-none hover:bg-neutral-100/80 hover:text-black transition-colors"
-              >
-                <div className="flex items-center justify-center gap-1.5">
-                  <span>Status</span>
-                  {sortField === 'status' ? (
-                    sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-black font-bold" /> : <ArrowDown className="w-3.5 h-3.5 text-black font-bold" />
-                  ) : (
-                    <ArrowUpDown className="w-3 h-3 text-neutral-400 opacity-50 group-hover:opacity-100 transition-opacity" />
-                  )}
-                </div>
-              </th>
-              <th scope="col" className="px-6 py-3 text-right text-xs font-bold text-neutral-600 uppercase tracking-wider">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {paginatedPOs.map((po) => (
-              <tr key={po.id}>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm font-bold text-gray-900">{po.orderNumber}</div>
-                  <div className="text-xs text-gray-500">{new Date(po.createdAt).toLocaleDateString()}</div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {po.supplier?.name}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-right text-gray-900">
-                  ₹{Number(po.totalCost).toFixed(2)}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-center">
-                  {getStatusBadge(po.status)}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                  <div className="flex items-center justify-end gap-2">
-                    {po.status === 'DRAFT' && (
-                      <button 
-                        onClick={() => handleStatusUpdate(po.id, 'PLACED')} 
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-black hover:bg-neutral-800 rounded-xl shadow-sm active:scale-95 transition-all"
-                      >
-                        <Send className="w-3.5 h-3.5" />
-                        Place Order
-                      </button>
-                    )}
-                    {(po.status === 'PLACED' || po.status === 'PARTIALLY_RECEIVED') && canReceive && (
-                      <button 
-                        onClick={() => {
-                          setReceivingPO(po);
-                          setReceiveData(po.items.map((i: any) => ({ itemId: i.id, quantityReceived: i.quantityOrdered - i.quantityReceived })));
-                          setReceiveStatus('RECEIVED');
-                        }} 
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-sm active:scale-95 transition-all"
-                      >
-                        <PackageCheck className="w-3.5 h-3.5" />
-                        Receive Items
-                      </button>
-                    )}
-                    {po.status === 'RECEIVED' && (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 rounded-xl border border-emerald-200/60">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                        Fulfilled
-                      </span>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {sortedPOs.length === 0 && (
-              <tr><td colSpan={5} className="px-6 py-12 text-center text-gray-500 text-sm">No purchase orders found matching your criteria.</td></tr>
-            )}
-          </tbody>
-        </table>
+      {activeTab === 'orders' && (
+        <div className="space-y-6">
+          <div className="flex flex-wrap items-center justify-end gap-3 w-full">
+            <div className="relative w-full sm:w-64">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Search className="h-4 w-4 text-neutral-400" />
+              </div>
+              <input
+                type="text"
+                placeholder="Search PO #, supplier, book, keywords..."
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="block w-full pl-10 pr-3 py-2 border border-neutral-300 rounded-xl focus:ring-black focus:border-black text-sm"
+              />
+            </div>
 
-        <Pagination
-          currentPage={currentPage}
-          totalItems={sortedPOs.length}
-          pageSize={pageSize}
-          onPageChange={(page) => setCurrentPage(page)}
-          onPageSizeChange={(size) => {
-            setPageSize(size);
-            setCurrentPage(1);
-          }}
-        />
-      </div>
+            <div className="w-52 shrink-0">
+              <Dropdown
+                value={`${sortField}_${sortDirection}`}
+                onChange={(val) => {
+                  const [f, d] = val.split('_') as [POSortField, POSortDirection];
+                  setSortField(f);
+                  setSortDirection(d);
+                }}
+                options={[
+                  { value: 'date_desc', label: 'Date: Newest First' },
+                  { value: 'date_asc', label: 'Date: Oldest First' },
+                  { value: 'totalCost_desc', label: 'Cost: High-Low' },
+                  { value: 'totalCost_asc', label: 'Cost: Low-High' },
+                  { value: 'status_asc', label: 'Needs Action First' },
+                ]}
+                selectClassName="!py-2 !rounded-xl !text-xs font-bold border-neutral-300 bg-white"
+              />
+            </div>
+
+            <button
+              onClick={() => {
+                setLinkedPoRequestId(null);
+                setIsCreating(true);
+              }}
+              className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-black hover:bg-neutral-800 rounded-xl shadow-sm active:scale-95 transition-all shrink-0"
+            >
+              <Plus className="w-4 h-4" />
+              Create PO
+            </button>
+          </div>
+
+          <div className="bg-white shadow-sm border border-gray-200 rounded-xl overflow-hidden">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th 
+                    scope="col" 
+                    onClick={() => toggleSort('orderNumber')}
+                    className="group px-6 py-3 text-left text-xs font-bold text-neutral-600 uppercase tracking-wider cursor-pointer select-none hover:bg-neutral-100/80 hover:text-black transition-colors"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span>Order No / Date</span>
+                      {sortField === 'orderNumber' || sortField === 'date' ? (
+                        sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-black font-bold" /> : <ArrowDown className="w-3.5 h-3.5 text-black font-bold" />
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 text-neutral-400 opacity-50 group-hover:opacity-100 transition-opacity" />
+                      )}
+                    </div>
+                  </th>
+                  <th 
+                    scope="col" 
+                    onClick={() => toggleSort('supplier')}
+                    className="group px-6 py-3 text-left text-xs font-bold text-neutral-600 uppercase tracking-wider cursor-pointer select-none hover:bg-neutral-100/80 hover:text-black transition-colors"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span>Supplier</span>
+                      {sortField === 'supplier' ? (
+                        sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-black font-bold" /> : <ArrowDown className="w-3.5 h-3.5 text-black font-bold" />
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 text-neutral-400 opacity-50 group-hover:opacity-100 transition-opacity" />
+                      )}
+                    </div>
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-bold text-neutral-600 uppercase tracking-wider">Items Overview</th>
+                  <th 
+                    scope="col" 
+                    onClick={() => toggleSort('totalCost')}
+                    className="group px-6 py-3 text-right text-xs font-bold text-neutral-600 uppercase tracking-wider cursor-pointer select-none hover:bg-neutral-100/80 hover:text-black transition-colors"
+                  >
+                    <div className="flex items-center justify-end gap-1.5">
+                      <span>Total Cost</span>
+                      {sortField === 'totalCost' ? (
+                        sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-black font-bold" /> : <ArrowDown className="w-3.5 h-3.5 text-black font-bold" />
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 text-neutral-400 opacity-50 group-hover:opacity-100 transition-opacity" />
+                      )}
+                    </div>
+                  </th>
+                  <th 
+                    scope="col" 
+                    onClick={() => toggleSort('status')}
+                    className="group px-6 py-3 text-center text-xs font-bold text-neutral-600 uppercase tracking-wider cursor-pointer select-none hover:bg-neutral-100/80 hover:text-black transition-colors"
+                  >
+                    <div className="flex items-center justify-center gap-1.5">
+                      <span>Status</span>
+                      {sortField === 'status' ? (
+                        sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-black font-bold" /> : <ArrowDown className="w-3.5 h-3.5 text-black font-bold" />
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 text-neutral-400 opacity-50 group-hover:opacity-100 transition-opacity" />
+                      )}
+                    </div>
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-right text-xs font-bold text-neutral-600 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {paginatedPOs.map((po: any) => (
+                  <tr key={po.id} className="hover:bg-neutral-50/50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-bold text-gray-900">{po.orderNumber}</div>
+                      <div className="text-xs text-gray-500">
+                        {new Date(po.createdAt).toLocaleDateString()}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-bold text-gray-900">{po.supplier?.name}</div>
+                      <div className="text-xs text-gray-500">{po.supplier?.email || po.supplier?.phone || ''}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      {po.items && po.items.length > 0 ? (
+                        <div className="flex flex-col gap-0.5">
+                          <div className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
+                            <span>{getBookTitle(po.items[0])}</span>
+                            <span className="text-xs font-bold text-neutral-600 bg-neutral-100 px-1.5 py-0.5 rounded">
+                              ×{po.items[0].quantityOrdered}
+                            </span>
+                          </div>
+                          {po.items.length > 1 && (
+                            <div 
+                              className="text-xs text-blue-600 font-medium cursor-help"
+                              title={po.items.slice(1).map((item: any) => `${getBookTitle(item)} (×${item.quantityOrdered})`).join('\n')}
+                            >
+                              +{po.items.length - 1} more title{po.items.length - 1 > 1 ? 's' : ''} ({po.items.reduce((sum: number, item: any) => sum + (item.quantityOrdered || 0), 0)} total copies)
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-gray-400 italic">No items</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-right text-gray-900">
+                      ₹{Number(po.totalCost).toFixed(2)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                      {getStatusBadge(po.status)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <div className="flex items-center justify-end gap-2">
+                        {po.status === 'DRAFT' && (
+                          <button 
+                            onClick={() => handleStatusUpdate(po.id, 'PLACED')} 
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-black hover:bg-neutral-800 rounded-xl shadow-sm active:scale-95 transition-all"
+                          >
+                            <Send className="w-3.5 h-3.5" />
+                            Place Order
+                          </button>
+                        )}
+                        {(po.status === 'PLACED' || po.status === 'PARTIALLY_RECEIVED') && canReceive && (
+                          <button 
+                            onClick={() => {
+                              setReceivingPO(po);
+                              setReceiveData(po.items.map((i: any) => ({ itemId: i.id, quantityReceived: i.quantityOrdered - i.quantityReceived })));
+                              setReceiveStatus('RECEIVED');
+                            }} 
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-sm active:scale-95 transition-all"
+                          >
+                            <PackageCheck className="w-3.5 h-3.5" />
+                            Receive Items
+                          </button>
+                        )}
+                        {po.status === 'RECEIVED' && (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 rounded-xl border border-emerald-200/60">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                            Fulfilled
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {sortedPOs.length === 0 && (
+                  <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-500 text-sm">No purchase orders found matching your criteria.</td></tr>
+                )}
+              </tbody>
+            </table>
+
+            <Pagination
+              currentPage={currentPage}
+              totalItems={sortedPOs.length}
+              pageSize={pageSize}
+              onPageChange={(page) => setCurrentPage(page)}
+              onPageSizeChange={(size) => {
+                setPageSize(size);
+                setCurrentPage(1);
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Approval Requests Tab View */}
+      {activeTab === 'requests' && (
+        <div className="space-y-4">
+          <div className="bg-white border border-gray-200 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
+            <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 md:pb-0">
+              {[
+                { value: '', label: 'All Requests' },
+                { value: 'PENDING', label: 'Pending Approval' },
+                { value: 'APPROVED', label: 'Approved' },
+                { value: 'ORDERED', label: 'Ordered' },
+                { value: 'REJECTED', label: 'Rejected' },
+              ].map((tab) => (
+                <button
+                  key={tab.value}
+                  onClick={() => setRequestStatusFilter(tab.value)}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition whitespace-nowrap active:scale-95 ${
+                    requestStatusFilter === tab.value
+                      ? 'bg-black border-black text-white shadow-sm'
+                      : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="relative w-full md:w-64">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search book, ISBN, branch..."
+                value={requestSearchTerm}
+                onChange={(e) => setRequestSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-4 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:border-black transition-all bg-gray-50/50"
+              />
+              {requestSearchTerm && (
+                <button
+                  onClick={() => setRequestSearchTerm('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="bg-white shadow-sm border border-gray-200 rounded-2xl overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th scope="col" className="px-6 py-3.5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Book Details</th>
+                    <th scope="col" className="px-6 py-3.5 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Requested Qty</th>
+                    <th scope="col" className="px-6 py-3.5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Context & Justification</th>
+                    <th scope="col" className="px-6 py-3.5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Requested By</th>
+                    <th scope="col" className="px-6 py-3.5 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
+                    <th scope="col" className="px-6 py-3.5 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-100">
+                  {filteredPoRequests.map((req: any) => (
+                    <tr key={req.id} className="hover:bg-slate-50/60 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="text-sm font-bold text-gray-900">{req.book?.title}</div>
+                        <div className="text-xs text-gray-500 font-mono mt-0.5">
+                          ISBN: {req.book?.isbn || 'N/A'} {req.book?.barcode ? `• Barcode: ${req.book.barcode}` : ''}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <span className="text-sm font-bold text-gray-900">{req.quantity}</span>
+                        <span className="text-xs text-gray-500 block">copies</span>
+                      </td>
+                      <td className="px-6 py-4 text-xs">
+                        <div className="text-gray-700 font-medium">{req.reason || 'Restock replenishment'}</div>
+                        {req.restockRequest && (
+                          <div className="text-gray-400 mt-1 flex items-center gap-1">
+                            <Building2 className="w-3 h-3 text-gray-400" />
+                            <span>{req.restockRequest.branch?.name || 'Branch'} (Restock #{req.restockRequest.id?.split('-')[0]})</span>
+                          </div>
+                        )}
+                        {req.reviewNote && (
+                          <div className="text-amber-700 bg-amber-50 border border-amber-200/60 rounded px-1.5 py-0.5 mt-1 inline-block">
+                            Note: {req.reviewNote}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500">
+                        <div className="font-semibold text-gray-800">{req.requestedBy?.name || 'Central Manager'}</div>
+                        <div className="text-gray-400 mt-0.5">{new Date(req.createdAt).toLocaleDateString()}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        {req.status === 'PENDING' && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                            <Clock className="w-3 h-3 text-amber-500 animate-pulse" />
+                            Pending Approval
+                          </span>
+                        )}
+                        {req.status === 'APPROVED' && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                            Approved
+                          </span>
+                        )}
+                        {req.status === 'ORDERED' && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+                            <PackageCheck className="w-3 h-3 text-purple-600" />
+                            PO Placed
+                          </span>
+                        )}
+                        {req.status === 'REJECTED' && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                            <XCircle className="w-3 h-3 text-rose-500" />
+                            Rejected
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-xs font-medium">
+                        <div className="flex items-center justify-end gap-2">
+                          {req.status === 'PENDING' && (
+                            <>
+                              {canReviewRequests ? (
+                                <>
+                                  <button
+                                    onClick={() => handleReviewRequest(req.id, 'APPROVED')}
+                                    className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm active:scale-95 transition"
+                                  >
+                                    Approve
+                                  </button>
+                                  <button
+                                    onClick={() => setRejectingReqId(req.id)}
+                                    className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg active:scale-95 transition"
+                                  >
+                                    Reject
+                                  </button>
+                                </>
+                              ) : (
+                                <span className="text-gray-400 italic">Awaiting Admin Approval</span>
+                              )}
+                            </>
+                          )}
+                          {req.status === 'APPROVED' && (
+                            <button
+                              onClick={() => handleStartPoFromRequest(req)}
+                              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-black hover:bg-neutral-800 rounded-lg shadow-sm active:scale-95 transition"
+                              title="Create Purchase Order for this approved request"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                              <span>Create PO</span>
+                            </button>
+                          )}
+                          {req.status === 'ORDERED' && (
+                            <span className="text-gray-400">Order Completed</span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {filteredPoRequests.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="px-6 py-12 text-center text-gray-400 text-xs italic">
+                        No purchase order approval requests found.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Creation Modal */}
       <AnimatePresence>
@@ -413,6 +773,22 @@ export default function PurchaseOrdersPage() {
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-xl shadow-xl w-full max-w-3xl p-6">
               <h3 className="text-lg font-bold text-gray-900 mb-4">Create Purchase Order</h3>
               
+              {linkedPoRequestId && (
+                <div className="mb-4 p-3.5 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-between text-xs text-blue-900 shadow-sm">
+                  <div className="flex items-center gap-2">
+                    <PackageCheck className="w-4 h-4 text-blue-600 shrink-0" />
+                    <span><strong>Fulfilling Approved Request:</strong> This purchase order is linked to an approved PO request.</span>
+                  </div>
+                  <button 
+                    type="button" 
+                    onClick={() => setLinkedPoRequestId(null)} 
+                    className="text-blue-600 hover:text-blue-800 font-bold underline ml-2"
+                  >
+                    Unlink
+                  </button>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-4 mb-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
@@ -908,7 +1284,42 @@ export default function PurchaseOrdersPage() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Rejection Note Modal for Admin */}
+      <AnimatePresence>
+        {rejectingReqId && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 border border-gray-100">
+              <h3 className="text-base font-bold text-gray-900 mb-1">Reject Purchase Order Request</h3>
+              <p className="text-xs text-gray-500 mb-4">Provide an optional reason or remark for the Central Inventory Manager.</p>
+              <textarea 
+                value={rejectNote}
+                onChange={(e) => setRejectNote(e.target.value)}
+                placeholder="E.g., Out of budget, title being phased out, supplier minimum not met..."
+                className="w-full border border-gray-300 rounded-xl p-3 text-xs mb-4 focus:ring-2 focus:ring-black outline-none"
+                rows={3}
+              />
+              <div className="flex justify-end gap-2">
+                <button 
+                  onClick={() => { setRejectingReqId(null); setRejectNote(''); }} 
+                  className="px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-100 rounded-lg"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={() => handleReviewRequest(rejectingReqId, 'REJECTED', rejectNote)} 
+                  disabled={isRejecting} 
+                  className="px-4 py-1.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-sm disabled:opacity-50"
+                >
+                  {isRejecting ? 'Rejecting...' : 'Confirm Reject'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
+
 
