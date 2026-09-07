@@ -12,7 +12,8 @@ import {
   AlertCircle, 
   Search, 
   FileText,
-  Loader2
+  Loader2,
+  Eye
 } from 'lucide-react';
 import CreateTransferModal from '@/components/CreateTransferModal';
 import TransferDetailsModal from '@/components/TransferDetailsModal';
@@ -240,14 +241,14 @@ export default function StockTransfersPage() {
                   <th className="px-6 py-4">Items count</th>
                   <th className="px-6 py-4">Status</th>
                   <th className="px-6 py-4">Requested Date</th>
+                  <th className="px-6 py-4 text-center">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-sm text-slate-600">
                 {filteredTransfers.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((t) => (
                   <tr
                     key={t.id}
-                    onClick={() => handleRowClick(t.id)}
-                    className="hover:bg-slate-50/50 cursor-pointer transition duration-150"
+                    className="hover:bg-slate-50/50 transition duration-150"
                   >
                     <td className="px-6 py-4 font-mono font-bold text-slate-800">{t.transferNumber}</td>
                     <td className="px-6 py-4 font-semibold text-slate-700">{t.fromBranch.name}</td>
@@ -259,11 +260,24 @@ export default function StockTransfersPage() {
                         {t.status}
                       </span>
                     </td>
-                    <td className="px-6 py-4 flex items-center space-x-1.5 text-xs text-slate-400">
-                      <Clock className="w-3.5 h-3.5" />
-                      <span>
-                        {new Date(t.createdAt).toLocaleDateString(undefined, { dateStyle: 'short' })}
-                      </span>
+                    <td className="px-6 py-4 text-xs text-slate-400 whitespace-nowrap">
+                      <div className="flex items-center space-x-1.5">
+                        <Clock className="w-3.5 h-3.5" />
+                        <span>
+                          {new Date(t.createdAt).toLocaleDateString(undefined, { dateStyle: 'short' })}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-center whitespace-nowrap">
+                      <button
+                        type="button"
+                        onClick={() => handleRowClick(t.id)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-600 bg-blue-50/80 border border-blue-200/70 hover:bg-blue-100 hover:text-blue-700 active:scale-95 rounded-lg transition shadow-xs cursor-pointer"
+                        title="View transfer details"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>View Details</span>
+                      </button>
                     </td>
                   </tr>
                 ))}

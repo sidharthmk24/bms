@@ -308,13 +308,13 @@ export default function LoginPage() {
                   <span className="ml-2 text-xs text-gray-600 font-medium">Remember me</span>
                 </label>
 
-                <button
+                {/* <button
                   type="button"
                   onClick={() => { setStep('FORGOT_PASSWORD'); setError(''); }}
                   className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline"
                 >
                   Forgot password?
-                </button>
+                </button> */}
               </div>
 
               <button

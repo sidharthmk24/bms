@@ -13,7 +13,9 @@
     "test:permissions": "cross-env NODE_ENV=test vitest run tests/permissions",
     "test:flows": "cross-env NODE_ENV=test vitest run tests/flows",
     "test:api": "cross-env NODE_ENV=test vitest run tests/smoke",
-    "seed:warehouse": "npx tsx seed-central-stock.ts"
+    "seed:warehouse": "npx tsx seed-central-stock.ts",
+    "clean:dummy": "npx tsx clean-dummy-data.ts",
+    "seed:malayalam": "npx tsx seed-malayalam-dummy-data.ts"
   },
   "dependencies": {
     "axios": "^1.19.0",
