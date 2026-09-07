@@ -909,7 +909,7 @@ export default function ExhibitionsPage() {
               
               <div className="bg-blue-50 text-blue-800 p-3 rounded-lg mb-4 text-sm flex items-start">
                 <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0" />
-                <p>You must account for every book taken. For each row: <strong>Sold + Returned + Damaged + Lost + Credit = Taken</strong>.</p>
+                <p>You must account for every book taken. For each row: <strong>Sold + Not Sold + Damaged + Lost + Credit = Taken</strong>.</p>
               </div>
 
               <div className="max-h-96 overflow-y-auto mb-6 border rounded-lg">
@@ -919,7 +919,7 @@ export default function ExhibitionsPage() {
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Book</th>
                       <th className="px-4 py-2 text-center text-xs font-medium text-gray-500">Taken</th>
                       <th className="px-4 py-2 text-center text-xs font-medium text-gray-500">Sold</th>
-                      <th className="px-4 py-2 text-center text-xs font-medium text-gray-500">Returned</th>
+                      <th className="px-4 py-2 text-center text-xs font-medium text-gray-500">Not Sold</th>
                       <th className="px-4 py-2 text-center text-xs font-medium text-red-500">Damaged</th>
                       <th className="px-4 py-2 text-center text-xs font-medium text-red-500">Lost</th>
                       <th className="px-4 py-2 text-center text-xs font-medium text-rose-500">Credit</th>
@@ -1521,7 +1521,7 @@ export default function ExhibitionsPage() {
                           <strong className="text-sm text-slate-700 block mt-0.5">{historyData.metrics.totalSold}</strong>
                         </div>
                         <div>
-                          <span className="text-slate-400 font-semibold block">Returned</span>
+                          <span className="text-slate-400 font-semibold block">Not Sold</span>
                           <strong className="text-sm text-slate-700 block mt-0.5">{historyData.metrics.totalReturned}</strong>
                         </div>
                         <div>
@@ -1601,7 +1601,7 @@ export default function ExhibitionsPage() {
                               <th className="px-4 py-2.5 text-center">Sold</th>
                               {showFullHistory && (
                                 <>
-                                  <th className="px-4 py-2.5 text-center">Returned</th>
+                                  <th className="px-4 py-2.5 text-center">Not Sold</th>
                                   <th className="px-4 py-2.5 text-center text-red-500">Damaged</th>
                                   <th className="px-4 py-2.5 text-center text-red-500">Lost</th>
                                   <th className="px-4 py-2.5 text-center text-rose-500">Credit</th>
