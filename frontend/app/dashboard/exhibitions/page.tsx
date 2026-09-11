@@ -61,6 +61,8 @@ export default function ExhibitionsPage() {
 
   // Creation State
   const [isCreating, setIsCreating] = useState(false);
+  const [editingExhibition, setEditingExhibition] = useState<any | null>(null);
+  const { data: catalog } = useApiData<any>(isCreating || editingExhibition ? '/catalog/books?limit=100' : null, []);
   const [eventName, setEventName] = useState('');
   const [location, setLocation] = useState('');
   const [createBranchId, setCreateBranchId] = useState('');
@@ -88,7 +90,6 @@ export default function ExhibitionsPage() {
   const [viewingRejectionReason, setViewingRejectionReason] = useState<string | null>(null);
 
   // Edit & Assign State
-  const [editingExhibition, setEditingExhibition] = useState<any | null>(null);
   const [editFormData, setEditFormData] = useState({ name: '', location: '', startDate: '', endDate: '', assignedUserId: '' });
   const [editCart, setEditCart] = useState<{
     bookId: string;

@@ -57,6 +57,7 @@ export default function RestockRequestsPage() {
 
   // Creation State (Branch)
   const [isCreating, setIsCreating] = useState(false);
+  const { data: catalog } = useApiData<any>(isCreating ? '/catalog/books?limit=100' : null, []);
   const [cart, setCart] = useState<{bookId: string, quantity: number, title?: string, isbn?: string}[]>([]);
   const [selectedBook, setSelectedBook] = useState('');
   const [quantity, setQuantity] = useState(5);

@@ -64,6 +64,7 @@ export default function BranchInventoryPage() {
 
   // Modal State - Request Stock from Central Warehouse
   const [isRequestingStock, setIsRequestingStock] = useState(false);
+  const { data: catalog } = useApiData<any>(isRequestingStock ? '/catalog/books?limit=100' : null, []);
   const [requestStockBook, setRequestStockBook] = useState<any>(null);
   const [requestStockQuantity, setRequestStockQuantity] = useState(10);
   const [isSubmittingStockRequest, setIsSubmittingStockRequest] = useState(false);

@@ -79,6 +79,8 @@ export default function PurchaseOrdersPage() {
   const isKairaliSupplier = 
     selectedSupplierObj?.name?.toLowerCase().includes('kairali') ||
     customSupplier.toLowerCase().includes('kairali');
+
+  const { data: catalog } = useApiData<any>(isCreating && !isKairaliSupplier ? '/catalog/books?limit=100' : null, []);
   
   interface POCartItem {
     bookId?: string;
@@ -312,16 +314,10 @@ export default function PurchaseOrdersPage() {
     return <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin text-[#7e2562]" /></div>;
   }
 
-  const bookList = catalog?.books || catalog?.items || catalog?.data || (Array.isArray(catalog) ? catalog : []);
-
   const getBookTitle = (item: any) => {
     if (item?.book?.title) return item.book.title;
     if (item?.title) return item.title;
     if (item?.newBook?.title) return item.newBook.title;
-    if (item?.bookId) {
-      const found = bookList.find((b: any) => b.id === item.bookId);
-      if (found?.title) return found.title;
-    }
     return 'Untitled Book';
   };
 
