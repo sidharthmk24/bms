@@ -6,6 +6,7 @@ import { useApiData } from '@/hooks/useApiData';
 import { Loader2, AlertCircle, Search, Shield, History, ArrowRight, ChevronDown, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { matchKeywords } from '@/lib/searchUtils';
+import { Pagination } from '@/components/Pagination';
 
 // ── Common entity-type categories ──────────────────────────────────────────
 const ENTITY_CATEGORIES: Record<string, string[]> = {
@@ -121,18 +122,30 @@ function FilterSelect({
 export default function AuditLogPage() {
   const { user } = useAuth();
 
-  const { data: logs, loading, error } = useApiData<any[]>('/audit?limit=200', []);
+  const [page, setPage] = useState(1);
+  const pageSize = 20;
+
+  const { data: logsResponse, loading, error } = useApiData<any>(`/audit?page=${page}&limit=${pageSize}`, []);
+  const logs = logsResponse?.items || (Array.isArray(logsResponse) ? logsResponse : []);
+  const totalItems = logsResponse?.total || logs.length;
+  const totalPages = logsResponse?.totalPages || Math.ceil(totalItems / pageSize) || 1;
+
+  const { data: branchesResponse } = useApiData<any>('/branches', []);
+  const allBranches = branchesResponse?.items || (Array.isArray(branchesResponse) ? branchesResponse : []);
+
   const [searchTerm, setSearchTerm]         = useState('');
   const [roleFilter, setRoleFilter]         = useState('');
   const [branchFilter, setBranchFilter]     = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [selectedLog, setSelectedLog]       = useState<any>(null);
 
-  // ── Derive branch options from logs ───────────────────────────────────
+  // ── Derive branch options ─────────────────────────────────────────────
   const branchOptions = useMemo(() => {
-    if (!logs) return [];
     const seen = new Map<string, string>();
-    for (const log of logs) {
+    for (const b of allBranches) {
+      if (b.id && b.name) seen.set(b.id, b.name);
+    }
+    for (const log of (Array.isArray(logs) ? logs : [])) {
       const branch = log.user?.branch;
       if (branch?.id && branch?.name && !seen.has(branch.id)) {
         seen.set(branch.id, branch.name);
@@ -143,7 +156,7 @@ export default function AuditLogPage() {
       .map(([id, name]) => ({ label: name, value: id }));
     opts.push({ label: 'None of these', value: '__none__' });
     return opts;
-  }, [logs]);
+  }, [logs, allBranches]);
 
   // ── Derive category options from entityTypes present in logs ──────────
   const categoryOptions = useMemo(() => {
@@ -556,6 +569,13 @@ export default function AuditLogPage() {
             </tbody>
           </table>
         </div>
+        <Pagination
+          currentPage={page}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
       </div>
 
       {/* Details Modal */}
