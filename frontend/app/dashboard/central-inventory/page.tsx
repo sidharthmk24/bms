@@ -11,13 +11,13 @@ export default function CentralInventoryDashboard() {
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        <Loader2 className="h-8 w-8 animate-spin text-[#7e2562]" />
       </div>
     );
   }
 
   if (error) {
-    return <div className="text-red-500 bg-red-50 p-4 rounded-lg">Error: {error}</div>;
+    return <div className="text-[#e45e34] bg-[#fef5f2] p-4 rounded-sm border border-[#e45e34]/20 font-medium">Error: {error}</div>;
   }
 
   return (

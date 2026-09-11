@@ -1,104 +1,317 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Kairali Books Brand Guidelines V1.0 — Design Tokens
+ *
+ * Clean white background with brand plum typography and rich accents.
+ * Typeface: Red Hat Display / Anek Malayalam
+ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #231F20;
+  /* Surfaces — pure white & subtle clean warm/plum tint */
+  --background:         #ffffff;
+  --surface:            #ffffff;
+  --surface-muted:      #faf6f9;
+  --surface-card:       #ffffff;
+
+  /* Typography */
+  --foreground:         #180e15;
+  --muted-foreground:   #695d66;
+
+  /* Hairline Borders */
+  --border:             #ece3ea;
+  --border-subtle:      rgba(126, 37, 98, 0.12);
+
+  /* Primary Brand — Royal Plum #7E2562 */
+  --primary:            #7e2562;
+  --primary-hover:      #681b50;
+  --primary-active:     #541440;
+  --primary-light:      #faedf5;
+  --primary-foreground: #ffffff;
+
+  /* Secondary Accent */
+  --accent:             #9b3179;
+  --accent-light:       #fcf2f8;
+  --accent-foreground:  #ffffff;
+
+  /* Functional Status Colors: Green #3cb976, Red #e45e34 */
+  --success:            #3cb976;
+  --success-light:      #f0fbf5;
+  --warning:            #d97706;
+  --warning-light:      #fffbeb;
+  --danger:             #e45e34;
+  --danger-light:       #fef5f2;
+  --info:               #7e2562;
+  --info-light:         #faf0f7;
+
+  /* Focus ring — Brand Plum */
+  --ring:               #7e2562;
+
+  /* Universal border-radius: rounded-sm */
+  --radius:             0.125rem;
 }
 
+/* ── Tailwind v4 theme bridge ───────────────────────────────────── */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-red-hat), sans-serif;
-  --font-mono: var(--font-geist-mono);
+  --color-background:         var(--background);
+  --color-surface:            var(--surface);
+  --color-surface-muted:      var(--surface-muted);
+  --color-surface-card:       var(--surface-card);
+  --color-foreground:         var(--foreground);
+  --color-muted-foreground:   var(--muted-foreground);
+  --color-border:             var(--border);
+  --color-border-subtle:      var(--border-subtle);
+  --color-primary:            var(--primary);
+  --color-primary-hover:      var(--primary-hover);
+  --color-primary-active:     var(--primary-active);
+  --color-primary-light:      var(--primary-light);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent:             var(--accent);
+  --color-accent-light:       var(--accent-light);
+  --color-accent-foreground:  var(--accent-foreground);
+  --color-success:            var(--success);
+  --color-warning:            var(--warning);
+  --color-danger:             var(--danger);
+  --color-info:               var(--info);
+  --font-sans:                var(--font-red-hat), var(--font-anek), "Red Hat Display", "Anek Malayalam", ui-sans-serif, system-ui, sans-serif;
+  --font-mono:                var(--font-geist-mono);
 
-  /* Primary Brand colors (using #000000 - Black) */
-  --color-blue-50: color-mix(in oklab, #000000 5%, white);
-  --color-blue-100: color-mix(in oklab, #000000 12%, white);
-  --color-blue-200: color-mix(in oklab, #000000 25%, white);
-  --color-blue-300: color-mix(in oklab, #000000 45%, white);
-  --color-blue-400: color-mix(in oklab, #000000 70%, white);
-  --color-blue-500: #000000;
-  --color-blue-600: #000000;
-  --color-blue-700: color-mix(in oklab, #000000 85%, #000000);
-  --color-blue-800: color-mix(in oklab, #000000 70%, #000000);
-  --color-blue-900: color-mix(in oklab, #000000 50%, #000000);
-  --color-blue-950: #000000;
+  /* Brand Plum palette scale */
+  --color-plum-50:  #fdf7fa;
+  --color-plum-100: #faedf5;
+  --color-plum-200: #f4dbe9;
+  --color-plum-300: #e8b6d6;
+  --color-plum-400: #c2599c;
+  --color-plum-500: #7e2562;
+  --color-plum-600: #681b50;
+  --color-plum-700: #541440;
+  --color-plum-800: #420f32;
+  --color-plum-900: #2b0820;
 
-  --color-indigo-50: color-mix(in oklab, #000000 5%, white);
-  --color-indigo-100: color-mix(in oklab, #000000 12%, white);
-  --color-indigo-200: color-mix(in oklab, #000000 25%, white);
-  --color-indigo-300: color-mix(in oklab, #000000 45%, white);
-  --color-indigo-400: color-mix(in oklab, #000000 70%, white);
-  --color-indigo-500: #000000;
-  --color-indigo-600: #000000;
-  --color-indigo-700: color-mix(in oklab, #000000 85%, #000000);
-  --color-indigo-800: color-mix(in oklab, #000000 70%, #000000);
-  --color-indigo-900: color-mix(in oklab, #000000 50%, #000000);
-  --color-indigo-950: #000000;
+  /* Brand Green palette scale (#3cb976) */
+  --color-emerald-50:  #f0fbf5;
+  --color-emerald-100: #dcf5e7;
+  --color-emerald-200: #bcecd2;
+  --color-emerald-300: #8ee0b4;
+  --color-emerald-400: #59cc91;
+  --color-emerald-500: #3cb976;
+  --color-emerald-600: #29985e;
+  --color-emerald-700: #22794d;
+  --color-emerald-800: #1f603f;
+  --color-emerald-900: #1b4f35;
+  --color-emerald-950: #0a2c1d;
 
-  --color-purple-50: color-mix(in oklab, #000000 5%, white);
-  --color-purple-100: color-mix(in oklab, #000000 12%, white);
-  --color-purple-200: color-mix(in oklab, #000000 25%, white);
-  --color-purple-300: color-mix(in oklab, #000000 45%, white);
-  --color-purple-400: color-mix(in oklab, #000000 70%, white);
-  --color-purple-500: #000000;
-  --color-purple-600: #000000;
-  --color-purple-700: color-mix(in oklab, #000000 85%, #000000);
-  --color-purple-800: color-mix(in oklab, #000000 70%, #000000);
-  --color-purple-900: color-mix(in oklab, #000000 50%, #000000);
-  --color-purple-950: #000000;
+  --color-green-50:  #f0fbf5;
+  --color-green-100: #dcf5e7;
+  --color-green-200: #bcecd2;
+  --color-green-300: #8ee0b4;
+  --color-green-400: #59cc91;
+  --color-green-500: #3cb976;
+  --color-green-600: #29985e;
+  --color-green-700: #22794d;
+  --color-green-800: #1f603f;
+  --color-green-900: #1b4f35;
+  --color-green-950: #0a2c1d;
 
-  /* Neutrals mapped for the white-background theme with #231F20 & #000000 */
-  --color-gray-50: #ffffff;
-  --color-gray-100: color-mix(in oklab, #231F20 5%, white);
-  --color-gray-200: color-mix(in oklab, #231F20 12%, white);
-  --color-gray-300: color-mix(in oklab, #231F20 22%, white);
-  --color-gray-400: color-mix(in oklab, #231F20 40%, white);
-  --color-gray-500: color-mix(in oklab, #231F20 55%, white);
-  --color-gray-600: color-mix(in oklab, #231F20 70%, white);
-  --color-gray-700: color-mix(in oklab, #231F20 85%, white);
-  --color-gray-800: #231F20;
-  --color-gray-900: #231F20;
-  --color-gray-950: #000000;
+  /* Brand Red palette scale (#e45e34) */
+  --color-rose-50:  #fef5f2;
+  --color-rose-100: #fde8e2;
+  --color-rose-200: #fbd5c9;
+  --color-rose-300: #f7b4a0;
+  --color-rose-400: #f08668;
+  --color-rose-500: #e45e34;
+  --color-rose-600: #d0451b;
+  --color-rose-700: #ad3513;
+  --color-rose-800: #8e2e14;
+  --color-rose-900: #762a16;
+  --color-rose-950: #401207;
 
-  --color-slate-50: #ffffff;
-  --color-slate-100: color-mix(in oklab, #231F20 5%, white);
-  --color-slate-200: color-mix(in oklab, #231F20 12%, white);
-  --color-slate-300: color-mix(in oklab, #231F20 22%, white);
-  --color-slate-400: color-mix(in oklab, #231F20 40%, white);
-  --color-slate-500: color-mix(in oklab, #231F20 55%, white);
-  --color-slate-600: color-mix(in oklab, #231F20 70%, white);
-  --color-slate-700: color-mix(in oklab, #231F20 85%, white);
-  --color-slate-800: #231F20;
-  --color-slate-900: #231F20;
-  --color-slate-950: #000000;
+  --color-red-50:  #fef5f2;
+  --color-red-100: #fde8e2;
+  --color-red-200: #fbd5c9;
+  --color-red-300: #f7b4a0;
+  --color-red-400: #f08668;
+  --color-red-500: #e45e34;
+  --color-red-600: #d0451b;
+  --color-red-700: #ad3513;
+  --color-red-800: #8e2e14;
+  --color-red-900: #762a16;
+  --color-red-950: #401207;
 
-  --color-zinc-50: #ffffff;
-  --color-zinc-100: color-mix(in oklab, #231F20 5%, white);
-  --color-zinc-200: color-mix(in oklab, #231F20 12%, white);
-  --color-zinc-300: color-mix(in oklab, #231F20 22%, white);
-  --color-zinc-400: color-mix(in oklab, #231F20 40%, white);
-  --color-zinc-500: color-mix(in oklab, #231F20 55%, white);
-  --color-zinc-600: color-mix(in oklab, #231F20 70%, white);
-  --color-zinc-700: color-mix(in oklab, #231F20 85%, white);
-  --color-zinc-800: #231F20;
-  --color-zinc-900: #231F20;
-  --color-zinc-950: #000000;
-
-  --color-neutral-50: #ffffff;
-  --color-neutral-100: color-mix(in oklab, #231F20 5%, white);
-  --color-neutral-200: color-mix(in oklab, #231F20 12%, white);
-  --color-neutral-300: color-mix(in oklab, #231F20 22%, white);
-  --color-neutral-400: color-mix(in oklab, #231F20 40%, white);
-  --color-neutral-500: color-mix(in oklab, #231F20 55%, white);
-  --color-neutral-600: color-mix(in oklab, #231F20 70%, white);
-  --color-neutral-700: color-mix(in oklab, #231F20 85%, white);
-  --color-neutral-800: #231F20;
-  --color-neutral-900: #231F20;
-  --color-neutral-950: #000000;
+  /* Universal border-radius: rounded-sm */
+  --radius-xs:      0.125rem;
+  --radius-sm:      0.125rem;
+  --radius-md:      0.125rem;
+  --radius-lg:      0.125rem;
+  --radius-xl:      0.125rem;
+  --radius-2xl:     0.125rem;
+  --radius-3xl:     0.125rem;
+  --radius-4xl:     0.125rem;
+  --radius:         0.125rem;
+  --radius-DEFAULT: 0.125rem;
 }
 
+/* ── Universal border-radius enforcement: rounded-sm (0.125rem / 2px) ── */
+.rounded,
+[class*="rounded-["]:not([class*="rounded-full"]):not([class*="h-2 w-2"]):not([class*="h-1.5 w-1.5"]):not([class*="h-1 w-1"]):not([class*="animate-spin"]):not([class*="blur-"]),
+[class*="rounded-2xl"]:not([class*="rounded-full"]):not([class*="animate-spin"]),
+[class*="rounded-3xl"]:not([class*="rounded-full"]):not([class*="animate-spin"]),
+[class*="rounded-xl"]:not([class*="rounded-full"]):not([class*="animate-spin"]),
+[class*="rounded-lg"]:not([class*="rounded-full"]):not([class*="animate-spin"]),
+[class*="rounded-md"]:not([class*="rounded-full"]):not([class*="animate-spin"]) {
+  border-radius: 0.125rem !important;
+}
+
+button:not([class*="rounded-full"]):not([class*="h-2 w-2"]):not([class*="h-1.5 w-1.5"]):not([class*="animate-spin"]),
+input:not([type="checkbox"]):not([type="radio"]):not([class*="rounded-full"]),
+select,
+textarea,
+.apple-button:not([class*="rounded-full"]),
+.apple-card:not([class*="rounded-full"]),
+.apple-input-container {
+  border-radius: 0.125rem !important;
+}
+
+/* ── Base styles ────────────────────────────────────────────────── */
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background:              var(--background);
+  color:                   var(--foreground);
+  font-family:             var(--font-red-hat), var(--font-anek), "Red Hat Display", "Anek Malayalam", ui-sans-serif, system-ui, sans-serif;
+  font-weight:             400;
+  -webkit-font-smoothing:  antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Type scale */
+h1 { font-weight: 700; line-height: 1.1;  letter-spacing: -0.02em; }
+h2 { font-weight: 600; line-height: 1.15; letter-spacing: -0.01em; }
+h3, h4 { font-weight: 600; line-height: 1.2; }
+
+/* Malayalam text */
+.font-ml {
+  font-family: var(--font-anek), "Anek Malayalam", sans-serif;
+  font-feature-settings: "kern" 1;
+}
+
+/* Tabular figures for money / counts */
+.numeric {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* Focus ring — brand plum */
+:where(a, button, input, select, textarea):focus-visible {
+  outline:        2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* ── Brand utility helpers ──────────────────────────────────────── */
+
+/* Brand plum badge */
+.badge-primary, .badge-plum {
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  color:      var(--primary);
+  border:     1px solid color-mix(in srgb, var(--primary) 22%, transparent);
+}
+
+/* Semantic status badges */
+.badge-success {
+  background: #f0fbf5;
+  color:      #22794d;
+  border:     1px solid #bcecd2;
+}
+
+.badge-warning {
+  background: #fffbeb;
+  color:      #b45309;
+  border:     1px solid #fde68a;
+}
+
+.badge-danger {
+  background: #fef5f2;
+  color:      #ad3513;
+  border:     1px solid #fbd5c9;
+}
+
+/* Plum gradient presets */
+.plum-gradient {
+  background: linear-gradient(135deg, #7e2562 0%, #9b3179 50%, #681b50 100%);
+}
+
+.plum-gradient-subtle {
+  background: linear-gradient(180deg, #faf2f7 0%, #ffffff 100%);
+}
+
+.plum-gradient-hero {
+  background: linear-gradient(135deg, #7e2562 0%, #581643 100%);
+}
+
+/* Plum shadows */
+.shadow-plum-sm {
+  box-shadow: 0 2px 10px -2px rgba(126, 37, 98, 0.15);
+}
+
+.shadow-plum-md {
+  box-shadow: 0 8px 24px -4px rgba(126, 37, 98, 0.18);
+}
+
+.shadow-plum-lg {
+  box-shadow: 0 20px 45px -10px rgba(126, 37, 98, 0.28);
+}
+
+/* ── Apple Design System Utilities ──────────────────────────────── */
+
+/* Physical press response */
+.apple-button {
+  transition: transform 140ms cubic-bezier(0.2, 0, 0, 1), background-color 150ms ease, box-shadow 150ms ease, opacity 150ms ease, border-color 150ms ease;
+  will-change: transform;
+}
+.apple-button:active:not(:disabled) {
+  transform: scale(0.982);
+}
+
+.apple-input-container {
+  transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+}
+.apple-input-container:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 16%, transparent);
+}
+.apple-input-container input:focus,
+.apple-input-container input:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Apple-style error shake animation */
+@keyframes apple-shake {
+  0%, 100% { transform: translateX(0); }
+  15% { transform: translateX(-6px); }
+  30% { transform: translateX(5px); }
+  45% { transform: translateX(-4px); }
+  60% { transform: translateX(3px); }
+  75% { transform: translateX(-1.5px); }
+  90% { transform: translateX(0.5px); }
+}
+
+.animate-apple-shake {
+  animation: apple-shake 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+/* Apple-style smooth fade-slide entrance */
+@keyframes apple-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-apple-in {
+  animation: apple-fade-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
 }

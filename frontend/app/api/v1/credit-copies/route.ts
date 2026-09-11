@@ -7,7 +7,9 @@ const creditCopiesService = new CreditCopiesService();
 
 async function getCreditCopiesHandler(req: AuthenticatedRequest) {
   try {
-    const data = await creditCopiesService.findAll(req.user);
+    const url = new URL(req.url);
+    const query = Object.fromEntries(url.searchParams.entries());
+    const data = await creditCopiesService.findAll(req.user, query);
     return apiSuccess(data);
   } catch (error: any) {
     console.error('CreditCopies GET Error:', error);

@@ -54,10 +54,10 @@ function FilterSelect({
       <button
         type="button"
         onClick={() => setOpen((p) => !p)}
-        className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-all
+        className={`flex items-center gap-2 px-3 py-2 rounded-sm border text-xs font-semibold transition-all
           ${value
-            ? 'border-blue-500 bg-blue-50 text-blue-700'
-            : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+            ? 'border-[#7e2562] bg-[#faedf5] text-[#7e2562]'
+            : 'border-neutral-300 bg-white text-neutral-700 hover:border-[#7e2562]/40'
           }`}
       >
         <span className="max-w-[140px] truncate">
@@ -69,12 +69,12 @@ function FilterSelect({
             tabIndex={0}
             onClick={(e) => { e.stopPropagation(); onChange(''); }}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); onChange(''); } }}
-            className="ml-0.5 text-blue-400 hover:text-blue-700"
+            className="ml-0.5 text-[#7e2562] hover:text-[#541440]"
           >
             <X className="w-3.5 h-3.5" />
           </span>
         )}
-        <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`w-3.5 h-3.5 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
       <AnimatePresence>
@@ -84,7 +84,7 @@ function FilterSelect({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.15 }}
-            className="absolute top-full mt-1 left-0 z-30 bg-white border border-gray-200 rounded-xl shadow-lg min-w-[180px] overflow-hidden"
+            className="absolute top-full mt-1 left-0 z-30 bg-white border border-[#7e2562]/20 rounded-sm shadow-lg min-w-[180px] overflow-hidden"
           >
             <ul className="py-1 max-h-60 overflow-y-auto">
               {options.map((opt) => (
@@ -92,12 +92,12 @@ function FilterSelect({
                   <button
                     type="button"
                     onClick={() => { onChange(opt.value); setOpen(false); }}
-                    className={`w-full text-left px-4 py-2 text-sm transition-colors
+                    className={`w-full text-left px-4 py-2 text-xs transition-colors
                       ${opt.value === value
-                        ? 'bg-blue-50 text-blue-700 font-medium'
+                        ? 'bg-[#faedf5] text-[#7e2562] font-bold'
                         : opt.value === '__none__'
-                          ? 'text-gray-400 italic hover:bg-gray-50 border-t border-gray-100'
-                          : 'text-gray-700 hover:bg-gray-50'
+                          ? 'text-neutral-400 italic hover:bg-[#faf6f9] border-t border-neutral-100'
+                          : 'text-neutral-700 hover:bg-[#faf6f9]'
                       }`}
                   >
                     {opt.label}
@@ -337,36 +337,36 @@ export default function AuditLogPage() {
 
   const getActionColor = (action: string) => {
     if (action.includes('CREATED') || action.includes('ADDED') || action.includes('APPROVED'))
-      return 'bg-emerald-100 text-emerald-800';
+      return 'bg-[#f0fbf5] text-[#3cb976] border border-[#3cb976]/30';
     if (action.includes('DELETED') || action.includes('REJECTED') || action.includes('DEACTIVATED'))
-      return 'bg-red-100 text-red-800';
+      return 'bg-[#fef5f2] text-[#e45e34] border border-[#e45e34]/30';
     if (action.includes('UPDATED') || action.includes('ADJUSTED'))
-      return 'bg-blue-100 text-blue-800';
+      return 'bg-[#faedf5] text-[#7e2562] border border-[#7e2562]/20';
     if (action.includes('LOGIN') || action.includes('LOGOUT'))
-      return 'bg-violet-100 text-violet-800';
-    return 'bg-gray-100 text-gray-700';
+      return 'bg-violet-50 text-violet-700 border border-violet-200';
+    return 'bg-neutral-100 text-neutral-700 border border-neutral-200';
   };
 
   const getRoleColor = (role: string) => {
-    if (role === 'SUPER_ADMIN') return 'text-red-600 bg-red-50';
-    if (role === 'ADMIN') return 'text-orange-600 bg-orange-50';
-    if (role === 'CENTRAL_INVENTORY_MANAGER') return 'text-purple-600 bg-purple-50';
-    if (role === 'FINANCE') return 'text-green-600 bg-green-50';
-    return 'text-blue-600 bg-blue-50';
+    if (role === 'SUPER_ADMIN') return 'text-[#e45e34] bg-[#fef5f2] border border-[#e45e34]/20';
+    if (role === 'ADMIN') return 'text-amber-700 bg-amber-50 border border-amber-200';
+    if (role === 'CENTRAL_INVENTORY_MANAGER') return 'text-[#7e2562] bg-[#faedf5] border border-[#7e2562]/20';
+    if (role === 'FINANCE') return 'text-[#3cb976] bg-[#f0fbf5] border border-[#3cb976]/30';
+    return 'text-[#7e2562] bg-[#faedf5] border border-[#7e2562]/20';
   };
 
   // ── Guards ─────────────────────────────────────────────────────────────
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        <Loader2 className="h-8 w-8 animate-spin text-[#7e2562]" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="bg-red-50 text-red-600 p-4 rounded-lg flex items-center">
+      <div className="bg-[#fef5f2] text-[#e45e34] border border-[#e45e34]/20 p-4 rounded-sm flex items-center">
         <AlertCircle className="w-5 h-5 mr-2" />
         {error}
       </div>
@@ -376,9 +376,9 @@ export default function AuditLogPage() {
   if (!user?.roles?.includes('SUPER_ADMIN')) {
     return (
       <div className="flex flex-col items-center justify-center h-96 text-center">
-        <Shield className="w-16 h-16 text-red-500 mb-4" />
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h2>
-        <p className="text-gray-500 max-w-md">
+        <Shield className="w-16 h-16 text-[#e45e34] mb-4" />
+        <h2 className="text-2xl font-bold text-neutral-900 mb-2">Access Denied</h2>
+        <p className="text-neutral-500 max-w-md text-sm">
           The Audit Log is a restricted area. Only Super Administrators can view system-wide activity and security trails.
         </p>
       </div>
@@ -388,14 +388,14 @@ export default function AuditLogPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-gradient-to-r from-slate-900 to-slate-800 rounded-2xl p-8 text-white shadow-lg">
+      <div className="bg-gradient-to-r from-[#2a0c20] via-[#541440] to-[#7e2562] rounded-sm p-7 text-white shadow-md">
         <div className="flex items-start space-x-4">
-          <div className="p-3 bg-white/10 rounded-xl">
-            <History className="w-8 h-8 text-blue-400" />
+          <div className="p-3 bg-white/10 rounded-sm">
+            <History className="w-7 h-7 text-white" />
           </div>
           <div>
             <h2 className="text-2xl font-bold tracking-tight">System Audit Log</h2>
-            <p className="text-slate-300 mt-2 max-w-2xl leading-relaxed">
+            <p className="text-[#faedf5]/80 mt-1.5 max-w-2xl text-xs leading-relaxed">
               The Audit Log acts as the central security and accountability trail for the entire Bookstore Management System.
               It securely records every critical action—along with the exact time, user responsible, their IP address, and a snapshot of data before and after each change.
             </p>
@@ -407,11 +407,11 @@ export default function AuditLogPage() {
       <div className="space-y-3">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
           <div>
-            <h3 className="text-lg font-semibold text-gray-900">Recent Activity Trail</h3>
-            <p className="text-sm text-gray-500">
-              Showing <span className="font-medium text-gray-800">{filteredLogs.length}</span> of {(logs || []).length} events
+            <h3 className="text-sm font-bold text-neutral-900">Recent Activity Trail</h3>
+            <p className="text-xs text-neutral-500">
+              Showing <span className="font-semibold text-neutral-800">{filteredLogs.length}</span> of {(logs || []).length} events
               {activeFilterCount > 0 && (
-                <span className="ml-1 text-blue-600">· {activeFilterCount} filter{activeFilterCount > 1 ? 's' : ''} active</span>
+                <span className="ml-1 text-[#7e2562] font-semibold">· {activeFilterCount} filter{activeFilterCount > 1 ? 's' : ''} active</span>
               )}
             </p>
           </div>
@@ -419,7 +419,7 @@ export default function AuditLogPage() {
           {/* Search */}
           <div className="w-full sm:w-72 relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search className="h-4 w-4 text-gray-400" />
+              <Search className="h-4 w-4 text-neutral-400" />
             </div>
             <input
               id="audit-search"
@@ -427,14 +427,14 @@ export default function AuditLogPage() {
               placeholder="Search actions, entities, users, IPs…"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              className="block w-full pl-9 pr-3 py-2 border border-[#7e2562]/20 rounded-sm focus:ring-2 focus:ring-[#7e2562]/20 focus:border-[#7e2562] text-xs outline-none bg-white"
             />
           </div>
         </div>
 
         {/* Filter chips row */}
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm text-gray-500 font-medium">Filter by:</span>
+          <span className="text-xs text-neutral-500 font-semibold uppercase tracking-wider">Filter by:</span>
 
           <FilterSelect
             id="audit-role-filter"
@@ -467,7 +467,7 @@ export default function AuditLogPage() {
           {(activeFilterCount > 0 || searchTerm) && (
             <button
               onClick={clearAllFilters}
-              className="flex items-center gap-1 px-3 py-2 rounded-lg text-sm text-red-600 hover:bg-red-50 border border-red-200 transition-colors"
+              className="flex items-center gap-1 px-3 py-2 rounded-sm text-xs font-semibold text-[#e45e34] hover:bg-[#fef5f2] border border-[#e45e34]/20 transition-colors"
             >
               <X className="w-3.5 h-3.5" />
               Clear all
@@ -477,76 +477,76 @@ export default function AuditLogPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white shadow-sm border border-gray-200 rounded-xl overflow-hidden">
+      <div className="bg-white shadow-sm border border-neutral-200/80 rounded-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+          <table className="w-full text-sm text-left">
+            <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562] uppercase tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
               <tr>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Timestamp</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User / Role</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Branch</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Entity</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">IP Address</th>
-                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Details</th>
+                <th scope="col" className="px-6 py-3.5">Timestamp</th>
+                <th scope="col" className="px-6 py-3.5">User / Role</th>
+                <th scope="col" className="px-6 py-3.5">Branch</th>
+                <th scope="col" className="px-6 py-3.5">Action</th>
+                <th scope="col" className="px-6 py-3.5">Entity</th>
+                <th scope="col" className="px-6 py-3.5">IP Address</th>
+                <th scope="col" className="px-6 py-3.5 text-right">Details</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="divide-y divide-neutral-100">
               {filteredLogs.map((log) => (
-                <tr key={log.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                <tr key={log.id} className="hover:bg-[#faf6f9]/40 transition-colors">
+                  <td className="px-6 py-3.5 whitespace-nowrap text-xs text-neutral-500">
                     {formatDate(log.createdAt)}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-6 py-3.5 whitespace-nowrap">
                     <div className="flex items-center">
-                      <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold mr-3 flex-shrink-0">
+                      <div className="h-7 w-7 rounded-sm bg-[#faedf5] border border-[#7e2562]/20 flex items-center justify-center text-[#7e2562] font-bold text-xs mr-2.5 flex-shrink-0">
                         {log.user?.name?.charAt(0).toUpperCase() || '?'}
                       </div>
                       <div>
-                        <div className="text-sm font-medium text-gray-900">{log.user?.name || 'System'}</div>
-                        <span className={`inline-block text-xs px-1.5 py-0.5 rounded font-medium ${getRoleColor(log.user?.primaryRole || '')}`}>
+                        <div className="text-xs font-bold text-neutral-900">{log.user?.name || 'System'}</div>
+                        <span className={`inline-block text-[10px] px-1.5 py-0.2 rounded-sm font-semibold mt-0.5 ${getRoleColor(log.user?.primaryRole || '')}`}>
                           {log.user?.primaryRole?.replace(/_/g, ' ') || 'SYSTEM'}
                         </span>
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-6 py-3.5 whitespace-nowrap text-xs">
                     {log.user?.branch?.name ? (
-                      <span className="text-sm text-gray-700">{log.user.branch.name}</span>
+                      <span className="font-medium text-neutral-800">{log.user.branch.name}</span>
                     ) : (
-                      <span className="text-xs text-gray-400 italic">Chain-wide</span>
+                      <span className="text-neutral-400 italic">Chain-wide</span>
                     )}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getActionColor(log.action)}`}>
+                  <td className="px-6 py-3.5 whitespace-nowrap">
+                    <span className={`inline-flex items-center px-2.5 py-1 rounded-sm text-[11px] font-bold ${getActionColor(log.action)}`}>
                       {log.action.replace(/_/g, ' ')}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{log.entityType}</div>
-                    <div className="text-xs text-gray-500 font-mono">{log.entityId?.substring(0, 8)}…</div>
+                  <td className="px-6 py-3.5 whitespace-nowrap">
+                    <div className="text-xs font-bold text-neutral-900">{log.entityType}</div>
+                    <div className="text-[10px] text-neutral-400 font-mono">{log.entityId?.substring(0, 8)}…</div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono text-xs">
+                  <td className="px-6 py-3.5 whitespace-nowrap text-neutral-500 font-mono text-xs">
                     {log.ipAddress}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                  <td className="px-6 py-3.5 whitespace-nowrap text-right text-xs font-semibold">
                     <button
                       onClick={() => setSelectedLog(log)}
-                      className="text-blue-600 hover:text-blue-900 flex items-center justify-end w-full group"
+                      className="text-[#7e2562] hover:text-[#541440] inline-flex items-center justify-end group"
                     >
                       View Data
-                      <ArrowRight className="w-4 h-4 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <ArrowRight className="w-3.5 h-3.5 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
                     </button>
                   </td>
                 </tr>
               ))}
               {filteredLogs.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
-                    <History className="w-12 h-12 mx-auto text-gray-300 mb-3" />
-                    <p className="font-medium">No audit logs match the current filters.</p>
+                  <td colSpan={7} className="px-6 py-12 text-center text-neutral-400 font-medium">
+                    <History className="w-10 h-10 mx-auto text-neutral-200 mb-2" />
+                    <p className="text-sm">No audit logs match the current filters.</p>
                     {(activeFilterCount > 0 || searchTerm) && (
-                      <button onClick={clearAllFilters} className="mt-2 text-sm text-blue-600 underline">
+                      <button onClick={clearAllFilters} className="mt-2 text-xs text-[#7e2562] font-semibold underline">
                         Clear all filters
                       </button>
                     )}
@@ -566,110 +566,110 @@ export default function AuditLogPage() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
+              className="bg-white rounded-sm border border-neutral-200 shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
             >
-              <div className="p-6 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
+              <div className="p-5 border-b border-neutral-100 bg-[#faf6f9]/50 flex justify-between items-center">
                 <div>
-                  <h3 className="text-xl font-bold text-gray-900">Audit Record Details</h3>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Record ID: <span className="font-mono text-xs">{selectedLog.id}</span>
+                  <h3 className="text-base font-bold text-neutral-900">Audit Record Details</h3>
+                  <p className="text-xs text-neutral-500 mt-0.5">
+                    Record ID: <span className="font-mono text-neutral-700">{selectedLog.id}</span>
                   </p>
                 </div>
                 <button
                   onClick={() => setSelectedLog(null)}
-                  className="text-gray-400 hover:text-gray-500 bg-gray-200/50 hover:bg-gray-200 p-2 rounded-full transition-colors"
+                  className="text-neutral-400 hover:text-neutral-600 bg-neutral-100 hover:bg-neutral-200 p-1.5 rounded-sm transition-colors text-sm"
                 >
                   ✕
                 </button>
               </div>
 
               <div className="p-6 overflow-y-auto flex-1">
-                <div className="grid grid-cols-2 gap-6 mb-8">
-                  <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
-                    <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Context</h4>
-                    <dl className="space-y-2 text-sm">
-                      <div className="flex justify-between"><dt className="text-gray-500">Action:</dt> <dd className="font-medium">{selectedLog.action}</dd></div>
-                      <div className="flex justify-between"><dt className="text-gray-500">Entity:</dt> <dd className="font-medium">{selectedLog.entityType}</dd></div>
-                      <div className="flex justify-between"><dt className="text-gray-500">Entity ID:</dt> <dd className="font-mono text-xs">{selectedLog.entityId}</dd></div>
-                      <div className="flex justify-between"><dt className="text-gray-500">Time:</dt> <dd>{formatDate(selectedLog.createdAt)}</dd></div>
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                  <div className="bg-[#faf6f9]/40 p-4 rounded-sm border border-[#7e2562]/10">
+                    <h4 className="text-[11px] font-bold text-[#7e2562] uppercase tracking-wider mb-2.5">Context</h4>
+                    <dl className="space-y-1.5 text-xs">
+                      <div className="flex justify-between"><dt className="text-neutral-500">Action:</dt> <dd className="font-bold text-neutral-900">{selectedLog.action}</dd></div>
+                      <div className="flex justify-between"><dt className="text-neutral-500">Entity:</dt> <dd className="font-semibold text-neutral-800">{selectedLog.entityType}</dd></div>
+                      <div className="flex justify-between"><dt className="text-neutral-500">Entity ID:</dt> <dd className="font-mono text-[11px] text-neutral-700">{selectedLog.entityId}</dd></div>
+                      <div className="flex justify-between"><dt className="text-neutral-500">Time:</dt> <dd className="text-neutral-700">{formatDate(selectedLog.createdAt)}</dd></div>
                     </dl>
                   </div>
-                  <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
-                    <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Actor</h4>
-                    <dl className="space-y-2 text-sm">
-                      <div className="flex justify-between"><dt className="text-gray-500">Name:</dt> <dd className="font-medium">{selectedLog.user?.name}</dd></div>
-                      <div className="flex justify-between"><dt className="text-gray-500">Email:</dt> <dd>{selectedLog.user?.email}</dd></div>
-                      <div className="flex justify-between"><dt className="text-gray-500">Role:</dt> <dd>{selectedLog.user?.primaryRole}</dd></div>
-                      <div className="flex justify-between"><dt className="text-gray-500">Branch:</dt> <dd>{selectedLog.user?.branch?.name ?? '—'}</dd></div>
-                      <div className="flex justify-between"><dt className="text-gray-500">IP Address:</dt> <dd className="font-mono text-xs">{selectedLog.ipAddress}</dd></div>
+                  <div className="bg-[#faf6f9]/40 p-4 rounded-sm border border-[#7e2562]/10">
+                    <h4 className="text-[11px] font-bold text-[#7e2562] uppercase tracking-wider mb-2.5">Actor</h4>
+                    <dl className="space-y-1.5 text-xs">
+                      <div className="flex justify-between"><dt className="text-neutral-500">Name:</dt> <dd className="font-bold text-neutral-900">{selectedLog.user?.name}</dd></div>
+                      <div className="flex justify-between"><dt className="text-neutral-500">Email:</dt> <dd className="text-neutral-700">{selectedLog.user?.email}</dd></div>
+                      <div className="flex justify-between"><dt className="text-neutral-500">Role:</dt> <dd className="font-semibold text-neutral-800">{selectedLog.user?.primaryRole}</dd></div>
+                      <div className="flex justify-between"><dt className="text-neutral-500">Branch:</dt> <dd className="text-neutral-700">{selectedLog.user?.branch?.name ?? '—'}</dd></div>
+                      <div className="flex justify-between"><dt className="text-neutral-500">IP Address:</dt> <dd className="font-mono text-[11px] text-neutral-700">{selectedLog.ipAddress}</dd></div>
                     </dl>
                   </div>
                 </div>
 
                 {/* ── Human-Readable Data View ── */}
-                <div className="mt-8">
-                  <h4 className="text-sm font-bold text-gray-700 mb-4 flex items-center">
-                    <span className="w-2 h-2 rounded-full bg-blue-500 mr-2"></span>
+                <div>
+                  <h4 className="text-xs font-bold text-[#7e2562] uppercase tracking-wider mb-3 flex items-center">
+                    <span className="w-2 h-2 rounded-sm bg-[#7e2562] mr-2"></span>
                     Data Changes
                   </h4>
                   
                   {(() => {
                     if (!selectedLog.beforeJson && !selectedLog.afterJson) {
-                      return <div className="text-gray-500 italic p-4 bg-gray-50 rounded-xl border border-gray-100">No data changes recorded for this event.</div>;
+                      return <div className="text-neutral-400 italic p-4 bg-neutral-50 rounded-sm border border-neutral-200 text-xs">No data changes recorded for this event.</div>;
                     }
                     
                     const { changes, added, removed, unchanged } = getDiff(selectedLog.beforeJson, selectedLog.afterJson, logs || []);
                     const hasChanges = changes.length > 0 || added.length > 0 || removed.length > 0;
                     
                     return (
-                      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-                        <table className="min-w-full divide-y divide-gray-200">
-                          <thead className="bg-gray-50">
+                      <div className="bg-white border border-neutral-200/80 rounded-sm overflow-hidden shadow-sm">
+                        <table className="w-full divide-y divide-neutral-100 text-xs">
+                          <thead className="bg-[#faf6f9]/70 text-[10px] font-bold text-[#7e2562] uppercase tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
                             <tr>
-                              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/3">Field</th>
+                              <th scope="col" className="px-5 py-2.5 text-left w-1/3">Field</th>
                               {hasChanges ? (
                                 <>
-                                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/3">Old Value</th>
-                                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/3">New Value</th>
+                                  <th scope="col" className="px-5 py-2.5 text-left w-1/3">Old Value</th>
+                                  <th scope="col" className="px-5 py-2.5 text-left w-1/3">New Value</th>
                                 </>
                               ) : (
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-2/3">Value</th>
+                                <th scope="col" className="px-5 py-2.5 text-left w-2/3">Value</th>
                               )}
                             </tr>
                           </thead>
-                          <tbody className="bg-white divide-y divide-gray-100 text-sm">
+                          <tbody className="divide-y divide-neutral-100 text-xs">
                             {/* Modifications */}
                             {changes.map((item, i) => (
-                              <tr key={`change-${i}`} className="hover:bg-gray-50">
-                                <td className="px-6 py-3 font-medium text-gray-900">{item.key}</td>
-                                <td className="px-6 py-3 text-red-600 bg-red-50/30 line-through">{item.old}</td>
-                                <td className="px-6 py-3 text-emerald-600 bg-emerald-50/30 font-medium">{item.new}</td>
+                              <tr key={`change-${i}`} className="hover:bg-[#faf6f9]/30">
+                                <td className="px-5 py-2.5 font-bold text-neutral-900">{item.key}</td>
+                                <td className="px-5 py-2.5 text-[#e45e34] bg-[#fef5f2]/40 line-through font-mono">{item.old}</td>
+                                <td className="px-5 py-2.5 text-[#3cb976] bg-[#f0fbf5]/40 font-bold font-mono">{item.new}</td>
                               </tr>
                             ))}
                             
                             {/* Additions */}
                             {added.map((item, i) => (
-                              <tr key={`add-${i}`} className="hover:bg-gray-50">
-                                <td className="px-6 py-3 font-medium text-gray-900">{item.key}</td>
-                                {hasChanges && <td className="px-6 py-3 text-gray-400 italic">—</td>}
-                                <td className="px-6 py-3 text-emerald-600 bg-emerald-50/30 font-medium">{item.val}</td>
+                              <tr key={`add-${i}`} className="hover:bg-[#faf6f9]/30">
+                                <td className="px-5 py-2.5 font-bold text-neutral-900">{item.key}</td>
+                                {hasChanges && <td className="px-5 py-2.5 text-neutral-400 italic">—</td>}
+                                <td className="px-5 py-2.5 text-[#3cb976] bg-[#f0fbf5]/40 font-bold font-mono">{item.val}</td>
                               </tr>
                             ))}
                             
                             {/* Deletions */}
                             {removed.map((item, i) => (
-                              <tr key={`del-${i}`} className="hover:bg-gray-50">
-                                <td className="px-6 py-3 font-medium text-gray-900">{item.key}</td>
-                                <td className="px-6 py-3 text-red-600 bg-red-50/30 line-through">{item.val}</td>
-                                {hasChanges && <td className="px-6 py-3 text-gray-400 italic">—</td>}
+                              <tr key={`del-${i}`} className="hover:bg-[#faf6f9]/30">
+                                <td className="px-5 py-2.5 font-bold text-neutral-900">{item.key}</td>
+                                <td className="px-5 py-2.5 text-[#e45e34] bg-[#fef5f2]/40 line-through font-mono">{item.val}</td>
+                                {hasChanges && <td className="px-5 py-2.5 text-neutral-400 italic">—</td>}
                               </tr>
                             ))}
                             
                             {/* Unchanged */}
                             {unchanged.map((item, i) => (
-                              <tr key={`unchanged-${i}`} className="hover:bg-gray-50">
-                                <td className="px-6 py-3 text-gray-500">{item.key}</td>
-                                <td className="px-6 py-3 text-gray-600" colSpan={hasChanges ? 2 : 1}>{item.val}</td>
+                              <tr key={`unchanged-${i}`} className="hover:bg-[#faf6f9]/30">
+                                <td className="px-5 py-2.5 text-neutral-500">{item.key}</td>
+                                <td className="px-5 py-2.5 text-neutral-700" colSpan={hasChanges ? 2 : 1}>{item.val}</td>
                               </tr>
                             ))}
                           </tbody>

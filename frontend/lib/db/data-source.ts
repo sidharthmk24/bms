@@ -30,7 +30,7 @@ async function createDataSource(): Promise<DataSource> {
     password: process.env.DB_PASSWORD || '',
     database: process.env.DB_NAME || 'bms_db',
     ssl: process.env.DB_HOST?.includes('tidbcloud') ? { rejectUnauthorized: true } : undefined,
-    synchronize: process.env.DB_SYNCHRONIZE === 'true',
+    synchronize: process.env.DB_SYNCHRONIZE === 'false',
     logging: false,
     entities,
     subscribers: [],

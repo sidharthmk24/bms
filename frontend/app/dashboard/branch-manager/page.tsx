@@ -19,11 +19,11 @@ import { Dropdown } from '@/components/Dropdown';
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-white p-3 border border-gray-100 shadow-lg rounded-lg">
-        <p className="text-sm text-gray-900 font-medium mb-1">
+      <div className="bg-white p-3 border border-[#7e2562]/20 shadow-md rounded-sm">
+        <p className="text-xs text-gray-500 font-semibold mb-1 uppercase tracking-wider">
           {new Date(label).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
         </p>
-        <p className="text-sm font-semibold text-purple-600">
+        <p className="text-sm font-bold text-[#7e2562]">
           Profit : ₹{payload[0].value.toFixed(2)}
         </p>
       </div>
@@ -39,13 +39,13 @@ export default function BranchManagerDashboard() {
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        <Loader2 className="h-8 w-8 animate-spin text-[#7e2562]" />
       </div>
     );
   }
 
   if (error) {
-    return <div className="text-red-500 bg-red-50 p-4 rounded-lg">Error: {error}</div>;
+    return <div className="text-[#e45e34] bg-[#fef5f2] p-4 rounded-sm border border-[#e45e34]/20 font-medium">Error: {error}</div>;
   }
 
   return (
@@ -68,9 +68,9 @@ export default function BranchManagerDashboard() {
       </div>
 
       {data?.trendData && data.trendData.length > 0 && (
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+        <div className="bg-white p-6 rounded-sm shadow-xs border border-gray-200">
           <div className="flex justify-between items-center mb-6">
-            <h3 className="text-lg font-semibold text-gray-600">Profit Trend</h3>
+            <h3 className="text-base font-bold text-gray-800">Profit Trend</h3>
           </div>
           <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -100,16 +100,16 @@ export default function BranchManagerDashboard() {
                 />
                 <Tooltip 
                   content={<CustomTooltip />}
-                  cursor={{ stroke: '#e5e7eb', strokeWidth: 2 }}
+                  cursor={{ stroke: '#faedf5', strokeWidth: 2 }}
                 />
-                <ReferenceLine y={0} stroke="#e5e7eb" />
+                <ReferenceLine y={0} stroke="#f3e8f0" />
                 <Line 
                   type="monotone" 
                   dataKey="profit" 
-                  stroke="#9333ea" 
+                  stroke="#7e2562" 
                   strokeWidth={3}
                   dot={false}
-                  activeDot={{ r: 6, fill: "#9333ea", stroke: "#fff", strokeWidth: 2 }}
+                  activeDot={{ r: 6, fill: "#7e2562", stroke: "#fff", strokeWidth: 2 }}
                 />
               </LineChart>
             </ResponsiveContainer>

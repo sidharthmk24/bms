@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useConfirm } from '@/contexts/ConfirmContext';
 import { useApiData } from '@/hooks/useApiData';
 import { api } from '@/lib/api';
 import { Loader2, Plus, Store, MapPin, Mail, Phone, Edit2 } from 'lucide-react';
@@ -11,6 +12,7 @@ import { Dropdown } from '@/components/Dropdown';
 
 export default function BranchesManagementPage() {
   const { user } = useAuth();
+  const confirm = useConfirm();
   const isSuperAdmin = user?.roles?.includes('SUPER_ADMIN') || user?.roles?.includes('ADMIN');
 
   const { data: branchesResponse, loading } = useApiData<any>('/branches', []);
@@ -53,6 +55,17 @@ export default function BranchesManagementPage() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    const ok = await confirm({
+      title: editingBranch ? "Update Branch" : "Create New Branch",
+      message: editingBranch 
+        ? `Are you sure you want to update the details for "${formData.name}"?`
+        : `Are you sure you want to create new branch "${formData.name}" (${formData.type})?`,
+      confirmText: editingBranch ? "Yes, Update" : "Yes, Create Branch",
+      cancelText: "No, Cancel",
+      variant: "primary",
+    });
+    if (!ok) return;
+
     setIsSubmitting(true);
     try {
       const payload = {
@@ -81,12 +94,12 @@ export default function BranchesManagementPage() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-gray-900">Branch Management</h2>
-          <p className="text-sm text-gray-500">Manage physical bookstore locations across the enterprise.</p>
+          <h2 className="text-2xl font-bold tracking-tight text-neutral-900">Branch Management</h2>
+          <p className="text-sm text-neutral-500">Manage physical bookstore locations across the enterprise.</p>
         </div>
         <button
           onClick={() => openModal()}
-          className="flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+          className="flex items-center px-4 py-2 text-sm font-semibold text-white bg-[#7e2562] rounded-sm hover:bg-[#681b50] active:scale-95 transition-all shadow-sm shadow-plum-sm"
         >
           <Plus className="w-4 h-4 mr-2" />
           Add Branch
@@ -95,35 +108,53 @@ export default function BranchesManagementPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {loading ? (
-          <div className="col-span-full p-10 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-blue-600"/></div>
+          <div className="col-span-full p-10 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-[#7e2562]"/></div>
         ) : (
           branchesList.map((b: any) => (
-            <div key={b.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
-              <div className="p-5 border-b border-gray-100 bg-gray-50 flex justify-between items-start">
-                <div className="flex items-center">
-                  <Store className={`w-5 h-5 mr-2 ${b.isActive !== false ? 'text-blue-600' : 'text-gray-400'}`} />
-                  <h3 className={`font-bold ${b.isActive !== false ? 'text-gray-900' : 'text-gray-400 line-through'}`}>{b.name}</h3>
-                  {b.isActive === false && (
-                    <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+            <div key={b.id} className="bg-white rounded-sm shadow-sm border border-[#7e2562]/15 overflow-hidden hover:shadow-md transition-shadow">
+              <div className="p-4 border-b border-[#7e2562]/10 bg-[#faf6f9]/70 flex justify-between items-start">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-sm bg-[#faedf5] flex items-center justify-center text-[#7e2562]">
+                    <Store className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className={`font-bold text-sm ${b.isActive !== false ? 'text-neutral-900' : 'text-neutral-400 line-through'}`}>{b.name}</h3>
+                    <span className="text-[11px] font-mono text-neutral-500">{b.code || 'N/A'}</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {b.isActive !== false ? (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wider bg-[#f0fbf5] text-[#3cb976] border border-[#3cb976]/20">
+                      Active
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wider bg-[#fef5f2] text-[#e45e34] border border-[#e45e34]/20">
                       Inactive
                     </span>
                   )}
-                </div>
-                <button onClick={() => openModal(b)} className="text-gray-400 hover:text-blue-600">
-                  <Edit2 className="w-4 h-4" />
-                </button>
-              </div>
-              <div className="p-5 space-y-3">
-                <div className="flex items-start text-sm text-gray-600">
-                  <Store className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0 text-gray-400" />
-                  <span>Type: <span className="font-medium text-gray-900">{b.type || 'STORE'}</span></span>
-                </div>
-                <div className="flex items-center text-sm text-gray-600">
-                  <MapPin className="w-4 h-4 mr-2 flex-shrink-0 text-gray-400" />
-                  <span>Code: <span className="font-medium text-gray-900">{b.code || 'N/A'}</span></span>
+                  <button onClick={() => openModal(b)} className="text-neutral-400 hover:text-[#7e2562] p-1 transition-colors">
+                    <Edit2 className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
-              <div className="bg-gray-50 px-5 py-3 border-t border-gray-100 text-xs text-gray-500">
+              <div className="p-4 space-y-2.5 text-xs text-neutral-600">
+                <div className="flex items-center justify-between">
+                  <span className="text-neutral-500">Type</span>
+                  <span className="font-semibold text-neutral-900 bg-neutral-100 px-2 py-0.5 rounded-sm">{b.type || 'STORE'}</span>
+                </div>
+                {b.city && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-neutral-500">City</span>
+                    <span className="font-medium text-neutral-800">{b.city}</span>
+                  </div>
+                )}
+                {b.address && (
+                  <div className="text-[11px] text-neutral-500 pt-1 border-t border-neutral-100 line-clamp-2">
+                    {b.address}
+                  </div>
+                )}
+              </div>
+              <div className="bg-[#faf6f9]/40 px-4 py-2.5 border-t border-[#7e2562]/10 text-[11px] text-neutral-500">
                 Created: {new Date(b.createdAt).toLocaleDateString()}
               </div>
             </div>
@@ -134,28 +165,28 @@ export default function BranchesManagementPage() {
       <AnimatePresence>
         {isModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
-              <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center"><Store className="w-5 h-5 mr-2 text-blue-600"/> {editingBranch ? 'Edit Branch' : 'Register New Branch'}</h3>
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-sm shadow-xl w-full max-w-md p-6 border border-[#7e2562]/20">
+              <h3 className="text-lg font-bold text-neutral-900 mb-4 flex items-center"><Store className="w-5 h-5 mr-2 text-[#7e2562]"/> {editingBranch ? 'Edit Branch' : 'Register New Branch'}</h3>
               
               <form onSubmit={handleSave} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Branch Name *</label>
-                  <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="e.g. Downtown Central" className="block w-full px-3 py-2 border rounded-lg sm:text-sm" />
+                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-600 mb-1">Branch Name *</label>
+                  <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="e.g. Downtown Central" className="block w-full px-3 py-2 border border-[#7e2562]/20 rounded-sm text-sm focus:outline-none focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Branch Code *</label>
-                  <input required type="text" value={formData.code} onChange={e => setFormData({...formData, code: e.target.value})} placeholder="e.g. DWTN-01" className="block w-full px-3 py-2 border rounded-lg sm:text-sm" />
+                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-600 mb-1">Branch Code *</label>
+                  <input required type="text" value={formData.code} onChange={e => setFormData({...formData, code: e.target.value})} placeholder="e.g. DWTN-01" className="block w-full px-3 py-2 border border-[#7e2562]/20 rounded-sm text-sm focus:outline-none focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
-                  <input type="text" value={formData.city} onChange={e => setFormData({...formData, city: e.target.value})} placeholder="e.g. Mumbai" className="block w-full px-3 py-2 border rounded-lg sm:text-sm" />
+                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-600 mb-1">City</label>
+                  <input type="text" value={formData.city} onChange={e => setFormData({...formData, city: e.target.value})} placeholder="e.g. Mumbai" className="block w-full px-3 py-2 border border-[#7e2562]/20 rounded-sm text-sm focus:outline-none focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
-                  <textarea value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} placeholder="Full street address..." className="block w-full px-3 py-2 border rounded-lg sm:text-sm" rows={2} />
+                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-600 mb-1">Address</label>
+                  <textarea value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} placeholder="Full street address..." className="block w-full px-3 py-2 border border-[#7e2562]/20 rounded-sm text-sm focus:outline-none focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" rows={2} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Branch Type *</label>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-600 mb-1">Branch Type *</label>
                   <Dropdown
                     value={formData.type}
                     onChange={(val) => setFormData({...formData, type: val})}
@@ -173,17 +204,17 @@ export default function BranchesManagementPage() {
                       type="checkbox"
                       checked={formData.isActive}
                       onChange={e => setFormData({...formData, isActive: e.target.checked})}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      className="h-4 w-4 text-[#7e2562] focus:ring-[#7e2562] border-neutral-300 rounded-sm"
                     />
-                    <label htmlFor="isActive" className="ml-2 block text-sm text-gray-900">
+                    <label htmlFor="isActive" className="ml-2 block text-xs font-medium text-neutral-800">
                       Active (Uncheck to deactivate branch)
                     </label>
                   </div>
                 )}
 
-                <div className="flex justify-end space-x-3 mt-6 pt-4 border-t">
-                  <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
-                  <button type="submit" disabled={isSubmitting} className="flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-neutral-100">
+                  <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-neutral-700 bg-white border border-neutral-300 rounded-sm hover:bg-neutral-50 transition-colors">Cancel</button>
+                  <button type="submit" disabled={isSubmitting} className="flex items-center px-4 py-2 text-xs font-bold uppercase tracking-wider text-white bg-[#7e2562] rounded-sm hover:bg-[#681b50] disabled:opacity-50 transition-colors shadow-sm shadow-plum-sm">
                     {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                     Save Branch
                   </button>

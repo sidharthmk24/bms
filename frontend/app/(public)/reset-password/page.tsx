@@ -72,7 +72,7 @@ function ResetPasswordForm() {
   if (!token) {
     return (
       <div className="text-center py-6 space-y-4">
-        <div className="h-12 w-12 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto ring-4 ring-amber-50">
+        <div className="h-12 w-12 bg-amber-50 text-amber-700 rounded-full flex items-center justify-center mx-auto ring-4 ring-amber-100 border border-amber-200">
           <ShieldAlert className="h-6 w-6" />
         </div>
         <div>
@@ -84,7 +84,7 @@ function ResetPasswordForm() {
         <div className="pt-2">
           <Link
             href="/login"
-            className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-500/20 hover:bg-blue-700 transition-colors"
+            className="inline-flex items-center justify-center rounded-sm bg-[#7e2562] px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-[#7e2562]/20 hover:bg-[#681b50] transition-colors"
           >
             Go to Sign In
           </Link>
@@ -101,7 +101,7 @@ function ResetPasswordForm() {
         animate={{ opacity: 1, scale: 1 }}
         className="text-center py-6 space-y-4"
       >
-        <div className="h-12 w-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto ring-4 ring-green-50">
+        <div className="h-12 w-12 bg-[#f0fbf5] text-[#3cb976] rounded-full flex items-center justify-center mx-auto ring-4 ring-[#3cb976]/20 border border-[#3cb976]/30">
           <CheckCircle2 className="h-6 w-6" />
         </div>
         <div>
@@ -113,7 +113,7 @@ function ResetPasswordForm() {
         <div className="pt-3">
           <Link
             href="/login"
-            className="w-full inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-500/20 hover:bg-blue-700 active:scale-[0.99] transition-all"
+            className="w-full inline-flex items-center justify-center rounded-sm bg-[#7e2562] px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-[#7e2562]/20 hover:bg-[#681b50] active:scale-[0.99] transition-all"
           >
             Proceed to Sign In
             <ArrowRight className="h-4 w-4 ml-1.5" />
@@ -132,19 +132,19 @@ function ResetPasswordForm() {
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
-            className="bg-red-50/90 border border-red-200 rounded-xl p-3.5 flex items-start text-red-700 shadow-sm"
+            className="bg-[#fef5f2] border border-[#e45e34]/20 rounded-sm p-3.5 flex items-start text-[#e45e34] shadow-xs"
           >
-            <AlertCircle className="h-5 w-5 text-red-500 mt-0.5 mr-2.5 shrink-0" />
-            <p className="text-sm font-medium">{error}</p>
+            <AlertCircle className="h-5 w-5 text-[#e45e34] mt-0.5 mr-2.5 shrink-0" />
+            <p className="text-sm font-semibold">{error}</p>
           </motion.div>
         )}
       </AnimatePresence>
 
       <div>
-        <label htmlFor="new-password" className="block text-sm font-semibold text-gray-700 mb-1.5">
+        <label htmlFor="new-password" className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
           New Password
         </label>
-        <div className="relative rounded-lg shadow-sm">
+        <div className="relative rounded-sm shadow-xs">
           <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
             <KeyRound className="h-5 w-5" />
           </div>
@@ -157,7 +157,7 @@ function ResetPasswordForm() {
             placeholder="At least 6 characters"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="block w-full rounded-xl border border-gray-300 pl-10 pr-11 py-2.5 text-gray-900 text-sm focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-all outline-none"
+            className="block w-full rounded-sm border border-gray-300 pl-10 pr-11 py-2.5 text-gray-900 text-sm focus:ring-2 focus:ring-[#7e2562] focus:border-[#7e2562] transition-all outline-none"
             autoFocus
           />
           <button
@@ -171,10 +171,10 @@ function ResetPasswordForm() {
       </div>
 
       <div>
-        <label htmlFor="confirm-password" className="block text-sm font-semibold text-gray-700 mb-1.5">
+        <label htmlFor="confirm-password" className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
           Confirm New Password
         </label>
-        <div className="relative rounded-lg shadow-sm">
+        <div className="relative rounded-sm shadow-xs">
           <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
             <KeyRound className="h-5 w-5" />
           </div>
@@ -187,7 +187,7 @@ function ResetPasswordForm() {
             placeholder="Re-enter your new password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
-            className="block w-full rounded-xl border border-gray-300 pl-10 pr-11 py-2.5 text-gray-900 text-sm focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-all outline-none"
+            className="block w-full rounded-sm border border-gray-300 pl-10 pr-11 py-2.5 text-gray-900 text-sm focus:ring-2 focus:ring-[#7e2562] focus:border-[#7e2562] transition-all outline-none"
           />
           <button
             type="button"
@@ -201,11 +201,11 @@ function ResetPasswordForm() {
 
       <div className="space-y-1">
         <div className="flex items-center text-xs text-gray-500">
-          <div className={`h-1.5 w-1.5 rounded-full mr-2 ${password.length >= 6 ? 'bg-green-500' : 'bg-gray-300'}`} />
+          <div className={`h-1.5 w-1.5 rounded-full mr-2 ${password.length >= 6 ? 'bg-[#3cb976]' : 'bg-gray-300'}`} />
           <span>Minimum 6 characters</span>
         </div>
         <div className="flex items-center text-xs text-gray-500">
-          <div className={`h-1.5 w-1.5 rounded-full mr-2 ${password && password === confirmPassword ? 'bg-green-500' : 'bg-gray-300'}`} />
+          <div className={`h-1.5 w-1.5 rounded-full mr-2 ${password && password === confirmPassword ? 'bg-[#3cb976]' : 'bg-gray-300'}`} />
           <span>Passwords match</span>
         </div>
       </div>
@@ -213,7 +213,7 @@ function ResetPasswordForm() {
       <button
         type="submit"
         disabled={loading || password.length < 6 || password !== confirmPassword}
-        className="w-full flex justify-center items-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-500/20 hover:bg-blue-700 active:scale-[0.99] transition-all disabled:opacity-60 disabled:cursor-not-allowed disabled:shadow-none"
+        className="w-full flex justify-center items-center rounded-sm bg-[#7e2562] px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-[#7e2562]/20 hover:bg-[#681b50] active:scale-[0.99] transition-all disabled:opacity-60 disabled:cursor-not-allowed disabled:shadow-none"
       >
         {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Set New Password'}
       </button>
@@ -221,7 +221,7 @@ function ResetPasswordForm() {
       <div className="text-center pt-1">
         <Link
           href="/login"
-          className="text-xs font-semibold text-gray-500 hover:text-gray-800 transition-colors"
+          className="text-xs font-semibold text-[#7e2562] hover:text-[#681b50] transition-colors"
         >
           &larr; Back to sign in
         </Link>
@@ -232,10 +232,10 @@ function ResetPasswordForm() {
 
 export default function ResetPasswordPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/40 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-br from-[#faedf5]/40 via-white to-[#faf6f9] flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="flex justify-center">
-          <div className="h-14 w-14 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/25 ring-4 ring-white">
+          <div className="h-14 w-14 bg-gradient-to-tr from-[#50133c] to-[#7e2562] rounded-sm flex items-center justify-center shadow-lg shadow-[#7e2562]/20 ring-4 ring-white">
             <BookOpen className="h-7 w-7 text-white" />
           </div>
         </div>
@@ -250,9 +250,9 @@ export default function ResetPasswordPage() {
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-5 sm:px-10 shadow-xl shadow-slate-200/60 rounded-2xl border border-gray-100 relative overflow-hidden">
-          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500" />
-          <Suspense fallback={<div className="p-8 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-blue-600" /></div>}>
+        <div className="bg-white py-8 px-5 sm:px-10 shadow-xl shadow-slate-200/60 rounded-sm border border-[#7e2562]/10 relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-[#50133c] via-[#7e2562] to-[#9b3179]" />
+          <Suspense fallback={<div className="p-8 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-[#7e2562]" /></div>}>
             <ResetPasswordForm />
           </Suspense>
         </div>

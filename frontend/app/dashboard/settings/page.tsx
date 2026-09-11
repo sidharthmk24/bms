@@ -60,14 +60,14 @@ export default function SettingsPage() {
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        <Loader2 className="h-8 w-8 animate-spin text-[#7e2562]" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="bg-red-50 text-red-600 p-4 rounded-lg flex items-center">
+      <div className="bg-[#fef5f2] text-[#e45e34] p-4 rounded-sm border border-[#e45e34]/20 flex items-center">
         <AlertCircle className="w-5 h-5 mr-2" />
         {error}
       </div>
@@ -78,7 +78,7 @@ export default function SettingsPage() {
   if ((!user?.roles?.includes(''))) {
     return (
       <div className="flex flex-col items-center justify-center h-96 text-center">
-        <Shield className="w-16 h-16 text-red-500 mb-4" />
+        <Shield className="w-16 h-16 text-[#e45e34] mb-4" />
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h2>
         <p className="text-gray-500 max-w-md">
           System Settings are a restricted area. Only Super Administrators can view and modify global configuration parameters.
@@ -94,14 +94,14 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6">
       {/* Header section explaining what this page is */}
-      <div className="bg-gradient-to-r from-indigo-900 to-purple-800 rounded-2xl p-8 text-white shadow-lg">
+      <div className="bg-gradient-to-r from-[#50133c] to-[#7e2562] rounded-sm p-8 text-white shadow-md border border-[#7e2562]/20">
         <div className="flex items-start space-x-4">
-          <div className="p-3 bg-white/10 rounded-xl">
-            <Settings2 className="w-8 h-8 text-purple-300" />
+          <div className="p-3 bg-white/10 rounded-sm border border-white/15 backdrop-blur-xs">
+            <Settings2 className="w-8 h-8 text-[#faedf5]" />
           </div>
           <div>
             <h2 className="text-2xl font-bold tracking-tight">System Settings</h2>
-            <p className="text-indigo-200 mt-2 max-w-2xl leading-relaxed">
+            <p className="text-[#faedf5]/85 mt-2 max-w-2xl leading-relaxed text-sm">
               Global Configuration Variables control how the entire Bookstore Management System operates. 
               Changes here affect all branches globally. You can configure things like allowed payment modes, default restock thresholds, currency symbols, and invoice prefixes.
             </p>
@@ -111,17 +111,17 @@ export default function SettingsPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {(settings || []).map((setting) => (
-          <div key={setting.key} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col">
+          <div key={setting.key} className="bg-white rounded-sm shadow-xs border border-gray-200 p-6 flex flex-col">
             <div className="flex justify-between items-start mb-4">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">{formatKeyName(setting.key)}</h3>
-                <p className="text-xs font-mono text-gray-500 mt-1">{setting.key}</p>
+                <h3 className="text-base font-bold text-gray-900">{formatKeyName(setting.key)}</h3>
+                <p className="text-xs font-mono text-[#7e2562] mt-0.5 font-medium">{setting.key}</p>
               </div>
               
               {editingKey !== setting.key ? (
                 <button
                   onClick={() => handleEditClick(setting)}
-                  className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                  className="text-[#7e2562] hover:text-[#681b50] text-sm font-bold hover:underline"
                 >
                   Edit
                 </button>
@@ -129,24 +129,24 @@ export default function SettingsPage() {
                 <div className="flex space-x-2">
                   <button
                     onClick={() => setEditingKey(null)}
-                    className="text-gray-500 hover:text-gray-700 text-sm font-medium"
+                    className="text-gray-500 hover:text-gray-700 text-sm font-semibold px-2 py-1 rounded-sm hover:bg-gray-100 transition-colors"
                     disabled={isSubmitting}
                   >
                     Cancel
                   </button>
                   <button
                     onClick={() => handleSave(setting.key)}
-                    className="text-white bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded-md text-sm font-medium flex items-center"
+                    className="text-white bg-[#7e2562] hover:bg-[#681b50] px-3 py-1 rounded-sm text-sm font-semibold flex items-center transition-colors shadow-xs"
                     disabled={isSubmitting}
                   >
-                    {isSubmitting ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Save className="w-3 h-3 mr-1" />}
+                    {isSubmitting ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Save className="w-3.5 h-3.5 mr-1.5" />}
                     Save
                   </button>
                 </div>
               )}
             </div>
 
-            <div className="flex-1 bg-gray-50 rounded-lg border border-gray-100 p-4">
+            <div className="flex-1 bg-gray-50/70 rounded-sm border border-gray-200/70 p-4">
               <AnimatePresence mode="wait">
                 {editingKey === setting.key ? (
                   <motion.div
@@ -159,17 +159,17 @@ export default function SettingsPage() {
                       <textarea
                         value={editValue}
                         onChange={(e) => setEditValue(e.target.value)}
-                        className="w-full h-32 p-2 border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 text-sm font-mono"
+                        className="w-full h-32 p-2 border border-gray-300 rounded-sm focus:border-[#7e2562] focus:ring-1 focus:ring-[#7e2562] outline-none text-sm font-mono bg-white"
                       />
                     ) : (
                       <input
                         type="text"
                         value={editValue}
                         onChange={(e) => setEditValue(e.target.value)}
-                        className="w-full p-2 border border-blue-300 rounded focus:ring-2 focus:ring-blue-500 text-sm"
+                        className="w-full p-2 border border-gray-300 rounded-sm focus:border-[#7e2562] focus:ring-1 focus:ring-[#7e2562] outline-none text-sm bg-white"
                       />
                     )}
-                    <p className="text-xs text-blue-600 mt-2">
+                    <p className="text-xs text-[#7e2562] mt-2 font-medium">
                       {typeof setting.value === 'object' ? 'Ensure you use valid JSON format (e.g., ["CASH", "UPI"]).' : 'Enter the new value.'}
                     </p>
                   </motion.div>
@@ -185,7 +185,7 @@ export default function SettingsPage() {
                         {JSON.stringify(setting.value, null, 2)}
                       </pre>
                     ) : (
-                      <span className="text-lg font-medium text-gray-900">
+                      <span className="text-base font-semibold text-gray-900">
                         {String(setting.value)}
                       </span>
                     )}

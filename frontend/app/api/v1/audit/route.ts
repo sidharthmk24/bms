@@ -7,6 +7,6 @@ import { UserRole } from '@/lib/api-backend/users/enums/user-role.enum';
 const auditService = new AuditService();
 export const GET = withRoles([UserRole.SUPER_ADMIN], async (req) => {
   const url = new URL(req.url);
-  const limit = Number(url.searchParams.get('limit')) || 100;
-  return apiSuccess(await auditService.findAll(limit));
+  const query = Object.fromEntries(url.searchParams.entries());
+  return apiSuccess(await auditService.findAll(query));
 });

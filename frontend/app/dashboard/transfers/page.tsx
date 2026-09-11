@@ -32,7 +32,7 @@ export default function StockTransfersPage() {
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(20);
 
   // Modals state
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -95,26 +95,26 @@ export default function StockTransfersPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'PENDING':
-        return 'bg-amber-50 text-amber-700 border-amber-200';
+        return 'bg-[#fffbeb] text-[#b45309] border-[#fde68a]';
       case 'DISPATCHED':
-        return 'bg-sky-50 text-sky-700 border-sky-200 animate-pulse';
+        return 'bg-[#faedf5] text-primary border-primary/20 animate-pulse';
       case 'RECEIVED':
-        return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+        return 'bg-[#f0fbf5] text-[#22794d] border-[#bcecd2]';
       case 'REJECTED':
-        return 'bg-rose-50 text-rose-700 border-rose-200';
+        return 'bg-[#fef5f2] text-danger border-[#fbd5c9]';
       case 'CANCELLED':
-        return 'bg-slate-100 text-slate-600 border-slate-200';
+        return 'bg-[#faf6f9] text-muted-foreground border-[#ece3ea]';
       default:
-        return 'bg-slate-50 text-slate-700 border-slate-200';
+        return 'bg-[#faf6f9] text-muted-foreground border-[#ece3ea]';
     }
   };
 
   // Filter transfers by search query locally
   const filteredTransfers = transfers.filter((t) => {
-    const bookTitles = t.items?.map((i: any) => i.book?.title || '').join(' ') || '';
-    const isbns = t.items?.map((i: any) => i.book?.isbn || '').join(' ') || '';
-    const barcodes = t.items?.map((i: any) => i.book?.barcode || '').join(' ') || '';
-    const authors = t.items?.map((i: any) => i.book?.author?.name || '').join(' ') || '';
+    const bookTitles = t.items?.map((i: any) => i.book?.title).join(' ') || '';
+    const isbns = t.items?.map((i: any) => i.book?.isbn).join(' ') || '';
+    const barcodes = t.items?.map((i: any) => i.book?.barcode).join(' ') || '';
+    const authors = t.items?.map((i: any) => i.book?.author?.name).join(' ') || '';
     return matchKeywords(
       searchQuery,
       t.transferNumber,
@@ -134,13 +134,13 @@ export default function StockTransfersPage() {
       {/* Top Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Stock Transfers</h2>
-          <p className="text-sm text-slate-500 mt-0.5">Request, dispatch, and track book stock exchanges between retail branches and warehouse</p>
+          <h2 className="text-2xl font-bold text-foreground tracking-tight">Stock Transfers</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">Request, dispatch, and track book stock exchanges between retail branches and warehouse</p>
         </div>
         <div className="flex items-center space-x-3 shrink-0">
           <button
             onClick={() => fetchTransfers()}
-            className="p-2.5 border border-slate-200 hover:bg-slate-50 rounded-xl text-slate-500 hover:text-slate-700 transition"
+            className="p-2 border border-[#7e2562]/15 hover:bg-[#faedf5] rounded-sm text-muted-foreground hover:text-primary transition cursor-pointer"
             title="Refresh list"
           >
             <RefreshCw className="w-4 h-4" />
@@ -149,7 +149,7 @@ export default function StockTransfersPage() {
           {user?.roles?.some(r => ['SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'BRANCH_INVENTORY', 'CENTRAL_INVENTORY_MANAGER'].includes(r)) && (
             <button
               onClick={() => setIsCreateOpen(true)}
-              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl shadow-md shadow-blue-500/10 flex items-center space-x-2 transition"
+              className="apple-button px-4 py-2 bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-sm shadow-plum-sm flex items-center space-x-2 transition cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               <span>Request Transfer</span>
@@ -159,7 +159,7 @@ export default function StockTransfersPage() {
       </div>
 
       {/* Filters & Tabs */}
-      <div className="bg-white border border-slate-200/60 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-[0_4px_24px_rgba(0,0,0,0.02)]">
+      <div className="bg-white border border-[#7e2562]/15 rounded-sm p-3 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-plum-sm">
         {/* Status filter tabs */}
         <div className="flex items-center space-x-1.5 overflow-x-auto shrink-0 pb-1 md:pb-0">
           {[
@@ -176,10 +176,10 @@ export default function StockTransfersPage() {
                 setStatusFilter(tab.value);
                 setCurrentPage(1);
               }}
-              className={`px-4 py-2 text-xs font-semibold rounded-lg border transition whitespace-nowrap ${
+              className={`px-3.5 py-1.5 text-xs font-bold rounded-sm border transition whitespace-nowrap cursor-pointer ${
                 statusFilter === tab.value
-                  ? 'bg-blue-600 border-blue-600 text-white font-bold shadow-md shadow-blue-500/10'
-                  : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100/70'
+                  ? 'bg-primary text-white border-primary shadow-plum-sm'
+                  : 'bg-white text-muted-foreground border-transparent hover:bg-[#faedf5] hover:text-primary'
               }`}
             >
               {tab.label}
@@ -188,79 +188,79 @@ export default function StockTransfersPage() {
         </div>
 
         {/* Search */}
-        <div className="relative md:w-64 w-full">
+        <div className="relative w-full md:w-72">
           <input
             type="text"
-            placeholder="Search ID, branch, book, keywords..."
+            placeholder="Search transfer #, branch, books..."
             value={searchQuery}
             onChange={(e) => {
               setSearchQuery(e.target.value);
               setCurrentPage(1);
             }}
-            className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full pl-9 pr-4 py-1.5 border border-[#7e2562]/15 rounded-sm text-xs font-medium text-foreground bg-white focus:outline-none focus:ring-2 focus:ring-[#7e2562]/10 focus:border-primary"
           />
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+          <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-2.5" />
         </div>
       </div>
 
       {/* Main List */}
       {error && (
-        <div className="p-4 bg-rose-50 border border-rose-100 rounded-2xl text-rose-600 text-sm font-semibold flex items-center space-x-2">
-          <AlertCircle className="w-5 h-5 text-rose-500 shrink-0" />
+        <div className="p-4 bg-[#fef5f2] border border-[#fbd5c9] rounded-sm text-danger text-xs font-semibold flex items-center space-x-2">
+          <AlertCircle className="w-4 h-4 text-danger shrink-0" />
           <span>{error}</span>
         </div>
       )}
 
       {loading ? (
-        <div className="bg-white border border-slate-200/60 rounded-2xl py-24 flex flex-col items-center justify-center space-y-4 shadow-[0_4px_24px_rgba(0,0,0,0.02)]">
-          <Loader2 className="w-10 h-10 animate-spin text-blue-500" />
-          <p className="text-sm font-semibold text-slate-400">Loading transfers list...</p>
+        <div className="bg-white border border-[#7e2562]/15 rounded-sm py-24 flex flex-col items-center justify-center space-y-3 shadow-plum-sm">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <p className="text-xs font-semibold text-muted-foreground">Loading transfers list...</p>
         </div>
       ) : filteredTransfers.length === 0 ? (
-        <div className="bg-white border border-slate-200/60 rounded-2xl py-24 text-center space-y-4 shadow-[0_4px_24px_rgba(0,0,0,0.02)]">
-          <div className="p-4 bg-slate-50 rounded-full inline-block">
-            <ArrowLeftRight className="w-8 h-8 text-slate-300" />
+        <div className="bg-white border border-[#7e2562]/15 rounded-sm py-24 text-center space-y-3 shadow-plum-sm">
+          <div className="p-3 bg-[#faedf5] rounded-full inline-block">
+            <ArrowLeftRight className="w-6 h-6 text-primary" />
           </div>
           <div>
-            <h4 className="text-base font-bold text-slate-700">No stock transfers found</h4>
-            <p className="text-xs text-slate-400 mt-1 max-w-[20rem] mx-auto">
+            <h4 className="text-sm font-bold text-foreground">No stock transfers found</h4>
+            <p className="text-xs text-muted-foreground mt-1 max-w-[20rem] mx-auto">
               There are no stock transfer requests matching your query or branch scope.
             </p>
           </div>
         </div>
       ) : (
-        <div className="bg-white border border-slate-200/60 rounded-2xl overflow-hidden shadow-[0_4px_24px_rgba(0,0,0,0.02)]">
+        <div className="bg-white border border-[#7e2562]/15 rounded-sm overflow-hidden shadow-plum-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200/60 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
-                  <th className="px-6 py-4">Transfer Number</th>
-                  <th className="px-6 py-4">Source (From)</th>
-                  <th className="px-6 py-4">Destination (To)</th>
-                  <th className="px-6 py-4">Requester</th>
-                  <th className="px-6 py-4">Items count</th>
-                  <th className="px-6 py-4">Status</th>
-                  <th className="px-6 py-4">Requested Date</th>
-                  <th className="px-6 py-4 text-center">Action</th>
+                <tr className="bg-[#faf6f9]/60 border-b border-[#7e2562]/10 text-muted-foreground text-xs font-bold uppercase tracking-wider">
+                  <th className="px-6 py-4 whitespace-nowrap">Transfer Number</th>
+                  <th className="px-6 py-4 whitespace-nowrap">Source (From)</th>
+                  <th className="px-6 py-4 whitespace-nowrap">Destination (To)</th>
+                  <th className="px-6 py-4 whitespace-nowrap">Requester</th>
+                  <th className="px-6 py-4 whitespace-nowrap">Items count</th>
+                  <th className="px-6 py-4 whitespace-nowrap">Status</th>
+                  <th className="px-6 py-4 whitespace-nowrap">Requested Date</th>
+                  <th className="px-6 py-4 text-center whitespace-nowrap">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 text-sm text-slate-600">
+              <tbody className="divide-y divide-[#7e2562]/8 text-xs text-foreground">
                 {filteredTransfers.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((t) => (
                   <tr
                     key={t.id}
-                    className="hover:bg-slate-50/50 transition duration-150"
+                    className="hover:bg-[#faf6f9]/60 transition duration-150"
                   >
-                    <td className="px-6 py-4 font-mono font-bold text-slate-800">{t.transferNumber}</td>
-                    <td className="px-6 py-4 font-semibold text-slate-700">{t.fromBranch.name}</td>
-                    <td className="px-6 py-4 font-semibold text-slate-700">{t.toBranch.name}</td>
-                    <td className="px-6 py-4">{t.requestedBy?.name || 'BMS Staff'}</td>
-                    <td className="px-6 py-4 font-semibold">{t.items?.length || 0} books</td>
-                    <td className="px-6 py-4">
-                      <span className={`px-2.5 py-0.5 border text-xs font-semibold rounded-full ${getStatusBadge(t.status)}`}>
+                    <td className="px-6 py-4 font-mono font-bold text-primary whitespace-nowrap">{t.transferNumber}</td>
+                    <td className="px-6 py-4 font-semibold text-foreground whitespace-nowrap">{t.fromBranch.name}</td>
+                    <td className="px-6 py-4 font-semibold text-foreground whitespace-nowrap">{t.toBranch.name}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">{t.requestedBy?.name || 'BMS Staff'}</td>
+                    <td className="px-6 py-4 font-semibold whitespace-nowrap">{t.items?.length || 0} books</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2.5 py-0.5 border text-xs font-bold rounded-full ${getStatusBadge(t.status)}`}>
                         {t.status}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-xs text-slate-400 whitespace-nowrap">
+                    <td className="px-6 py-4 text-xs text-muted-foreground whitespace-nowrap">
                       <div className="flex items-center space-x-1.5">
                         <Clock className="w-3.5 h-3.5" />
                         <span>
@@ -272,7 +272,7 @@ export default function StockTransfersPage() {
                       <button
                         type="button"
                         onClick={() => handleRowClick(t.id)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-600 bg-blue-50/80 border border-blue-200/70 hover:bg-blue-100 hover:text-blue-700 active:scale-95 rounded-lg transition shadow-xs cursor-pointer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-primary bg-[#faedf5] border border-primary/20 hover:bg-primary hover:text-white active:scale-95 rounded-sm transition shadow-2xs cursor-pointer"
                         title="View transfer details"
                       >
                         <Eye className="w-3.5 h-3.5" />

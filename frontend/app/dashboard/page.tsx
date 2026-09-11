@@ -42,9 +42,9 @@ export default function DashboardPage() {
   return (
     <div className="flex items-center justify-center h-full">
       <div className="animate-pulse flex space-x-2 items-center">
-        <div className="h-2 w-2 bg-blue-500 rounded-full"></div>
-        <div className="h-2 w-2 bg-blue-500 rounded-full"></div>
-        <div className="h-2 w-2 bg-blue-500 rounded-full"></div>
+        <div className="h-2 w-2 bg-[#7e2562] rounded-full"></div>
+        <div className="h-2 w-2 bg-[#7e2562] rounded-full"></div>
+        <div className="h-2 w-2 bg-[#7e2562] rounded-full"></div>
       </div>
     </div>
   );

@@ -24,10 +24,11 @@ import { Dropdown } from '@/components/Dropdown';
 import { generateBillPDF } from '@/lib/pdfUtils';
 
 const PAYMENT_MODE_COLORS: Record<string, string> = {
-  CASH:  'bg-emerald-100 text-emerald-800 border-emerald-200',
-  CARD:  'bg-blue-100 text-blue-800 border-blue-200',
-  UPI:   'bg-violet-100 text-violet-800 border-violet-200',
-  OTHER: 'bg-gray-100 text-gray-800 border-gray-200',
+  CASH:  'bg-[#f0fbf5] text-[#3cb976] border-[#3cb976]/30',
+  CARD:  'bg-[#faedf5] text-[#7e2562] border-[#7e2562]/25',
+  UPI:   'bg-violet-50 text-violet-700 border-violet-200',
+  CREDIT_COPY: 'bg-[#fef5f2] text-[#e45e34] border-[#e45e34]/30',
+  OTHER: 'bg-neutral-100 text-neutral-800 border-neutral-200',
 };
 
 function formatCurrency(n: number) {
@@ -150,19 +151,19 @@ export default function EODSalesPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-gray-900">EOD Sales Report</h2>
-          <p className="text-sm text-gray-500 mt-0.5">End-of-day and monthly sales overview for your branch.</p>
+          <h2 className="text-2xl font-bold tracking-tight text-neutral-900">EOD Sales Report</h2>
+          <p className="text-sm text-neutral-500 mt-0.5">End-of-day and monthly sales overview for your branch.</p>
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
           {/* Toggle */}
-          <div className="inline-flex rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
+          <div className="inline-flex rounded-sm border border-[#7e2562]/20 bg-white shadow-sm overflow-hidden">
             {(['day', 'month'] as const).map(m => (
               <button
                 key={m}
                 onClick={() => setViewMode(m)}
-                className={`px-4 py-2 text-sm font-medium capitalize transition-colors ${
-                  viewMode === m ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'
+                className={`px-4 py-2 text-sm font-semibold capitalize transition-all ${
+                  viewMode === m ? 'bg-[#7e2562] text-white' : 'text-neutral-600 hover:bg-[#faf6f9]'
                 }`}
               >
                 {m}
@@ -177,22 +178,22 @@ export default function EODSalesPage() {
               value={selectedDate}
               max={todayStr()}
               onChange={e => setSelectedDate(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
+              className="border border-[#7e2562]/20 rounded-sm px-3 py-2 text-sm text-neutral-700 focus:ring-2 focus:ring-[#7e2562]/20 focus:border-[#7e2562] shadow-sm bg-white"
             />
           ) : (
-            <div className="flex items-center gap-1 border border-gray-300 rounded-lg shadow-sm bg-white px-1">
-              <button onClick={() => shiftMonth(-1)} className="p-1.5 hover:bg-gray-100 rounded-md transition-colors">
-                <ChevronLeft className="w-4 h-4 text-gray-600" />
+            <div className="flex items-center gap-1 border border-[#7e2562]/20 rounded-sm shadow-sm bg-white px-1">
+              <button onClick={() => shiftMonth(-1)} className="p-1.5 hover:bg-[#faedf5] rounded-sm transition-colors">
+                <ChevronLeft className="w-4 h-4 text-neutral-600" />
               </button>
               <input
                 type="month"
                 value={selectedMonth}
                 max={todayStr().slice(0, 7)}
                 onChange={e => setSelectedMonth(e.target.value)}
-                className="border-0 outline-none text-sm text-gray-700 bg-transparent px-1 py-1.5 w-36"
+                className="border-0 outline-none text-sm text-neutral-700 bg-transparent px-1 py-1.5 w-36 font-medium"
               />
-              <button onClick={() => shiftMonth(1)} className="p-1.5 hover:bg-gray-100 rounded-md transition-colors">
-                <ChevronRight className="w-4 h-4 text-gray-600" />
+              <button onClick={() => shiftMonth(1)} className="p-1.5 hover:bg-[#faedf5] rounded-sm transition-colors">
+                <ChevronRight className="w-4 h-4 text-neutral-600" />
               </button>
             </div>
           )}
@@ -200,14 +201,14 @@ export default function EODSalesPage() {
       </div>
 
       {/* Period label */}
-      <div className="flex items-center gap-2 text-sm text-gray-600 font-medium">
-        <Calendar className="w-4 h-4 text-blue-500" />
+      <div className="flex items-center gap-2 text-sm text-neutral-700 font-medium">
+        <Calendar className="w-4 h-4 text-[#7e2562]" />
         <span>{displayLabel}</span>
-        {loading && <Loader2 className="w-4 h-4 animate-spin text-blue-400 ml-1" />}
+        {loading && <Loader2 className="w-4 h-4 animate-spin text-[#7e2562] ml-1" />}
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-4 py-3">
+        <div className="flex items-center gap-2 text-sm text-[#e45e34] bg-[#fef5f2] border border-[#e45e34]/20 rounded-sm px-4 py-3">
           <AlertCircle className="w-4 h-4 shrink-0" />
           {error}
         </div>
@@ -216,12 +217,12 @@ export default function EODSalesPage() {
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          icon={<TrendingUp className="w-5 h-5 text-emerald-600" />} bg="bg-emerald-50"
+          icon={<TrendingUp className="w-5 h-5 text-[#3cb976]" />} bg="bg-[#f0fbf5]"
           label="Total Revenue" value={formatCurrency(stats.totalRevenue)}
           sub={`${stats.totalTransactions} completed`}
         />
         <StatCard
-          icon={<ShoppingCart className="w-5 h-5 text-blue-600" />} bg="bg-blue-50"
+          icon={<ShoppingCart className="w-5 h-5 text-[#7e2562]" />} bg="bg-[#faedf5]"
           label="Transactions" value={String(stats.totalTransactions)}
           sub={stats.voided > 0 ? `${stats.voided} voided` : 'No voids today'}
         />
@@ -239,20 +240,20 @@ export default function EODSalesPage() {
 
       {/* Payment breakdown */}
       {Object.keys(stats.byMode).length > 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-          <h3 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
-            <CreditCard className="w-4 h-4 text-gray-400" />
+        <div className="bg-white rounded-sm border border-neutral-200/80 shadow-sm p-5">
+          <h3 className="text-xs font-bold text-[#7e2562] uppercase tracking-wider mb-4 flex items-center gap-2">
+            <CreditCard className="w-4 h-4 text-[#7e2562]" />
             Payment Mode Breakdown
           </h3>
           <div className="flex flex-wrap gap-3">
             {Object.entries(stats.byMode).map(([mode, amt]) => (
               <div
                 key={mode}
-                className={`flex items-center gap-3 rounded-xl px-4 py-3 border ${PAYMENT_MODE_COLORS[mode] || PAYMENT_MODE_COLORS.OTHER}`}
+                className={`flex items-center gap-3 rounded-sm px-4 py-2.5 border ${PAYMENT_MODE_COLORS[mode] || PAYMENT_MODE_COLORS.OTHER}`}
               >
-                <span className="text-xs font-bold uppercase tracking-wide">{mode}</span>
-                <span className="text-sm font-semibold">{formatCurrency(amt)}</span>
-                <span className="text-xs opacity-60">
+                <span className="text-[11px] font-bold uppercase tracking-wider">{mode.replace('_', ' ')}</span>
+                <span className="text-sm font-bold">{formatCurrency(amt)}</span>
+                <span className="text-xs opacity-70">
                   {stats.totalRevenue > 0 ? `${((amt / stats.totalRevenue) * 100).toFixed(1)}%` : '0%'}
                 </span>
               </div>
@@ -262,14 +263,14 @@ export default function EODSalesPage() {
       )}
 
       {/* Bills table */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="bg-white rounded-sm border border-neutral-200/80 shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-neutral-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <h3 className="text-sm font-semibold text-gray-900">Bills</h3>
-            <span className="text-xs text-gray-400">({bills.length} record{bills.length !== 1 ? 's' : ''})</span>
+            <h3 className="text-sm font-bold text-neutral-900">Bills</h3>
+            <span className="text-xs text-neutral-400">({bills.length} record{bills.length !== 1 ? 's' : ''})</span>
           </div>
 
-          <div className="w-full sm:w-52 shrink-0">
+          <div className="w-full sm:w-56 shrink-0">
             <Dropdown
               value={`${sortField}_${sortDirection}`}
               onChange={(val) => {
@@ -287,22 +288,22 @@ export default function EODSalesPage() {
                 { value: 'customerName_asc', label: 'Customer: A-Z' },
                 { value: 'customerName_desc', label: 'Customer: Z-A' },
               ]}
-              selectClassName="!py-2 !rounded-xl !text-xs font-bold border-neutral-300 bg-white"
+              selectClassName="!py-2 !rounded-sm !text-xs font-semibold border-[#7e2562]/20 bg-white"
             />
           </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
-            <thead className="bg-gray-50 text-xs text-gray-500 uppercase border-b">
+            <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562] uppercase tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
               <tr>
                 <th 
                   onClick={() => toggleSort('billNumber')}
-                  className="px-6 py-3 cursor-pointer select-none hover:bg-gray-100 hover:text-black transition-colors group"
+                  className="px-6 py-3.5 cursor-pointer select-none hover:bg-[#faedf5]/50 transition-colors group"
                 >
                   <div className="flex items-center gap-1.5">
                     <span>Bill No.</span>
                     {sortField === 'billNumber' ? (
-                      sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-black font-bold" /> : <ArrowDown className="w-3.5 h-3.5 text-black font-bold" />
+                      sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-[#7e2562]" /> : <ArrowDown className="w-3.5 h-3.5 text-[#7e2562]" />
                     ) : (
                       <ArrowUpDown className="w-3 h-3 text-neutral-400 opacity-50 group-hover:opacity-100 transition-opacity" />
                     )}
@@ -310,12 +311,12 @@ export default function EODSalesPage() {
                 </th>
                 <th 
                   onClick={() => toggleSort('createdAt')}
-                  className="px-6 py-3 cursor-pointer select-none hover:bg-gray-100 hover:text-black transition-colors group"
+                  className="px-6 py-3.5 cursor-pointer select-none hover:bg-[#faedf5]/50 transition-colors group"
                 >
                   <div className="flex items-center gap-1.5">
                     <span>Time</span>
                     {sortField === 'createdAt' ? (
-                      sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-black font-bold" /> : <ArrowDown className="w-3.5 h-3.5 text-black font-bold" />
+                      sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-[#7e2562]" /> : <ArrowDown className="w-3.5 h-3.5 text-[#7e2562]" />
                     ) : (
                       <ArrowUpDown className="w-3 h-3 text-neutral-400 opacity-50 group-hover:opacity-100 transition-opacity" />
                     )}
@@ -323,93 +324,93 @@ export default function EODSalesPage() {
                 </th>
                 <th 
                   onClick={() => toggleSort('customerName')}
-                  className="px-6 py-3 cursor-pointer select-none hover:bg-gray-100 hover:text-black transition-colors group"
+                  className="px-6 py-3.5 cursor-pointer select-none hover:bg-[#faedf5]/50 transition-colors group"
                 >
                   <div className="flex items-center gap-1.5">
                     <span>Customer</span>
                     {sortField === 'customerName' ? (
-                      sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-black font-bold" /> : <ArrowDown className="w-3.5 h-3.5 text-black font-bold" />
+                      sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-[#7e2562]" /> : <ArrowDown className="w-3.5 h-3.5 text-[#7e2562]" />
                     ) : (
                       <ArrowUpDown className="w-3 h-3 text-neutral-400 opacity-50 group-hover:opacity-100 transition-opacity" />
                     )}
                   </div>
                 </th>
-                <th className="px-6 py-3">Mode</th>
-                <th className="px-6 py-3">Items</th>
+                <th className="px-6 py-3.5">Mode</th>
+                <th className="px-6 py-3.5">Items</th>
                 <th 
                   onClick={() => toggleSort('totalAmount')}
-                  className="px-6 py-3 text-right cursor-pointer select-none hover:bg-gray-100 hover:text-black transition-colors group"
+                  className="px-6 py-3.5 text-right cursor-pointer select-none hover:bg-[#faedf5]/50 transition-colors group"
                 >
                   <div className="flex items-center justify-end gap-1.5">
                     <span>Amount</span>
                     {sortField === 'totalAmount' ? (
-                      sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-black font-bold" /> : <ArrowDown className="w-3.5 h-3.5 text-black font-bold" />
+                      sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-[#7e2562]" /> : <ArrowDown className="w-3.5 h-3.5 text-[#7e2562]" />
                     ) : (
                       <ArrowUpDown className="w-3 h-3 text-neutral-400 opacity-50 group-hover:opacity-100 transition-opacity" />
                     )}
                   </div>
                 </th>
-                <th className="px-6 py-3 text-center">Status</th>
-                <th className="px-6 py-3 text-center">PDF</th>
+                <th className="px-6 py-3.5 text-center">Status</th>
+                <th className="px-6 py-3.5 text-center">PDF</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-neutral-100">
               {loading ? (
                 <tr>
                   <td colSpan={8} className="px-6 py-12 text-center">
-                    <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto" />
+                    <Loader2 className="w-8 h-8 animate-spin text-[#7e2562] mx-auto" />
                   </td>
                 </tr>
               ) : bills.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-6 py-16 text-center">
-                    <FileText className="w-12 h-12 text-gray-200 mx-auto mb-3" />
-                    <p className="text-gray-500 text-sm font-medium">No sales found for this period</p>
-                    <p className="text-gray-400 text-xs mt-1">Try selecting a different date or month</p>
+                    <FileText className="w-12 h-12 text-neutral-200 mx-auto mb-3" />
+                    <p className="text-neutral-500 text-sm font-medium">No sales found for this period</p>
+                    <p className="text-neutral-400 text-xs mt-1">Try selecting a different date or month</p>
                   </td>
                 </tr>
               ) : (
                 sortedBills.map((bill: any) => (
-                  <tr key={bill.id} className={`hover:bg-gray-50 transition-colors ${bill.status === 'VOIDED' ? 'opacity-55' : ''}`}>
-                    <td className="px-6 py-3 font-mono text-xs font-semibold text-gray-800">{bill.billNumber}</td>
-                    <td className="px-6 py-3 text-gray-500 whitespace-nowrap">
+                  <tr key={bill.id} className={`hover:bg-[#faf6f9]/40 transition-colors ${bill.status === 'VOIDED' ? 'opacity-55' : ''}`}>
+                    <td className="px-6 py-3.5 font-mono text-xs font-semibold text-neutral-900">{bill.billNumber}</td>
+                    <td className="px-6 py-3.5 text-neutral-500 whitespace-nowrap">
                       {new Date(bill.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
                       {viewMode === 'month' && (
-                        <div className="text-[10px] text-gray-400">
+                        <div className="text-[10px] text-neutral-400">
                           {new Date(bill.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
                         </div>
                       )}
                     </td>
-                    <td className="px-6 py-3 text-gray-700">{bill.customerName || <span className="text-gray-400">Walk-in</span>}</td>
-                    <td className="px-6 py-3">
+                    <td className="px-6 py-3.5 text-neutral-700 font-medium">{bill.customerName || <span className="text-neutral-400 italic">Walk-in</span>}</td>
+                    <td className="px-6 py-3.5 whitespace-nowrap">
                       {bill.status === 'COMPLETED' ? (
-                        <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full border ${PAYMENT_MODE_COLORS[bill.paymentMode] || PAYMENT_MODE_COLORS.OTHER}`}>
-                          {bill.paymentMode || 'CASH'}
+                        <span className={`text-[11px] font-bold px-2.5 py-1 rounded-sm border ${PAYMENT_MODE_COLORS[bill.paymentMode] || PAYMENT_MODE_COLORS.OTHER}`}>
+                          {bill.paymentMode?.replace('_', ' ') || 'CASH'}
                         </span>
                       ) : (
-                        <span className="text-xs font-medium px-2.5 py-0.5 rounded-full border bg-red-100 text-red-700 border-red-200">VOIDED</span>
+                        <span className="text-[11px] font-bold px-2.5 py-1 rounded-sm border bg-[#fef5f2] text-[#e45e34] border-[#e45e34]/30">VOIDED</span>
                       )}
                     </td>
-                    <td className="px-6 py-3 text-gray-500">{bill.items?.length ?? '-'}</td>
-                    <td className="px-6 py-3 text-right font-semibold text-gray-900">
+                    <td className="px-6 py-3.5 text-neutral-600 font-medium">{bill.items?.length ?? '-'}</td>
+                    <td className="px-6 py-3.5 text-right font-bold text-neutral-900">
                       {bill.status === 'VOIDED'
-                        ? <span className="line-through text-gray-400">{formatCurrency(bill.totalAmount)}</span>
+                        ? <span className="line-through text-neutral-400">{formatCurrency(bill.totalAmount)}</span>
                         : formatCurrency(bill.totalAmount)
                       }
                     </td>
-                    <td className="px-6 py-3 text-center">
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${
+                    <td className="px-6 py-3.5 text-center">
+                      <span className={`text-[11px] font-bold px-2.5 py-1 rounded-sm border ${
                         bill.status === 'COMPLETED'
-                          ? 'bg-green-100 text-green-700 border-green-200'
-                          : 'bg-red-100 text-red-700 border-red-200'
+                          ? 'bg-[#f0fbf5] text-[#3cb976] border-[#3cb976]/30'
+                          : 'bg-[#fef5f2] text-[#e45e34] border-[#e45e34]/30'
                       }`}>
                         {bill.status === 'COMPLETED' ? 'Paid' : 'Void'}
                       </span>
                     </td>
-                    <td className="px-6 py-3 text-center">
+                    <td className="px-6 py-3.5 text-center">
                       <button
                         onClick={() => generateBillPDF(bill, bill.items || [], bill.branch || bill.branchId)}
-                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        className="p-1.5 text-[#7e2562] hover:bg-[#faedf5] rounded-sm transition-colors inline-flex"
                         title="Download PDF"
                       >
                         <Download className="w-4 h-4" />
@@ -420,10 +421,10 @@ export default function EODSalesPage() {
               )}
             </tbody>
             {!loading && bills.length > 0 && (
-              <tfoot className="bg-gray-50 border-t border-gray-200">
+              <tfoot className="bg-[#faf6f9]/50 border-t border-neutral-200">
                 <tr>
-                  <td colSpan={5} className="px-6 py-3 text-sm font-semibold text-gray-700">Total Revenue</td>
-                  <td className="px-6 py-3 text-right font-bold text-gray-900 text-sm">{formatCurrency(stats.totalRevenue)}</td>
+                  <td colSpan={5} className="px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-[#7e2562]">Total Revenue</td>
+                  <td className="px-6 py-3.5 text-right font-bold text-neutral-900 text-sm">{formatCurrency(stats.totalRevenue)}</td>
                   <td colSpan={2} />
                 </tr>
               </tfoot>
@@ -440,12 +441,12 @@ function StatCard({ icon, bg, label, value, sub }: {
   label: string; value: string; sub: string;
 }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex items-start gap-4">
-      <div className={`${bg} p-2.5 rounded-xl shrink-0`}>{icon}</div>
+    <div className="bg-white rounded-sm border border-neutral-200/80 shadow-sm p-5 flex items-start gap-4">
+      <div className={`${bg} p-2.5 rounded-sm shrink-0`}>{icon}</div>
       <div className="min-w-0">
-        <p className="text-xs text-gray-500 font-medium uppercase tracking-wide truncate">{label}</p>
-        <p className="text-xl font-bold text-gray-900 mt-0.5 truncate">{value}</p>
-        <p className="text-xs text-gray-400 mt-0.5 truncate">{sub}</p>
+        <p className="text-[11px] text-neutral-500 font-bold uppercase tracking-wider truncate">{label}</p>
+        <p className="text-xl font-bold text-neutral-900 mt-0.5 truncate">{value}</p>
+        <p className="text-xs text-neutral-400 mt-0.5 truncate font-medium">{sub}</p>
       </div>
     </div>
   );

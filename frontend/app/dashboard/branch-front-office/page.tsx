@@ -13,13 +13,13 @@ export default function BranchFrontOfficeDashboard() {
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        <Loader2 className="h-8 w-8 animate-spin text-[#7e2562]" />
       </div>
     );
   }
 
   if (error) {
-    return <div className="text-red-500 bg-red-50 p-4 rounded-lg">Error: {error}</div>;
+    return <div className="text-[#e45e34] bg-[#fef5f2] p-4 rounded-sm border border-[#e45e34]/20 font-medium">Error: {error}</div>;
   }
 
   return (
@@ -32,16 +32,10 @@ export default function BranchFrontOfficeDashboard() {
         <div className="mt-4 sm:mt-0 flex space-x-3">
           <Link 
             href="/dashboard/billing"
-            className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+            className="inline-flex items-center justify-center rounded-sm bg-[#7e2562] px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-[#681b50] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7e2562]"
           >
             New Bill
           </Link>
-          {/* <Link 
-            href="/dashboard/enquiries"
-            className="inline-flex items-center justify-center rounded-lg bg-white px-4 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
-          >
-            Log Enquiry
-          </Link> */}
         </div>
       </div>
 
@@ -64,12 +58,6 @@ export default function BranchFrontOfficeDashboard() {
           icon={CreditCard} 
           color="purple" 
         />
-        {/* <StatCard 
-          title="Enquiries Today" 
-          value={data?.enquiriesToday || 0} 
-          icon={MessageCircle} 
-          color="blue" 
-        /> */}
       </div>
     </div>
   );

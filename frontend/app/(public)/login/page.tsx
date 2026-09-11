@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
+import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 import { 
   Loader2, 
-  BookOpen, 
-  AlertCircle, 
   Eye, 
   EyeOff, 
   ArrowLeft, 
@@ -16,7 +16,6 @@ import {
   ShieldCheck, 
   Send 
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -30,6 +29,7 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [errorKey, setErrorKey] = useState(0);
   const [forgotSuccess, setForgotSuccess] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
 
@@ -61,6 +61,7 @@ export default function LoginPage() {
       }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Account not found with this email address.');
+      setErrorKey((prev) => prev + 1);
     } finally {
       setLoading(false);
     }
@@ -83,9 +84,11 @@ export default function LoginPage() {
         await login(response.data.accessToken);
       } else {
         setError(response.message || 'Invalid credentials. Please check your password.');
+        setErrorKey((prev) => prev + 1);
       }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Invalid email or password. Please try again.');
+      setErrorKey((prev) => prev + 1);
     } finally {
       setLoading(false);
     }
@@ -97,11 +100,13 @@ export default function LoginPage() {
 
     if (password.length < 6) {
       setError('Password must be at least 6 characters long.');
+      setErrorKey((prev) => prev + 1);
       return;
     }
 
     if (password !== confirmPassword) {
       setError('Passwords do not match. Please re-enter.');
+      setErrorKey((prev) => prev + 1);
       return;
     }
 
@@ -117,9 +122,11 @@ export default function LoginPage() {
         await login(response.data.accessToken);
       } else {
         setError('Failed to setup password. Please try again.');
+        setErrorKey((prev) => prev + 1);
       }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to setup password. Please try again.');
+      setErrorKey((prev) => prev + 1);
     } finally {
       setLoading(false);
     }
@@ -130,6 +137,7 @@ export default function LoginPage() {
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail) {
       setError('Please enter your email address.');
+      setErrorKey((prev) => prev + 1);
       return;
     }
 
@@ -142,6 +150,7 @@ export default function LoginPage() {
       setResendCooldown(60);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to request password reset. Please try again.');
+      setErrorKey((prev) => prev + 1);
     } finally {
       setLoading(false);
     }
@@ -156,71 +165,72 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/40 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="flex justify-center">
-          <div className="h-14 w-14 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/25 ring-4 ring-white">
-            <BookOpen className="h-7 w-7 text-white" />
-          </div>
-        </div>
-
-        <h2 className="mt-5 text-center text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900">
-          {step === 'EMAIL' && 'Sign in to BMS'}
-          {step === 'PASSWORD' && 'Enter your password'}
-          {step === 'SETUP' && 'Create your password'}
-          {step === 'FORGOT_PASSWORD' && 'Reset your password'}
-        </h2>
-
-        <p className="mt-2 text-center text-sm text-gray-600 max-w-sm mx-auto">
-          {step === 'EMAIL' && 'Bookstore Management System enterprise portal'}
-          {step === 'PASSWORD' && (userName ? `Welcome back, ${userName}! Enter your password to continue.` : 'Enter your password to sign in to your dashboard.')}
-          {step === 'SETUP' && (userName ? `Welcome, ${userName}! Your account has been provisioned. Set a password to activate your account.` : 'Welcome! Set up a password to activate your new account.')}
-          {step === 'FORGOT_PASSWORD' && 'Enter your email to receive a secure password reset link.'}
-        </p>
+    <main className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden px-4 py-12 selection:bg-primary selection:text-white bg-background">
+      {/* Brand plum ambient glow matching PMS */}
+      <div 
+        aria-hidden="true" 
+        className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden"
+      >
+        <div className="h-[520px] w-[680px] -translate-y-12 rounded-full bg-[#7e2562]/[0.07] blur-[100px]" />
+        <div className="h-[300px] w-[400px] translate-y-24 rounded-full bg-[#9b3179]/[0.04] blur-[80px]" />
       </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-5 sm:px-10 shadow-xl shadow-slate-200/60 rounded-2xl border border-gray-100 relative overflow-hidden">
-          {/* Subtle top brand accent line */}
-          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500" />
+      <div className="relative z-10 w-full max-w-[420px] animate-apple-in">
+        {/* Brand Header */}
+        <div className="mb-8 flex flex-col items-center text-center">
+          <div className="mb-3 transition-transform duration-300 hover:scale-[1.02]">
+            <Image
+              src="/logo.png"
+              alt="Kairali Books"
+              width={220}
+              height={55}
+              priority
+              className="h-10 w-auto object-contain"
+            />
+          </div>
+          <span className="inline-flex items-center gap-2 rounded-sm bg-[#7e2562]/8 px-3.5 py-1 text-xs font-bold text-[#7e2562]">
+            Bookstore Management System
+          </span>
+        </div>
 
-          {/* Error Message */}
-          <AnimatePresence mode="wait">
-            {error && (
-              <motion.div
-                initial={{ opacity: 0, y: -8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                className="mb-6 bg-red-50/90 border border-red-200 rounded-xl p-3.5 flex items-start text-red-700 shadow-sm"
-              >
-                <AlertCircle className="h-5 w-5 text-red-500 mt-0.5 mr-2.5 shrink-0" />
-                <p className="text-sm font-medium">{error}</p>
-              </motion.div>
-            )}
-          </AnimatePresence>
+        {/* Login Container */}
+        <div className="rounded-sm border border-[#7e2562]/15 bg-white p-7 shadow-plum-md sm:p-8">
+          {/* Error Message with Alert Pill */}
+          {error && (
+            <div
+              key={errorKey}
+              role="alert"
+              className="mb-5 flex items-center gap-2 rounded-sm bg-rose-50 px-3.5 py-2.5 text-[13px] font-semibold text-rose-800 border border-rose-200 animate-apple-in"
+            >
+              <svg className="h-4 w-4 shrink-0 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <span>{error}</span>
+            </div>
+          )}
 
           {/* STEP 1: EMAIL */}
           {step === 'EMAIL' && (
-            <form className="space-y-5" onSubmit={handleVerifyEmail}>
+            <form onSubmit={handleVerifyEmail} className={`space-y-4.5 ${error ? "animate-apple-shake" : ""}`}>
               <div>
-                <label htmlFor="email" className="block text-sm font-semibold text-gray-700 mb-1.5">
+                <label htmlFor="email" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   Work Email Address
                 </label>
-                <div className="relative rounded-lg shadow-sm">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
-                    <Mail className="h-5 w-5" />
+                <div className="apple-input-container relative flex items-center rounded-sm border border-[#7e2562]/20 bg-white">
+                  <div className="pointer-events-none pl-3.5 text-muted-foreground" aria-hidden="true">
+                    <Mail className="h-4 w-4" />
                   </div>
                   <input
                     id="email"
                     name="email"
                     type="email"
-                    autoComplete="email"
+                    autoComplete="username"
                     required
-                    placeholder="name@company.com"
+                    autoFocus
+                    placeholder="name@kairalibooks.in"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="block w-full rounded-xl border border-gray-300 pl-10 pr-4 py-2.5 text-gray-900 text-sm focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-all outline-none"
-                    autoFocus
+                    className="w-full bg-transparent px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground/60"
                   />
                 </div>
               </div>
@@ -228,52 +238,52 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading || !email.trim()}
-                className="w-full flex justify-center items-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-500/20 hover:bg-blue-700 active:scale-[0.99] transition-all disabled:opacity-60 disabled:cursor-not-allowed disabled:shadow-none"
+                className="apple-button relative mt-2 flex w-full items-center justify-center gap-2 rounded-sm bg-primary px-4 py-3 text-sm font-bold text-white shadow-plum-md hover:bg-primary-hover hover:shadow-plum-lg disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Continue'}
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Continue'}
               </button>
 
-              <div className="pt-2 text-center">
+              {/* <div className="pt-2 text-center">
                 <button
                   type="button"
                   onClick={() => { setStep('FORGOT_PASSWORD'); setError(''); }}
-                  className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline"
+                  className="text-xs font-semibold text-[#7e2562] hover:text-primary-hover hover:underline"
                 >
                   Forgot your password?
                 </button>
-              </div>
+              </div> */}
             </form>
           )}
 
           {/* STEP 2: PASSWORD (Existing User) */}
           {step === 'PASSWORD' && (
-            <form className="space-y-5" onSubmit={handleLogin}>
-              <div className="bg-slate-50 border border-slate-200/80 rounded-xl px-3.5 py-2.5 flex items-center justify-between">
+            <form onSubmit={handleLogin} className={`space-y-4.5 ${error ? "animate-apple-shake" : ""}`}>
+              <div className="bg-[#faf6f9] border border-[#7e2562]/15 rounded-sm px-3.5 py-2 flex items-center justify-between">
                 <div className="flex items-center space-x-2.5 overflow-hidden">
-                  <div className="h-8 w-8 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center text-xs shrink-0">
+                  <div className="h-7 w-7 rounded-sm bg-[#faedf5] text-[#7e2562] font-bold flex items-center justify-center text-xs shrink-0 border border-[#7e2562]/20">
                     {userName ? userName.charAt(0).toUpperCase() : email.charAt(0).toUpperCase()}
                   </div>
-                  <div className="truncate">
-                    <p className="text-xs font-semibold text-gray-900 truncate">{userName || email}</p>
-                    <p className="text-xs text-gray-500 truncate">{email}</p>
+                  <div className="truncate text-left">
+                    <p className="text-xs font-bold text-foreground truncate">{userName || email}</p>
+                    <p className="text-[11px] text-muted-foreground truncate">{email}</p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={resetToEmailStep}
-                  className="text-xs font-semibold text-blue-600 hover:text-blue-700 shrink-0 ml-2"
+                  className="text-xs font-bold text-[#7e2562] hover:text-primary-hover shrink-0 ml-2 hover:underline"
                 >
                   Change
                 </button>
               </div>
 
               <div>
-                <label htmlFor="password" className="block text-sm font-semibold text-gray-700 mb-1.5">
+                <label htmlFor="password" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   Password
                 </label>
-                <div className="relative rounded-lg shadow-sm">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
-                    <KeyRound className="h-5 w-5" />
+                <div className="apple-input-container relative flex items-center rounded-sm border border-[#7e2562]/20 bg-white">
+                  <div className="pointer-events-none pl-3.5 text-muted-foreground" aria-hidden="true">
+                    <KeyRound className="h-4 w-4" />
                   </div>
                   <input
                     id="password"
@@ -281,16 +291,18 @@ export default function LoginPage() {
                     type={showPassword ? 'text' : 'password'}
                     autoComplete="current-password"
                     required
+                    autoFocus
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="block w-full rounded-xl border border-gray-300 pl-10 pr-11 py-2.5 text-gray-900 text-sm focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-all outline-none"
-                    autoFocus
+                    className="w-full bg-transparent px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground/60"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 focus:outline-none"
+                    className="apple-button mr-2 flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground hover:bg-[#7e2562]/10 hover:text-primary"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    tabIndex={-1}
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
@@ -303,33 +315,25 @@ export default function LoginPage() {
                     type="checkbox"
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
-                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-600 cursor-pointer"
+                    className="h-4 w-4 rounded-xs border-gray-300 text-[#7e2562] focus:ring-[#7e2562] cursor-pointer"
                   />
-                  <span className="ml-2 text-xs text-gray-600 font-medium">Remember me</span>
+                  <span className="ml-2 text-xs text-muted-foreground font-medium">Remember me</span>
                 </label>
-
-                {/* <button
-                  type="button"
-                  onClick={() => { setStep('FORGOT_PASSWORD'); setError(''); }}
-                  className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline"
-                >
-                  Forgot password?
-                </button> */}
               </div>
 
               <button
                 type="submit"
                 disabled={loading || !password}
-                className="w-full flex justify-center items-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-500/20 hover:bg-blue-700 active:scale-[0.99] transition-all disabled:opacity-60 disabled:cursor-not-allowed disabled:shadow-none"
+                className="apple-button relative mt-2 flex w-full items-center justify-center gap-2 rounded-sm bg-primary px-4 py-3 text-sm font-bold text-white shadow-plum-md hover:bg-primary-hover hover:shadow-plum-lg disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Sign In'}
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Sign In'}
               </button>
 
               <div className="text-center pt-1">
                 <button
                   type="button"
                   onClick={resetToEmailStep}
-                  className="inline-flex items-center text-xs font-semibold text-gray-500 hover:text-gray-800 transition-colors"
+                  className="inline-flex items-center text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
                 >
                   <ArrowLeft className="h-3.5 w-3.5 mr-1" />
                   Use a different email
@@ -340,8 +344,8 @@ export default function LoginPage() {
 
           {/* STEP 3: SETUP PASSWORD (Admin-created first-time login) */}
           {step === 'SETUP' && (
-            <form className="space-y-5" onSubmit={handleSetup}>
-              <div className="bg-amber-50/80 border border-amber-200/80 rounded-xl p-3 flex items-start text-amber-800 text-xs">
+            <form onSubmit={handleSetup} className={`space-y-4.5 ${error ? "animate-apple-shake" : ""}`}>
+              <div className="bg-amber-50/80 border border-amber-200/80 rounded-sm p-3 flex items-start text-amber-800 text-xs">
                 <ShieldCheck className="h-4 w-4 text-amber-600 mr-2 shrink-0 mt-0.5" />
                 <div>
                   <span className="font-bold">Initial Account Setup</span>
@@ -349,24 +353,24 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              <div className="bg-slate-50 border border-slate-200/80 rounded-xl px-3.5 py-2 flex items-center justify-between">
-                <span className="text-xs text-gray-600 truncate">{email}</span>
+              <div className="bg-[#faf6f9] border border-[#7e2562]/15 rounded-sm px-3.5 py-2 flex items-center justify-between">
+                <span className="text-xs text-muted-foreground truncate">{email}</span>
                 <button
                   type="button"
                   onClick={resetToEmailStep}
-                  className="text-xs font-semibold text-blue-600 hover:text-blue-700 shrink-0 ml-2"
+                  className="text-xs font-bold text-[#7e2562] hover:text-primary-hover shrink-0 ml-2 hover:underline"
                 >
                   Change
                 </button>
               </div>
 
               <div>
-                <label htmlFor="new-password" className="block text-sm font-semibold text-gray-700 mb-1.5">
+                <label htmlFor="new-password" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   Create Password
                 </label>
-                <div className="relative rounded-lg shadow-sm">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
-                    <KeyRound className="h-5 w-5" />
+                <div className="apple-input-container relative flex items-center rounded-sm border border-[#7e2562]/20 bg-white">
+                  <div className="pointer-events-none pl-3.5 text-muted-foreground" aria-hidden="true">
+                    <KeyRound className="h-4 w-4" />
                   </div>
                   <input
                     id="new-password"
@@ -374,16 +378,17 @@ export default function LoginPage() {
                     type={showPassword ? 'text' : 'password'}
                     autoComplete="new-password"
                     required
+                    autoFocus
                     placeholder="At least 6 characters"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="block w-full rounded-xl border border-gray-300 pl-10 pr-11 py-2.5 text-gray-900 text-sm focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-all outline-none"
-                    autoFocus
+                    className="w-full bg-transparent px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground/60"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 focus:outline-none"
+                    className="apple-button mr-2 flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground hover:bg-[#7e2562]/10 hover:text-primary"
+                    tabIndex={-1}
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
@@ -391,12 +396,12 @@ export default function LoginPage() {
               </div>
 
               <div>
-                <label htmlFor="confirm-password" className="block text-sm font-semibold text-gray-700 mb-1.5">
+                <label htmlFor="confirm-password" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   Confirm Password
                 </label>
-                <div className="relative rounded-lg shadow-sm">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
-                    <KeyRound className="h-5 w-5" />
+                <div className="apple-input-container relative flex items-center rounded-sm border border-[#7e2562]/20 bg-white">
+                  <div className="pointer-events-none pl-3.5 text-muted-foreground" aria-hidden="true">
+                    <KeyRound className="h-4 w-4" />
                   </div>
                   <input
                     id="confirm-password"
@@ -407,25 +412,26 @@ export default function LoginPage() {
                     placeholder="Re-enter your password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="block w-full rounded-xl border border-gray-300 pl-10 pr-11 py-2.5 text-gray-900 text-sm focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-all outline-none"
+                    className="w-full bg-transparent px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground/60"
                   />
                   <button
                     type="button"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 focus:outline-none"
+                    className="apple-button mr-2 flex h-7 w-7 items-center justify-center rounded-sm text-muted-foreground hover:bg-[#7e2562]/10 hover:text-primary"
+                    tabIndex={-1}
                   >
                     {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <div className="flex items-center text-xs text-gray-500">
-                  <div className={`h-1.5 w-1.5 rounded-full mr-2 ${password.length >= 6 ? 'bg-green-500' : 'bg-gray-300'}`} />
+              <div className="space-y-1 pt-1">
+                <div className="flex items-center text-xs text-muted-foreground">
+                  <div className={`h-1.5 w-1.5 rounded-full mr-2 ${password.length >= 6 ? 'bg-[#3cb976]' : 'bg-gray-300'}`} />
                   <span>Minimum 6 characters</span>
                 </div>
-                <div className="flex items-center text-xs text-gray-500">
-                  <div className={`h-1.5 w-1.5 rounded-full mr-2 ${password && password === confirmPassword ? 'bg-green-500' : 'bg-gray-300'}`} />
+                <div className="flex items-center text-xs text-muted-foreground">
+                  <div className={`h-1.5 w-1.5 rounded-full mr-2 ${password && password === confirmPassword ? 'bg-[#3cb976]' : 'bg-gray-300'}`} />
                   <span>Passwords match</span>
                 </div>
               </div>
@@ -433,16 +439,16 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading || password.length < 6 || password !== confirmPassword}
-                className="w-full flex justify-center items-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-500/20 hover:bg-blue-700 active:scale-[0.99] transition-all disabled:opacity-60 disabled:cursor-not-allowed disabled:shadow-none"
+                className="apple-button relative mt-2 flex w-full items-center justify-center gap-2 rounded-sm bg-primary px-4 py-3 text-sm font-bold text-white shadow-plum-md hover:bg-primary-hover hover:shadow-plum-lg disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Set Password & Sign In'}
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Set Password & Sign In'}
               </button>
 
               <div className="text-center pt-1">
                 <button
                   type="button"
                   onClick={resetToEmailStep}
-                  className="inline-flex items-center text-xs font-semibold text-gray-500 hover:text-gray-800 transition-colors"
+                  className="inline-flex items-center text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
                 >
                   <ArrowLeft className="h-3.5 w-3.5 mr-1" />
                   Use a different email
@@ -455,18 +461,14 @@ export default function LoginPage() {
           {step === 'FORGOT_PASSWORD' && (
             <div>
               {forgotSuccess ? (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="text-center py-4 space-y-4"
-                >
-                  <div className="h-12 w-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto ring-4 ring-green-50">
+                <div className="text-center py-4 space-y-4 animate-apple-in">
+                  <div className="h-12 w-12 bg-[#f0fbf5] text-[#3cb976] rounded-full flex items-center justify-center mx-auto ring-4 ring-[#3cb976]/20 border border-[#3cb976]/30">
                     <CheckCircle2 className="h-6 w-6" />
                   </div>
                   <div>
-                    <h3 className="text-base font-bold text-gray-900">Check your inbox</h3>
-                    <p className="mt-1 text-xs text-gray-600 leading-relaxed">
-                      We have sent a password reset link to <strong className="text-gray-900">{email}</strong>. The link expires in 1 hour.
+                    <h3 className="text-base font-bold text-foreground">Check your inbox</h3>
+                    <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+                      We have sent a password reset link to <strong className="text-foreground">{email}</strong>. The link expires in 1 hour.
                     </p>
                   </div>
 
@@ -475,28 +477,28 @@ export default function LoginPage() {
                       type="button"
                       disabled={resendCooldown > 0 || loading}
                       onClick={handleForgotPassword}
-                      className="w-full py-2 px-3 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="apple-button w-full py-2.5 px-3 text-xs font-bold text-[#7e2562] bg-[#faedf5] hover:bg-[#faedf5]/80 rounded-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {resendCooldown > 0 ? `Resend link in ${resendCooldown}s` : 'Resend reset link'}
                     </button>
                     <button
                       type="button"
                       onClick={resetToEmailStep}
-                      className="w-full py-2 text-xs font-semibold text-gray-600 hover:text-gray-900 transition-colors"
+                      className="w-full py-2 text-xs font-bold text-muted-foreground hover:text-foreground transition-colors"
                     >
                       Back to sign in
                     </button>
                   </div>
-                </motion.div>
+                </div>
               ) : (
-                <form className="space-y-5" onSubmit={handleForgotPassword}>
+                <form onSubmit={handleForgotPassword} className={`space-y-4.5 ${error ? "animate-apple-shake" : ""}`}>
                   <div>
-                    <label htmlFor="forgot-email" className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    <label htmlFor="forgot-email" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                       Account Email Address
                     </label>
-                    <div className="relative rounded-lg shadow-sm">
-                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
-                        <Mail className="h-5 w-5" />
+                    <div className="apple-input-container relative flex items-center rounded-sm border border-[#7e2562]/20 bg-white">
+                      <div className="pointer-events-none pl-3.5 text-muted-foreground" aria-hidden="true">
+                        <Mail className="h-4 w-4" />
                       </div>
                       <input
                         id="forgot-email"
@@ -504,11 +506,11 @@ export default function LoginPage() {
                         type="email"
                         autoComplete="email"
                         required
-                        placeholder="name@company.com"
+                        autoFocus
+                        placeholder="name@kairalibooks.in"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        className="block w-full rounded-xl border border-gray-300 pl-10 pr-4 py-2.5 text-gray-900 text-sm focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-all outline-none"
-                        autoFocus
+                        className="w-full bg-transparent px-3 py-2.5 text-sm text-foreground outline-none placeholder:text-muted-foreground/60"
                       />
                     </div>
                   </div>
@@ -516,13 +518,13 @@ export default function LoginPage() {
                   <button
                     type="submit"
                     disabled={loading || !email.trim()}
-                    className="w-full flex justify-center items-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-500/20 hover:bg-blue-700 active:scale-[0.99] transition-all disabled:opacity-60 disabled:cursor-not-allowed disabled:shadow-none"
+                    className="apple-button relative mt-2 flex w-full items-center justify-center gap-2 rounded-sm bg-primary px-4 py-3 text-sm font-bold text-white shadow-plum-md hover:bg-primary-hover hover:shadow-plum-lg disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {loading ? (
-                      <Loader2 className="h-5 w-5 animate-spin" />
+                      <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       <>
-                        <Send className="h-4 w-4 mr-2" />
+                        <Send className="h-4 w-4 mr-1.5" />
                         Send Reset Link
                       </>
                     )}
@@ -532,7 +534,7 @@ export default function LoginPage() {
                     <button
                       type="button"
                       onClick={resetToEmailStep}
-                      className="inline-flex items-center text-xs font-semibold text-gray-500 hover:text-gray-800 transition-colors"
+                      className="inline-flex items-center text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
                     >
                       <ArrowLeft className="h-3.5 w-3.5 mr-1" />
                       Back to sign in
@@ -544,12 +546,19 @@ export default function LoginPage() {
           )}
         </div>
 
-        {/* Footer Note */}
-        <p className="mt-8 text-center text-xs text-gray-400">
-          Bookstore Management System &bull; Secure Enterprise Portal
-        </p>
+        {/* Footer Support Prompt matching PMS */}
+        {/* <div className="mt-7 text-center">
+          <p className="text-[13px] text-muted-foreground">
+            Need system assistance?{" "}
+            <Link
+              href="mailto:admin@kairalibooks.in"
+              className="font-bold text-[#7e2562] hover:underline"
+            >
+              Contact Administrator
+            </Link>
+          </p>
+        </div> */}
       </div>
-    </div>
+    </main>
   );
 }
-

@@ -34,7 +34,7 @@ export const generateBillPDF = (bill: any, items: any[], branch: any) => {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(28);
   doc.setTextColor(colorBlack[0], colorBlack[1], colorBlack[2]);
-  doc.text('Invoice', 14, 25);
+  doc.text(bill.paymentMode === 'CREDIT' ? 'Credit Copy' : 'Invoice', 14, 25);
   
   // Logo on the Right is loaded and drawn dynamically at the bottom of the script.
   
@@ -154,8 +154,12 @@ export const generateBillPDF = (bill: any, items: any[], branch: any) => {
   currentY += 6;
   doc.setFontSize(9.5);
   if (bill.paymentStatus === 'PAID') {
-    doc.setTextColor(colorAccent[0], colorAccent[1], colorAccent[2]); // Teal
-    doc.text(`Payment Status: PAID via ${bill.paymentMode || 'UPI'}`, 14, currentY);
+    doc.setTextColor(colorAccent[0], colorAccent[1], colorAccent[2]);
+    if (bill.paymentMode === 'CREDIT') {
+      doc.text('Payment Status: CREDIT COPY (Non-Chargeable / Issued Copy)', 14, currentY);
+    } else {
+      doc.text(`Payment Status: PAID via ${bill.paymentMode || 'UPI'}`, 14, currentY);
+    }
   } else {
     doc.setTextColor(220, 38, 38); // Red
     doc.text('Payment Status: PENDING / DUE', 14, currentY);

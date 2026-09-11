@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useConfirm } from '@/contexts/ConfirmContext';
 import { useApiData } from '@/hooks/useApiData';
 import { api } from '@/lib/api';
 import { Loader2, Plus, Shield, UserX, UserCheck, Settings } from 'lucide-react';
@@ -11,6 +12,7 @@ import { Pagination } from '@/components/Pagination';
 
 export default function UsersManagementPage() {
   const { user } = useAuth();
+  const confirm = useConfirm();
   const canManageUsers = (user?.roles?.some(r => ['SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER'].includes(r)) || false);
   
   const { data: usersResponse, loading: usersLoading } = useApiData<any>('/users', []);
@@ -90,6 +92,17 @@ export default function UsersManagementPage() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    const ok = await confirm({
+      title: editingUser ? "Update User Permissions" : "Provision New User",
+      message: editingUser
+        ? `Are you sure you want to update roles for "${formData.name}"?`
+        : `Are you sure you want to provision account for "${formData.name}" (${formData.email})?`,
+      confirmText: editingUser ? "Yes, Save Roles" : "Yes, Provision User",
+      cancelText: "No, Cancel",
+      variant: "primary",
+    });
+    if (!ok) return;
+
     setIsSubmitting(true);
     try {
       const payload = {
@@ -117,7 +130,17 @@ export default function UsersManagementPage() {
     }
   };
 
-  const toggleStatus = async (id: string, currentStatus: boolean) => {
+  const toggleStatus = async (id: string, currentStatus: boolean, userName?: string) => {
+    const actionLabel = currentStatus ? "deactivate" : "activate";
+    const ok = await confirm({
+      title: `${currentStatus ? "Deactivate" : "Activate"} User`,
+      message: `Are you sure you want to ${actionLabel} access for ${userName ? `"${userName}"` : "this user"}?`,
+      confirmText: currentStatus ? "Yes, Deactivate" : "Yes, Activate",
+      cancelText: "No, Cancel",
+      variant: currentStatus ? "danger" : "success",
+    });
+    if (!ok) return;
+
     try {
       await api.patch(`/users/${id}/status`, { isActive: !currentStatus });
     } catch (err: any) {
@@ -129,8 +152,8 @@ export default function UsersManagementPage() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-gray-900">User & Staff Management</h2>
-          <p className="text-sm text-gray-500">
+          <h2 className="text-2xl font-bold tracking-tight text-neutral-900">User & Staff Management</h2>
+          <p className="text-sm text-neutral-500">
             {user?.roles?.includes('BRANCH_MANAGER') 
               ? 'Provision accounts and assign roles for your branch staff.' 
               : 'Provision accounts and assign roles across the enterprise.'}
@@ -138,66 +161,78 @@ export default function UsersManagementPage() {
         </div>
         <button
           onClick={() => openModal()}
-          className="flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+          className="flex items-center px-4 py-2 text-sm font-semibold text-white bg-[#7e2562] rounded-sm hover:bg-[#681b50] active:scale-95 transition-all shadow-sm shadow-plum-sm"
         >
           <Plus className="w-4 h-4 mr-2" />
           Add Staff
         </button>
       </div>
 
-      <div className="bg-white shadow-sm border border-gray-200 rounded-xl overflow-hidden">
+      <div className="bg-white shadow-sm border border-[#7e2562]/15 rounded-sm overflow-hidden">
         {usersLoading ? (
-          <div className="p-10 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-blue-600"/></div>
+          <div className="p-10 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-[#7e2562]"/></div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+            <table className="min-w-full divide-y divide-[#7e2562]/10">
+              <thead className="bg-[#faf6f9]/70">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Staff Member</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Branch</th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                  <th className="px-6 py-3.5 text-left text-[11px] font-bold text-[#7e2562] uppercase tracking-wider whitespace-nowrap">Staff Member</th>
+                  <th className="px-6 py-3.5 text-left text-[11px] font-bold text-[#7e2562] uppercase tracking-wider whitespace-nowrap">Role</th>
+                  <th className="px-6 py-3.5 text-left text-[11px] font-bold text-[#7e2562] uppercase tracking-wider whitespace-nowrap">Branch</th>
+                  <th className="px-6 py-3.5 text-center text-[11px] font-bold text-[#7e2562] uppercase tracking-wider whitespace-nowrap">Status</th>
+                  <th className="px-6 py-3.5 text-right text-[11px] font-bold text-[#7e2562] uppercase tracking-wider whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-white divide-y divide-neutral-100">
                 {usersList.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((u: any) => (
-                  <tr key={u.id} className="hover:bg-gray-50">
+                  <tr key={u.id} className="hover:bg-[#faf6f9]/40 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-bold text-gray-900">{u.name}</div>
-                      <div className="text-xs text-gray-500">{u.email}</div>
+                      <div className="text-sm font-bold text-neutral-900">{u.name}</div>
+                      <div className="text-xs text-neutral-500 font-mono">{u.email}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex flex-wrap gap-1">
+                      <div className="flex flex-wrap gap-1.5">
                         {(u.roles || []).map((r: any, idx: number) => (
-                          <span key={idx} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          <span key={idx} className="inline-flex items-center px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wider bg-[#faedf5] text-[#7e2562] border border-[#7e2562]/20">
                             {(r.role || r).replace(/_/g, ' ')}
                           </span>
                         ))}
                         {!(u.roles || []).length && u.role && (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wider bg-[#faedf5] text-[#7e2562] border border-[#7e2562]/20">
                             {u.role.replace(/_/g, ' ')}
                           </span>
                         )}
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {u.branch?.name || <span className="italic">Headquarters</span>}
+                    <td className="px-6 py-4 whitespace-nowrap text-xs text-neutral-600 font-medium">
+                      {u.branch?.name || <span className="italic text-neutral-400">Headquarters</span>}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">
                       {u.isActive ? (
-                        <span className="inline-flex items-center text-green-600 text-xs font-medium"><UserCheck className="w-4 h-4 mr-1"/> Active</span>
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wider bg-[#f0fbf5] text-[#3cb976] border border-[#3cb976]/20">
+                          <UserCheck className="w-3 h-3 mr-1"/> Active
+                        </span>
                       ) : (
-                        <span className="inline-flex items-center text-red-600 text-xs font-medium"><UserX className="w-4 h-4 mr-1"/> Inactive</span>
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wider bg-[#fef5f2] text-[#e45e34] border border-[#e45e34]/20">
+                          <UserX className="w-3 h-3 mr-1"/> Inactive
+                        </span>
                       )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-xs">
                       {u.id !== user?.id && (
-                        <div className="flex justify-end space-x-3">
-                          <button onClick={() => toggleStatus(u.id, u.isActive)} className={u.isActive ? "text-red-600 hover:text-red-900" : "text-green-600 hover:text-green-900"}>
+                        <div className="flex justify-end items-center gap-3">
+                          <button 
+                            onClick={() => toggleStatus(u.id, u.isActive, u.name)} 
+                            className={`font-semibold text-xs transition-colors ${u.isActive ? "text-[#e45e34] hover:text-[#c7451e]" : "text-[#3cb976] hover:text-[#2fa264]"}`}
+                          >
                             {u.isActive ? 'Deactivate' : 'Activate'}
                           </button>
-                          <button onClick={() => openModal(u)} className="text-gray-600 hover:text-gray-900"><Settings className="w-4 h-4"/></button>
+                          <button 
+                            onClick={() => openModal(u)} 
+                            className="text-neutral-400 hover:text-[#7e2562] p-1 transition-colors"
+                          >
+                            <Settings className="w-4 h-4"/>
+                          </button>
                         </div>
                       )}
                     </td>
@@ -223,20 +258,20 @@ export default function UsersManagementPage() {
       <AnimatePresence>
         {isModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
-              <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center"><Shield className="w-5 h-5 mr-2 text-blue-600"/> {editingUser ? 'Edit Staff Role' : 'Provision New Staff'}</h3>
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-sm shadow-xl w-full max-w-md p-6 border border-[#7e2562]/20">
+              <h3 className="text-lg font-bold text-neutral-900 mb-4 flex items-center"><Shield className="w-5 h-5 mr-2 text-[#7e2562]"/> {editingUser ? 'Edit Staff Role' : 'Provision New Staff'}</h3>
               
               <form onSubmit={handleSave} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
-                  <input required disabled={!!editingUser} type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="block w-full px-3 py-2 border rounded-lg sm:text-sm disabled:bg-gray-100" />
+                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-600 mb-1">Full Name *</label>
+                  <input required disabled={!!editingUser} type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="block w-full px-3 py-2 border border-[#7e2562]/20 rounded-sm text-sm disabled:bg-neutral-100 focus:outline-none focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Email Address *</label>
-                  <input required disabled={!!editingUser} type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="block w-full px-3 py-2 border rounded-lg sm:text-sm disabled:bg-gray-100" />
+                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-600 mb-1">Email Address *</label>
+                  <input required disabled={!!editingUser} type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="block w-full px-3 py-2 border border-[#7e2562]/20 rounded-sm text-sm disabled:bg-neutral-100 focus:outline-none focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">System Role *</label>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-600 mb-1">System Role *</label>
                   <Dropdown
                     required
                     isMulti
@@ -248,7 +283,7 @@ export default function UsersManagementPage() {
 
                 {formData.roles.some(r => ['BRANCH_MANAGER', 'BRANCH_INVENTORY', 'BRANCH_FRONT_OFFICE'].includes(r)) && (!user?.roles?.includes('BRANCH_MANAGER')) && (
                   <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Assigned Branch *</label>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-neutral-600 mb-1">Assigned Branch *</label>
                     <Dropdown
                       required
                       value={formData.branchId}
@@ -256,15 +291,15 @@ export default function UsersManagementPage() {
                       placeholder="Select branch..."
                       options={(branches || []).filter((b: any) => b.isActive !== false).map((b: any) => ({
                         value: b.id,
-                        label: `${b.name} (${b.location})`
+                        label: `${b.name} (${b.location || b.city || 'Store'})`
                       }))}
                     />
                   </motion.div>
                 )}
 
-                <div className="flex justify-end space-x-3 mt-6 pt-4 border-t">
-                  <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
-                  <button type="submit" disabled={isSubmitting} className="flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-neutral-100">
+                  <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-neutral-700 bg-white border border-neutral-300 rounded-sm hover:bg-neutral-50 transition-colors">Cancel</button>
+                  <button type="submit" disabled={isSubmitting} className="flex items-center px-4 py-2 text-xs font-bold uppercase tracking-wider text-white bg-[#7e2562] rounded-sm hover:bg-[#681b50] disabled:opacity-50 transition-colors shadow-sm shadow-plum-sm">
                     {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                     Save User
                   </button>

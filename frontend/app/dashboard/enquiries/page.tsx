@@ -16,8 +16,8 @@ export default function EnquiriesPage() {
 
   const { data: enquiries, loading: logLoading } = useApiData<any[]>('/enquiries', []);
   const { data: demandSummary, loading: demandLoading } = useApiData<any[]>('/enquiries/demand-summary', []);
-  const { data: catalog } = useApiData<any>('/catalog/books?limit=1000', []);
-  const { data: rawInventory } = useApiData<any>(user?.branchId ? `/inventory/branch/${user.branchId}?limit=1000` : null);
+  const { data: catalog } = useApiData<any>(isCreating ? '/catalog/books?limit=100' : null, []);
+  const { data: rawInventory } = useApiData<any>(isCreating && user?.branchId ? `/inventory/branch/${user.branchId}?limit=100` : null);
 
   // Compute Out of Stock Catalog for the specific branch
   const catalogList = catalog?.books || catalog?.items || catalog?.data || (Array.isArray(catalog) ? catalog : []);
@@ -90,11 +90,11 @@ export default function EnquiriesPage() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'OPEN': return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">Open</span>;
-      case 'STOCK_REQUESTED': return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">Stock Requested</span>;
-      case 'NEW_TITLE_REQUESTED': return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">New Title Req</span>;
-      case 'FULFILLED': return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Fulfilled</span>;
-      case 'CLOSED': return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">Closed</span>;
+      case 'OPEN': return <span className="inline-flex items-center px-2.5 py-0.5 rounded-sm text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">Open</span>;
+      case 'STOCK_REQUESTED': return <span className="inline-flex items-center px-2.5 py-0.5 rounded-sm text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">Stock Requested</span>;
+      case 'NEW_TITLE_REQUESTED': return <span className="inline-flex items-center px-2.5 py-0.5 rounded-sm text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200">New Title Req</span>;
+      case 'FULFILLED': return <span className="inline-flex items-center px-2.5 py-0.5 rounded-sm text-xs font-bold bg-[#f0fbf5] text-[#3cb976] border border-[#3cb976]/30">Fulfilled</span>;
+      case 'CLOSED': return <span className="inline-flex items-center px-2.5 py-0.5 rounded-sm text-xs font-bold bg-gray-100 text-gray-700 border border-gray-200">Closed</span>;
       default: return null;
     }
   };
@@ -106,28 +106,19 @@ export default function EnquiriesPage() {
           <h2 className="text-2xl font-bold tracking-tight text-gray-900">Customer Enquiries</h2>
           <p className="text-sm text-gray-500">Track out-of-stock requests and demand signals.</p>
         </div>
-        {/* {!!user?.branchId && user?.roles?.includes('BRANCH_FRONT_OFFICE') && (
-          <button
-            onClick={() => setIsCreating(true)}
-            className="flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Log Enquiry
-          </button>
-        )} */}
       </div>
 
-      <div className="flex space-x-1 border-b border-gray-200">
+      <div className="flex space-x-1 border-b border-[#7e2562]/10">
         <button
           onClick={() => setActiveTab('LOG')}
-          className={`py-2 px-4 text-sm font-medium border-b-2 outline-none flex items-center ${activeTab === 'LOG' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+          className={`py-2 px-4 text-sm font-semibold border-b-2 outline-none flex items-center transition-colors ${activeTab === 'LOG' ? 'border-[#7e2562] text-[#7e2562]' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
         >
           <MessageCircle className="w-4 h-4 mr-2" /> Enquiry Log
         </button>
         {isCentral && (
           <button
             onClick={() => setActiveTab('DEMAND')}
-            className={`py-2 px-4 text-sm font-medium border-b-2 outline-none flex items-center ${activeTab === 'DEMAND' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+            className={`py-2 px-4 text-sm font-semibold border-b-2 outline-none flex items-center transition-colors ${activeTab === 'DEMAND' ? 'border-[#7e2562] text-[#7e2562]' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
           >
             <BarChart3 className="w-4 h-4 mr-2" /> Demand Summary
           </button>
@@ -135,29 +126,29 @@ export default function EnquiriesPage() {
       </div>
 
       {activeTab === 'LOG' && (
-        <div className="bg-white shadow-sm border border-gray-200 rounded-xl overflow-hidden">
+        <div className="bg-white shadow-xs border border-gray-200 rounded-sm overflow-hidden">
           {logLoading ? (
-            <div className="p-10 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-blue-600"/></div>
+            <div className="p-10 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-[#7e2562]"/></div>
           ) : (
             <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+              <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562] uppercase tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
                 <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Requested Item</th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                  <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Total Enquiries</th>
-                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                  <th scope="col" className="px-6 py-3.5 text-left whitespace-nowrap">Requested Item</th>
+                  <th scope="col" className="px-6 py-3.5 text-left whitespace-nowrap">Type</th>
+                  <th scope="col" className="px-6 py-3.5 text-center whitespace-nowrap">Total Enquiries</th>
+                  <th scope="col" className="px-6 py-3.5 text-right whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {groupedEnquiries.map((group, idx) => (
-                  <tr key={idx}>
+                  <tr key={idx} className="hover:bg-gray-50/60 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-bold text-gray-900">{group.title}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {group.isCatalog ? <span className="text-blue-600">In Catalog (OOS)</span> : <span className="text-purple-600">New Title</span>}
+                      {group.isCatalog ? <span className="text-[#7e2562] font-medium">In Catalog (OOS)</span> : <span className="text-purple-600 font-medium">New Title</span>}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center text-lg font-bold text-gray-900">
+                    <td className="px-6 py-4 whitespace-nowrap text-center text-base font-bold text-gray-900">
                       {group.items.length}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -184,7 +175,7 @@ export default function EnquiriesPage() {
                         </div>
                         <button 
                           onClick={() => setViewingGroup(group)}
-                          className="text-blue-600 hover:text-blue-900 font-medium whitespace-nowrap"
+                          className="text-[#7e2562] hover:text-[#681b50] font-bold whitespace-nowrap hover:underline"
                         >
                           View
                         </button>
@@ -200,28 +191,28 @@ export default function EnquiriesPage() {
       )}
 
       {activeTab === 'DEMAND' && isCentral && (
-        <div className="bg-white shadow-sm border border-gray-200 rounded-xl overflow-hidden">
+        <div className="bg-white shadow-xs border border-gray-200 rounded-sm overflow-hidden">
           {demandLoading ? (
-            <div className="p-10 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-blue-600"/></div>
+            <div className="p-10 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-[#7e2562]"/></div>
           ) : (
             <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+              <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562] uppercase tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
                 <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Item</th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total Enquiries</th>
+                  <th scope="col" className="px-6 py-3.5 text-left whitespace-nowrap">Item</th>
+                  <th scope="col" className="px-6 py-3.5 text-left whitespace-nowrap">Type</th>
+                  <th scope="col" className="px-6 py-3.5 text-right whitespace-nowrap">Total Enquiries</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {(demandSummary || []).map((ds, i) => (
-                  <tr key={i}>
+                  <tr key={i} className="hover:bg-gray-50/60 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-bold text-gray-900">{ds.title}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {ds.bookId ? <span className="text-blue-600">Existing Catalog</span> : <span className="text-purple-600">Missing/New Title</span>}
+                      {ds.bookId ? <span className="text-[#7e2562] font-medium">Existing Catalog</span> : <span className="text-purple-600 font-medium">Missing/New Title</span>}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right font-bold text-xl text-gray-900">
+                    <td className="px-6 py-4 whitespace-nowrap text-right font-bold text-lg text-gray-900">
                       {ds.enquiryCount}
                     </td>
                   </tr>
@@ -236,17 +227,17 @@ export default function EnquiriesPage() {
       {/* Creation Modal */}
       <AnimatePresence>
         {isCreating && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
-              <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center"><MessageCircle className="w-5 h-5 mr-2"/> Log Customer Enquiry</h3>
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-sm shadow-xl w-full max-w-md p-6 border border-[#7e2562]/15">
+              <h3 className="text-lg font-bold text-[#7e2562] mb-4 flex items-center"><MessageCircle className="w-5 h-5 mr-2"/> Log Customer Enquiry</h3>
               
               <div className="flex space-x-4 mb-4">
                 <label className="flex items-center">
-                  <input type="radio" checked={enquiryType === 'CATALOG'} onChange={() => setEnquiryType('CATALOG')} className="text-blue-600" />
+                  <input type="radio" checked={enquiryType === 'CATALOG'} onChange={() => setEnquiryType('CATALOG')} className="text-[#7e2562] focus:ring-[#7e2562]" />
                   <span className="ml-2 text-sm text-gray-700">Catalog Item (OOS)</span>
                 </label>
                 <label className="flex items-center">
-                  <input type="radio" checked={enquiryType === 'NEW'} onChange={() => setEnquiryType('NEW')} className="text-blue-600" />
+                  <input type="radio" checked={enquiryType === 'NEW'} onChange={() => setEnquiryType('NEW')} className="text-[#7e2562] focus:ring-[#7e2562]" />
                   <span className="ml-2 text-sm text-gray-700">New / Unlisted Item</span>
                 </label>
               </div>
@@ -254,7 +245,7 @@ export default function EnquiriesPage() {
               <div className="space-y-4 mb-6">
                 {enquiryType === 'CATALOG' ? (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Select Book</label>
+                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Select Book</label>
                     <Dropdown
                       searchable
                       value={bookId}
@@ -271,26 +262,26 @@ export default function EnquiriesPage() {
                   </div>
                 ) : (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Book Title / Details</label>
-                    <input type="text" value={freeTextTitle} onChange={e => setFreeTextTitle(e.target.value)} placeholder="e.g. Harry Potter" className="block w-full px-3 py-2 border border-gray-300 rounded-lg sm:text-sm" />
+                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Book Title / Details</label>
+                    <input type="text" value={freeTextTitle} onChange={e => setFreeTextTitle(e.target.value)} placeholder="e.g. Harry Potter" className="block w-full px-3 py-2 border border-gray-300 rounded-sm text-sm focus:border-[#7e2562] focus:ring-1 focus:ring-[#7e2562] outline-none" />
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-4 border-t pt-4">
+                <div className="grid grid-cols-2 gap-4 border-t border-gray-100 pt-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Customer Name</label>
-                    <input type="text" value={customerName} onChange={e => setCustomerName(e.target.value)} className="block w-full px-3 py-2 border border-gray-300 rounded-lg sm:text-sm" />
+                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Customer Name</label>
+                    <input type="text" value={customerName} onChange={e => setCustomerName(e.target.value)} className="block w-full px-3 py-2 border border-gray-300 rounded-sm text-sm focus:border-[#7e2562] focus:ring-1 focus:ring-[#7e2562] outline-none" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-                    <input type="text" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} className="block w-full px-3 py-2 border border-gray-300 rounded-lg sm:text-sm" />
+                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Phone</label>
+                    <input type="text" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} className="block w-full px-3 py-2 border border-gray-300 rounded-sm text-sm focus:border-[#7e2562] focus:ring-1 focus:ring-[#7e2562] outline-none" />
                   </div>
                 </div>
               </div>
 
               <div className="flex justify-end space-x-3">
-                <button onClick={() => setIsCreating(false)} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
-                <button onClick={handleCreate} disabled={isSubmitting || (enquiryType === 'CATALOG' && !bookId) || (enquiryType === 'NEW' && !freeTextTitle)} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                <button onClick={() => setIsCreating(false)} className="px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-sm hover:bg-gray-50 transition-colors">Cancel</button>
+                <button onClick={handleCreate} disabled={isSubmitting || (enquiryType === 'CATALOG' && !bookId) || (enquiryType === 'NEW' && !freeTextTitle)} className="px-4 py-2 text-sm font-semibold text-white bg-[#7e2562] hover:bg-[#681b50] rounded-sm transition-colors disabled:opacity-50">
                   {isSubmitting ? 'Saving...' : 'Save Enquiry'}
                 </button>
               </div>
@@ -302,12 +293,12 @@ export default function EnquiriesPage() {
       {/* View Customers Modal */}
       <AnimatePresence>
         {viewingGroup && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-xl shadow-xl w-full max-w-4xl flex flex-col max-h-[90vh]">
-              <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50 rounded-t-xl">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-sm shadow-xl w-full max-w-4xl flex flex-col max-h-[90vh] border border-[#7e2562]/15">
+              <div className="p-6 border-b border-[#7e2562]/10 flex justify-between items-center bg-[#faf6f9] rounded-t-sm">
                 <div>
-                  <h3 className="text-xl font-bold text-gray-900">{viewingGroup.title}</h3>
-                  <p className="text-sm text-gray-500 mt-1">Customer Enquiries List</p>
+                  <h3 className="text-xl font-bold text-[#7e2562]">{viewingGroup.title}</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">Customer Enquiries List</p>
                 </div>
                 <button onClick={() => setViewingGroup(null)} className="text-gray-400 hover:text-gray-600 transition-colors">
                   <XCircle className="w-6 h-6" />
@@ -315,18 +306,18 @@ export default function EnquiriesPage() {
               </div>
               <div className="p-6 overflow-y-auto">
                 <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
+                  <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562] uppercase tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
                     <tr>
-                      <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
-                      <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Branch / Date</th>
-                      <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
+                      <th scope="col" className="px-4 py-3 text-left whitespace-nowrap">Customer</th>
+                      <th scope="col" className="px-4 py-3 text-left whitespace-nowrap">Branch / Date</th>
+                      <th scope="col" className="px-4 py-3 text-center whitespace-nowrap">Status</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {viewingGroup.items.map((enq: any) => (
-                      <tr key={enq.id}>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                          {enq.customerName || 'Anonymous'}<br/><span className="text-gray-500 text-xs">{enq.customerPhone || 'No phone'}</span>
+                      <tr key={enq.id} className="hover:bg-gray-50/60 transition-colors">
+                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 font-medium">
+                          {enq.customerName || 'Anonymous'}<br/><span className="text-gray-500 text-xs font-normal">{enq.customerPhone || 'No phone'}</span>
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
                           {enq.branch?.name}<br/>{new Date(enq.createdAt).toLocaleDateString()}
@@ -339,8 +330,8 @@ export default function EnquiriesPage() {
                   </tbody>
                 </table>
               </div>
-              <div className="p-4 border-t border-gray-100 flex justify-end bg-gray-50 rounded-b-xl">
-                <button onClick={() => setViewingGroup(null)} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Close</button>
+              <div className="p-4 border-t border-gray-100 flex justify-end bg-gray-50 rounded-b-sm">
+                <button onClick={() => setViewingGroup(null)} className="px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-sm hover:bg-gray-50 transition-colors">Close</button>
               </div>
             </motion.div>
           </div>

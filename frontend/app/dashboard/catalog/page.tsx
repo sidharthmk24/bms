@@ -2,25 +2,29 @@
 
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useConfirm } from '@/contexts/ConfirmContext';
 import { useApiData } from '@/hooks/useApiData';
 import { api } from '@/lib/api';
 import { Loader2, Plus, Book, Users, Tag, Building2, Pencil, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Dropdown } from '@/components/Dropdown';
+import { Pagination } from '@/components/Pagination';
 
 export default function CatalogManagementPage() {
   const { user } = useAuth();
+  const confirm = useConfirm();
   const isAdmin = (user?.roles?.some(r => ['SUPER_ADMIN', 'ADMIN', 'CENTRAL_INVENTORY_MANAGER'].includes(r)) || false);
 
   const [activeTab, setActiveTab] = useState<'BOOKS' | 'AUTHORS' | 'CATEGORIES' | 'PUBLISHERS'>('BOOKS');
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedAuthor, setSelectedAuthor] = useState('');
   const [sortBy, setSortBy] = useState('title');
   const [order, setOrder] = useState('ASC');
 
-  const booksUrl = `/catalog/books?page=${page}&limit=50`
+  const booksUrl = `/catalog/books?page=${page}&limit=${pageSize}`
     + (searchQuery ? `&search=${encodeURIComponent(searchQuery)}` : '')
     + (selectedCategory ? `&categoryId=${selectedCategory}` : '')
     + (selectedAuthor ? `&authorId=${selectedAuthor}` : '')
@@ -162,7 +166,15 @@ export default function CatalogManagementPage() {
   };
 
   const handleDeleteBook = async (id: string, title: string) => {
-    if (!confirm(`Are you sure you want to delete "${title}" from the catalog?`)) return;
+    const ok = await confirm({
+      title: "Delete Book",
+      message: `Are you sure you want to permanently delete "${title}" from the catalog? This cannot be undone.`,
+      confirmText: "Yes, Delete",
+      cancelText: "No, Keep",
+      variant: "danger",
+    });
+    if (!ok) return;
+
     try {
       await api.delete(`/catalog/books/${id}`);
     } catch (err: any) {
@@ -175,12 +187,20 @@ export default function CatalogManagementPage() {
     if (activeTab === 'AUTHORS') return 'author';
     if (activeTab === 'CATEGORIES') return 'category';
     if (activeTab === 'PUBLISHERS') return 'publisher';
-    return '';
+    return 'item';
   };
 
   const handleDeleteEntity = async (id: string, name: string) => {
     const typeLabel = getSingularLabel();
-    if (!confirm(`Are you sure you want to delete the ${typeLabel} "${name}"?`)) return;
+    const ok = await confirm({
+      title: `Delete ${typeLabel.charAt(0).toUpperCase() + typeLabel.slice(1)}`,
+      message: `Are you sure you want to delete the ${typeLabel} "${name}"?`,
+      confirmText: "Yes, Delete",
+      cancelText: "No, Keep",
+      variant: "danger",
+    });
+    if (!ok) return;
+
     try {
       const endpointMap = {
         'AUTHORS': '/catalog/authors',
@@ -204,14 +224,14 @@ export default function CatalogManagementPage() {
         </div>
         <button
           onClick={() => openModal()}
-          className="flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+          className="flex items-center px-4 py-2 text-sm font-semibold text-white bg-[#7e2562] hover:bg-[#681b50] rounded-sm shadow-xs transition-all active:scale-[0.98]"
         >
           <Plus className="w-4 h-4 mr-2" />
           Add {getSingularLabel().replace(/^\w/, c => c.toUpperCase())}
         </button>
       </div>
 
-      <div className="flex space-x-1 border-b border-gray-200">
+      <div className="flex space-x-1 border-b border-[#7e2562]/10">
         {[
           { id: 'BOOKS', icon: Book, label: 'Books' },
           { id: 'AUTHORS', icon: Users, label: 'Authors' },
@@ -221,23 +241,23 @@ export default function CatalogManagementPage() {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}
-            className={`py-2 px-4 text-sm font-medium border-b-2 outline-none flex items-center ${activeTab === tab.id ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+            className={`py-2 px-4 text-sm font-semibold border-b-2 outline-none flex items-center transition-colors ${activeTab === tab.id ? 'border-[#7e2562] text-[#7e2562]' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
           >
             <tab.icon className="w-4 h-4 mr-2" /> {tab.label}
           </button>
         ))}
       </div>
 
-      <div className="bg-white shadow-sm border border-gray-200 rounded-xl overflow-hidden">
+      <div className="bg-white shadow-sm border border-[#7e2562]/10 rounded-sm overflow-hidden">
         {activeTab === 'BOOKS' && (
-          <div className="p-4 border-b border-gray-200 flex flex-col sm:flex-row gap-4 bg-gray-50 items-start sm:items-center">
+          <div className="p-4 border-b border-[#7e2562]/10 flex flex-col sm:flex-row gap-4 bg-[#faf6f9]/50 items-start sm:items-center">
             <div className="flex-1 w-full">
               <input 
                 type="text" 
                 placeholder="Search title, ISBN, or barcode..." 
                 value={searchQuery}
                 onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg sm:text-sm focus:ring-black focus:border-black"
+                className="w-full px-3 py-2 border border-gray-300 rounded-sm text-sm focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562] bg-white"
               />
             </div>
             <div className="w-48 text-left z-20">
@@ -284,34 +304,36 @@ export default function CatalogManagementPage() {
         )}
 
         {isLoading ? (
-          <div className="p-10 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-blue-600"/></div>
+          <div className="p-10 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-[#7e2562]"/></div>
         ) : (
           <div className="overflow-x-auto">
             {activeTab === 'BOOKS' && (
               <>
                 <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
+                  <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562] uppercase tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Title</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Author</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Price</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                      <th className="px-6 py-3 text-left">Title</th>
+                      <th className="px-6 py-3 text-left">Author</th>
+                      <th className="px-6 py-3 text-left">Category</th>
+                      <th className="px-6 py-3 text-right">Price</th>
+                      <th className="px-6 py-3 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {books.map((b: any) => (
-                      <tr key={b.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{b.title}<br/><span className="text-xs text-gray-500 font-normal">{b.isbn}</span></td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{b.author?.name}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{b.category?.name}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900 font-medium">₹{b.price}</td>
+                      <tr key={b.id} className="hover:bg-[#faf6f9]/30 transition-colors">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">{b.title}<br/><span className="text-xs text-gray-500 font-mono font-normal">{b.isbn}</span></td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{b.author?.name}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          <span className="px-2 py-0.5 rounded-sm bg-[#faedf5] text-[#7e2562] text-xs font-semibold border border-[#7e2562]/20">{b.category?.name || 'General'}</span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900 font-bold">₹{b.price}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                          <div className="flex justify-end gap-3">
-                            <button onClick={() => openModal(b)} className="text-blue-600 hover:text-blue-900" title="Edit book">
+                          <div className="flex justify-end gap-2">
+                            <button onClick={() => openModal(b)} className="p-1.5 rounded-sm text-[#7e2562] hover:bg-[#faedf5] transition-colors" title="Edit book">
                               <Pencil className="w-4 h-4" />
                             </button>
-                            <button onClick={() => handleDeleteBook(b.id, b.title)} className="text-red-600 hover:text-red-900" title="Delete book">
+                            <button onClick={() => handleDeleteBook(b.id, b.title)} className="p-1.5 rounded-sm text-[#e45e34] hover:bg-[#fef5f2] transition-colors" title="Delete book">
                               <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
@@ -320,50 +342,39 @@ export default function CatalogManagementPage() {
                     ))}
                   </tbody>
                 </table>
-                {booksResponse?.totalPages > 1 && (
-                  <div className="px-6 py-4 border-t border-gray-200 flex justify-between items-center bg-gray-50 rounded-b-xl">
-                    <button 
-                      disabled={page === 1}
-                      onClick={() => setPage(page - 1)}
-                      className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Previous
-                    </button>
-                    <span className="text-sm text-gray-600 font-medium">
-                      Page {page} of {booksResponse.totalPages}
-                    </span>
-                    <button 
-                      disabled={page === booksResponse.totalPages}
-                      onClick={() => setPage(page + 1)}
-                      className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Next
-                    </button>
-                  </div>
-                )}
+                <Pagination
+                  currentPage={page}
+                  totalItems={booksResponse?.total ?? (booksResponse?.books?.length || 0)}
+                  pageSize={pageSize}
+                  onPageChange={(p) => setPage(p)}
+                  onPageSizeChange={(size) => {
+                    setPageSize(size);
+                    setPage(1);
+                  }}
+                />
               </>
             )}
 
             {activeTab !== 'BOOKS' && (
               <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+                <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562] uppercase tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    <th className="px-6 py-3 text-left">Name</th>
+                    <th className="px-6 py-3 text-left">Description</th>
+                    <th className="px-6 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {(activeTab === 'AUTHORS' ? authors : activeTab === 'CATEGORIES' ? categories : publishers)?.map((item: any) => (
-                    <tr key={item.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{item.name}</td>
+                    <tr key={item.id} className="hover:bg-[#faf6f9]/30 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">{item.name}</td>
                       <td className="px-6 py-4 text-sm text-gray-500 truncate max-w-md">{item.description || item.biography || '-'}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                        <div className="flex justify-end gap-3">
-                          <button onClick={() => openModal(item)} className="text-blue-600 hover:text-blue-900" title={`Edit ${getSingularLabel()}`}>
+                        <div className="flex justify-end gap-2">
+                          <button onClick={() => openModal(item)} className="p-1.5 rounded-sm text-[#7e2562] hover:bg-[#faedf5] transition-colors" title={`Edit ${getSingularLabel()}`}>
                             <Pencil className="w-4 h-4" />
                           </button>
-                          <button onClick={() => handleDeleteEntity(item.id, item.name)} className="text-red-600 hover:text-red-900" title={`Delete ${getSingularLabel()}`}>
+                          <button onClick={() => handleDeleteEntity(item.id, item.name)} className="p-1.5 rounded-sm text-[#e45e34] hover:bg-[#fef5f2] transition-colors" title={`Delete ${getSingularLabel()}`}>
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
@@ -379,8 +390,8 @@ export default function CatalogManagementPage() {
 
       <AnimatePresence>
         {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-6">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-sm shadow-xl w-full max-w-2xl p-6 border border-[#7e2562]/10">
               <h3 className="text-lg font-bold text-gray-900 mb-4">{editingId ? 'Edit' : 'Create'} {getSingularLabel().replace(/^\w/, c => c.toUpperCase())}</h3>
               
               <form onSubmit={handleSave} className="space-y-4">
@@ -388,35 +399,35 @@ export default function CatalogManagementPage() {
                   <>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
-                        <input required type="text" value={bookForm.title} onChange={e => setBookForm({...bookForm, title: e.target.value})} className="block w-full px-3 py-2 border rounded-lg sm:text-sm" />
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">Title *</label>
+                        <input required type="text" value={bookForm.title} onChange={e => setBookForm({...bookForm, title: e.target.value})} className="block w-full px-3 py-2 border border-gray-300 rounded-sm text-sm focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">ISBN *</label>
-                        <input required type="text" value={bookForm.isbn} onChange={e => setBookForm({...bookForm, isbn: e.target.value})} className="block w-full px-3 py-2 border rounded-lg sm:text-sm" />
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">ISBN *</label>
+                        <input required type="text" value={bookForm.isbn} onChange={e => setBookForm({...bookForm, isbn: e.target.value})} className="block w-full px-3 py-2 border border-gray-300 rounded-sm text-sm focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Price *</label>
-                        <input required type="number" step="0.01" min="0" value={bookForm.price} onChange={e => setBookForm({...bookForm, price: Number(e.target.value)})} className="block w-full px-3 py-2 border rounded-lg sm:text-sm" />
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">Price *</label>
+                        <input required type="number" step="0.01" min="0" value={bookForm.price} onChange={e => setBookForm({...bookForm, price: Number(e.target.value)})} className="block w-full px-3 py-2 border border-gray-300 rounded-sm text-sm focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Cost Price</label>
-                        <input type="number" step="0.01" min="0" value={bookForm.costPrice} onChange={e => setBookForm({...bookForm, costPrice: Number(e.target.value)})} className="block w-full px-3 py-2 border rounded-lg sm:text-sm" />
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">Cost Price</label>
+                        <input type="number" step="0.01" min="0" value={bookForm.costPrice} onChange={e => setBookForm({...bookForm, costPrice: Number(e.target.value)})} className="block w-full px-3 py-2 border border-gray-300 rounded-sm text-sm focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Author *</label>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">Author *</label>
                         <input 
                           required 
                           type="text" 
                           placeholder="Author Name"
                           value={customAuthorName} 
                           onChange={e => setCustomAuthorName(e.target.value)} 
-                          className="block w-full px-3 py-2 border rounded-lg sm:text-sm" 
+                          className="block w-full px-3 py-2 border border-gray-300 rounded-sm text-sm focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" 
                         />
                       </div>
                       <div className="flex flex-col gap-2">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
+                          <label className="block text-xs font-semibold text-gray-700 mb-1">Category *</label>
                           <Dropdown
                             required
                             value={bookForm.categoryId}
@@ -436,20 +447,20 @@ export default function CatalogManagementPage() {
                               placeholder="New Category Name"
                               value={customCategoryName} 
                               onChange={e => setCustomCategoryName(e.target.value)} 
-                              className="block w-full px-3 py-2 border rounded-lg sm:text-sm" 
+                              className="block w-full px-3 py-2 border border-gray-300 rounded-sm text-sm focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" 
                             />
                           </div>
                         )}
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Publisher *</label>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">Publisher *</label>
                         <input 
                           required 
                           type="text" 
                           placeholder="Publisher Name"
                           value={customPublisherName} 
                           onChange={e => setCustomPublisherName(e.target.value)} 
-                          className="block w-full px-3 py-2 border rounded-lg sm:text-sm" 
+                          className="block w-full px-3 py-2 border border-gray-300 rounded-sm text-sm focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" 
                         />
                       </div>
                     </div>
@@ -457,19 +468,19 @@ export default function CatalogManagementPage() {
                 ) : (
                   <>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
-                      <input required type="text" value={nameInput} onChange={e => setNameInput(e.target.value)} className="block w-full px-3 py-2 border rounded-lg sm:text-sm" />
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Name *</label>
+                      <input required type="text" value={nameInput} onChange={e => setNameInput(e.target.value)} className="block w-full px-3 py-2 border border-gray-300 rounded-sm text-sm focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Description / Bio</label>
-                      <textarea rows={3} value={descInput} onChange={e => setDescInput(e.target.value)} className="block w-full px-3 py-2 border rounded-lg sm:text-sm" />
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Description / Bio</label>
+                      <textarea rows={3} value={descInput} onChange={e => setDescInput(e.target.value)} className="block w-full px-3 py-2 border border-gray-300 rounded-sm text-sm focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" />
                     </div>
                   </>
                 )}
 
-                <div className="flex justify-end space-x-3 mt-6 pt-4 border-t">
-                  <button type="button" onClick={closeModal} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
-                  <button type="submit" disabled={isSubmitting} className="flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-gray-200">
+                  <button type="button" onClick={closeModal} className="px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-sm hover:bg-gray-50">Cancel</button>
+                  <button type="submit" disabled={isSubmitting} className="flex items-center px-4 py-2 text-sm font-semibold text-white bg-[#7e2562] hover:bg-[#681b50] rounded-sm disabled:opacity-50 shadow-xs transition-colors active:scale-[0.98]">
                     {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                     Save
                   </button>

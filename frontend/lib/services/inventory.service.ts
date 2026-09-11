@@ -72,34 +72,52 @@ export class InventoryService {
 
   // ── CENTRAL STOCK OPERATIONS ───────────────────────────────────────────────
 
-  async getCentralStock(query: GetInventoryQueryDto) {
+  async getCentralStock(query: any) {
     const { centralStockRepository } = await this.getRepos();
-    const { search, page = 1, limit = 10 } = query;
-    const skip = (page - 1) * limit;
+    const pageNum = Math.max(1, parseInt(String(query.page || 1), 10));
+    const limitNum = Math.max(1, parseInt(String(query.limit || 20), 10));
+    const skip = (pageNum - 1) * limitNum;
 
     const qb = centralStockRepository
       .createQueryBuilder('cs')
       .leftJoinAndSelect('cs.book', 'book')
       .leftJoinAndSelect('book.author', 'author')
       .leftJoinAndSelect('book.category', 'category')
-      .orderBy('book.title', 'ASC')
-      .skip(skip)
-      .take(limit);
+      .leftJoinAndSelect('book.publisher', 'publisher');
 
-    if (search) {
-      qb.where('book.title LIKE :search OR book.isbn LIKE :search OR book.barcode LIKE :search', {
-        search: `%${search}%`,
-      });
+    if (query.search && String(query.search).trim()) {
+      const searchStr = `%${String(query.search).trim()}%`;
+      qb.andWhere(
+        '(book.title LIKE :searchStr OR book.isbn LIKE :searchStr OR book.barcode LIKE :searchStr OR author.name LIKE :searchStr OR category.name LIKE :searchStr OR publisher.name LIKE :searchStr)',
+        { searchStr }
+      );
     }
+
+    if (query.publisherFilter === 'KAIRALI') {
+      qb.andWhere('(LOWER(publisher.name) LIKE :kairali OR book.publisherId IS NULL)', { kairali: '%kairali%' });
+    } else if (query.publisherFilter === 'OTHER') {
+      qb.andWhere('(LOWER(publisher.name) NOT LIKE :kairali AND book.publisherId IS NOT NULL)', { kairali: '%kairali%' });
+    }
+
+    const sortDir: 'ASC' | 'DESC' = (String(query.sortDirection || '').toUpperCase() === 'DESC') ? 'DESC' : 'ASC';
+    if (query.sortField === 'quantity') {
+      qb.orderBy('cs.quantity', sortDir);
+    } else if (query.sortField === 'reorderThreshold') {
+      qb.orderBy('cs.reorderThreshold', sortDir);
+    } else {
+      qb.orderBy('book.title', sortDir);
+    }
+
+    qb.skip(skip).take(limitNum);
 
     const [items, total] = await qb.getManyAndCount();
 
     return {
       items,
       total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit),
+      page: pageNum,
+      limit: limitNum,
+      totalPages: Math.ceil(total / limitNum),
     };
   }
 
@@ -346,37 +364,55 @@ export class InventoryService {
 
   // ── BRANCH INVENTORY OPERATIONS ────────────────────────────────────────────
 
-  async getBranchInventory(branchId: string, query: GetInventoryQueryDto, currentUser: JwtPayload) {
+  async getBranchInventory(branchId: string, query: any, currentUser: JwtPayload) {
     this.checkBranchAccess(currentUser, branchId);
     const { branchInventoryRepository } = await this.getRepos();
 
-    const { search, page = 1, limit = 10 } = query;
-    const skip = (page - 1) * limit;
+    const pageNum = Math.max(1, parseInt(String(query.page || 1), 10));
+    const limitNum = Math.max(1, parseInt(String(query.limit || 20), 10));
+    const skip = (pageNum - 1) * limitNum;
 
     const qb = branchInventoryRepository
       .createQueryBuilder('bi')
       .leftJoinAndSelect('bi.book', 'book')
       .leftJoinAndSelect('book.author', 'author')
       .leftJoinAndSelect('book.category', 'category')
-      .where('bi.branchId = :branchId', { branchId })
-      .orderBy('book.title', 'ASC')
-      .skip(skip)
-      .take(limit);
+      .leftJoinAndSelect('book.publisher', 'publisher')
+      .where('bi.branchId = :branchId', { branchId });
 
-    if (search) {
-      qb.andWhere('(book.title LIKE :search OR book.isbn LIKE :search OR book.barcode LIKE :search)', {
-        search: `%${search}%`,
-      });
+    if (query.search && String(query.search).trim()) {
+      const searchStr = `%${String(query.search).trim()}%`;
+      qb.andWhere(
+        '(book.title LIKE :searchStr OR book.isbn LIKE :searchStr OR book.barcode LIKE :searchStr OR author.name LIKE :searchStr OR category.name LIKE :searchStr OR publisher.name LIKE :searchStr)',
+        { searchStr }
+      );
     }
+
+    if (query.publisherFilter === 'KAIRALI') {
+      qb.andWhere('(LOWER(publisher.name) LIKE :kairali OR book.publisherId IS NULL)', { kairali: '%kairali%' });
+    } else if (query.publisherFilter === 'OTHER') {
+      qb.andWhere('(LOWER(publisher.name) NOT LIKE :kairali AND book.publisherId IS NOT NULL)', { kairali: '%kairali%' });
+    }
+
+    const sortDir: 'ASC' | 'DESC' = (String(query.sortDirection || '').toUpperCase() === 'DESC') ? 'DESC' : 'ASC';
+    if (query.sortField === 'quantity') {
+      qb.orderBy('bi.quantity', sortDir);
+    } else if (query.sortField === 'reorderThreshold') {
+      qb.orderBy('bi.reorderThreshold', sortDir);
+    } else {
+      qb.orderBy('book.title', sortDir);
+    }
+
+    qb.skip(skip).take(limitNum);
 
     const [items, total] = await qb.getManyAndCount();
 
     return {
       items,
       total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit),
+      page: pageNum,
+      limit: limitNum,
+      totalPages: Math.ceil(total / limitNum),
     };
   }
 

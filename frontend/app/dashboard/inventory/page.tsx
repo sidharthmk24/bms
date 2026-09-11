@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useConfirm } from '@/contexts/ConfirmContext';
 import { api } from '@/lib/api';
 import { Loader2, AlertCircle, Search, Edit2, Bell, Check, ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, PackagePlus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -12,6 +13,7 @@ import { matchKeywords } from '@/lib/searchUtils';
 
 export default function BranchInventoryPage() {
   const { user } = useAuth();
+  const confirm = useConfirm();
   const canAdjust = ['SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'BRANCH_INVENTORY'].includes(user?.role || user?.primaryRole || '');
   const [inventory, setInventory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,7 +41,8 @@ export default function BranchInventoryPage() {
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(20);
+  const [totalCount, setTotalCount] = useState(0);
 
   // Notification states
   const [notifyingId, setNotifyingId] = useState<string | null>(null);
@@ -51,9 +54,6 @@ export default function BranchInventoryPage() {
   const { data: branchesResponse } = useApiData<any>('/branches', []);
   const branches = branchesResponse?.items || (Array.isArray(branchesResponse) ? branchesResponse : []);
   const branchName = branches.find((b: any) => b.id === user?.branchId)?.name || 'Branch';
-
-  // Catalog for search when requesting stock
-  const { data: catalog } = useApiData<any>('/catalog/books?limit=1000', []);
 
   // Modal State - Adjust Inventory
   const [isAdjusting, setIsAdjusting] = useState(false);
@@ -79,9 +79,19 @@ export default function BranchInventoryPage() {
     try {
       setLoading(true);
       setError(null);
-      const res = await api.get(`/inventory/branch/${selectedBranchId}?limit=1000`);
+      const params = new URLSearchParams();
+      params.append('page', String(currentPage));
+      params.append('limit', String(pageSize));
+      if (searchTerm.trim()) params.append('search', searchTerm.trim());
+      if (publisherFilter !== 'ALL') params.append('publisherFilter', publisherFilter);
+      params.append('sortField', sortField);
+      params.append('sortDirection', sortDirection);
+
+      const res = await api.get(`/inventory/branch/${selectedBranchId}?${params.toString()}`);
       if (res.success) {
-        setInventory(res.data.items || (Array.isArray(res.data) ? res.data : []));
+        const items = res.data?.items || (Array.isArray(res.data) ? res.data : []);
+        setInventory(items);
+        setTotalCount(res.data?.total ?? items.length);
       }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to fetch inventory');
@@ -92,13 +102,26 @@ export default function BranchInventoryPage() {
 
   useEffect(() => {
     fetchInventory();
+  }, [selectedBranchId, currentPage, pageSize, searchTerm, publisherFilter, sortField, sortDirection]);
+
+  useEffect(() => {
     window.addEventListener('app:data-mutated', fetchInventory);
     return () => window.removeEventListener('app:data-mutated', fetchInventory);
-  }, [selectedBranchId]);
+  }, [selectedBranchId, currentPage, pageSize, searchTerm, publisherFilter, sortField, sortDirection]);
 
   const handleAdjust = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedBook || !selectedBranchId) return;
+
+    const formattedQty = adjustmentQuantity > 0 ? `+${adjustmentQuantity}` : `${adjustmentQuantity}`;
+    const ok = await confirm({
+      title: "Confirm Stock Adjustment",
+      message: `Are you sure you want to adjust the inventory quantity for "${selectedBook.book.title}" by ${formattedQty}? Reason: "${adjustmentReason}".`,
+      confirmText: "Yes, Adjust Stock",
+      cancelText: "No, Cancel",
+      variant: "warning",
+    });
+    if (!ok) return;
 
     try {
       setIsSubmitting(true);
@@ -107,6 +130,7 @@ export default function BranchInventoryPage() {
         reason: adjustmentReason,
       });
       setIsAdjusting(false);
+      fetchInventory();
     } catch (err: any) {
       alert(err.response?.data?.message || 'Adjustment failed');
     } finally {
@@ -116,6 +140,16 @@ export default function BranchInventoryPage() {
 
   const handleNotifyManager = async (item: any) => {
     if (!selectedBranchId || !item.book?.id) return;
+
+    const ok = await confirm({
+      title: "Send Low-Stock Notification",
+      message: `Are you sure you want to send a low-stock alert for "${item.book?.title}" to the Central Inventory Manager and administrators?`,
+      confirmText: "Yes, Send Alert",
+      cancelText: "No, Cancel",
+      variant: "primary",
+    });
+    if (!ok) return;
+
     try {
       setNotifyingId(item.id);
       const res = await api.post(`/inventory/branch/${selectedBranchId}/book/${item.book.id}/notify-manager`, {});
@@ -133,6 +167,15 @@ export default function BranchInventoryPage() {
     e.preventDefault();
     const bookId = requestStockBook?.id;
     if (!bookId || requestStockQuantity <= 0) return;
+
+    const ok = await confirm({
+      title: "Submit Restock Request",
+      message: `Are you sure you want to request ${requestStockQuantity} copies of "${requestStockBook.title}" from the Central Warehouse?`,
+      confirmText: "Yes, Submit Request",
+      cancelText: "No, Cancel",
+      variant: "primary",
+    });
+    if (!ok) return;
 
     try {
       setIsSubmittingStockRequest(true);
@@ -173,48 +216,6 @@ export default function BranchInventoryPage() {
     );
   }
 
-  const filteredInventory = inventory.filter((item: any) => {
-    const isKairali = 
-      item.book?.publishType === 'KAIRALI_BOOKS' ||
-      item.book?.publisher?.name?.toLowerCase().includes('kairali') ||
-      Boolean(item.book?.pmsTitleId);
-
-    if (publisherFilter === 'KAIRALI' && !isKairali) return false;
-    if (publisherFilter === 'OTHER' && isKairali) return false;
-
-    return matchKeywords(
-      searchTerm,
-      item.book?.title,
-      item.book?.isbn,
-      item.book?.barcode,
-      item.book?.author?.name,
-      item.book?.category?.name,
-      item.book?.publisher?.name
-    );
-  });
-
-  const sortedInventory = [...filteredInventory].sort((a: any, b: any) => {
-    let comparison = 0;
-    if (sortField === 'title') {
-      comparison = (a.book?.title || '').localeCompare(b.book?.title || '');
-    } else if (sortField === 'quantity') {
-      comparison = Number(a.quantity || 0) - Number(b.quantity || 0);
-    } else if (sortField === 'reorderThreshold') {
-      comparison = Number(a.reorderThreshold || 0) - Number(b.reorderThreshold || 0);
-    } else if (sortField === 'status') {
-      const getStatusRank = (item: any) => {
-        if (item.quantity === 0) return 0; // Out of stock highest urgency
-        if (item.quantity <= item.reorderThreshold) return 1; // Restock needed / low stock
-        return 2; // Healthy
-      };
-      comparison = getStatusRank(a) - getStatusRank(b);
-    }
-
-    return sortDirection === 'asc' ? comparison : -comparison;
-  });
-
-  const paginatedInventory = sortedInventory.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
@@ -249,7 +250,7 @@ export default function BranchInventoryPage() {
           {/* Search Bar */}
           <div className="relative w-full sm:w-72">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search className="h-4 w-4 text-neutral-400" />
+              <Search className="h-4 w-4 text-muted-foreground" />
             </div>
             <input
               type="text"
@@ -259,7 +260,7 @@ export default function BranchInventoryPage() {
                 setSearchTerm(e.target.value);
                 setCurrentPage(1);
               }}
-              className="block w-full pl-10 pr-3 py-2 border border-neutral-300 rounded-xl focus:ring-black focus:border-black sm:text-sm"
+              className="block w-full pl-10 pr-3 py-2 border border-[#7e2562]/15 rounded-sm focus:ring-[#7e2562]/10 focus:border-[#7e2562] text-xs font-medium text-foreground bg-white outline-none"
             />
           </div>
 
@@ -280,7 +281,7 @@ export default function BranchInventoryPage() {
                 { value: 'status_asc', label: 'Needs Restock First' },
                 { value: 'reorderThreshold_desc', label: 'Threshold: High-Low' },
               ]}
-              selectClassName="!py-2 !rounded-xl !text-xs font-bold border-neutral-300 bg-white"
+              selectClassName="!py-2 !rounded-sm !text-xs font-bold border-[#7e2562]/15 bg-white"
             />
           </div>
 
@@ -291,7 +292,7 @@ export default function BranchInventoryPage() {
                 setRequestStockQuantity(10);
                 setIsRequestingStock(true);
               }}
-              className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-black hover:bg-neutral-800 rounded-xl shadow-sm active:scale-95 transition-all shrink-0"
+              className="apple-button inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-primary hover:bg-primary-hover rounded-sm shadow-plum-sm transition-all shrink-0 cursor-pointer"
             >
               <TrendingUp className="w-4 h-4" />
               Request Stock
@@ -301,33 +302,33 @@ export default function BranchInventoryPage() {
       </div>
 
       {!selectedBranchId && isGlobalAdmin && (
-        <div className="bg-neutral-50 border border-neutral-200 text-neutral-800 px-4 py-8 rounded-2xl text-center flex flex-col items-center">
-          <Search className="w-12 h-12 text-neutral-400 mb-3" />
-          <h3 className="text-lg font-semibold text-black">Select a Branch</h3>
-          <p className="text-sm mt-1 max-w-md text-neutral-500">Please select a branch from the dropdown menu above to view and manage its inventory.</p>
+        <div className="bg-[#faf6f9]/60 border border-[#7e2562]/15 text-foreground px-4 py-8 rounded-sm text-center flex flex-col items-center">
+          <Search className="w-12 h-12 text-[#7e2562]/40 mb-3" />
+          <h3 className="text-lg font-bold text-foreground">Select a Branch</h3>
+          <p className="text-xs mt-1 max-w-md text-muted-foreground">Please select a branch from the dropdown menu above to view and manage its inventory.</p>
         </div>
       )}
 
       {selectedBranchId && (
         <div className="space-y-4">
           {/* Publisher Type Filter Tabs */}
-          <div className="flex items-center gap-2 p-1 bg-neutral-100/80 rounded-xl w-fit border border-neutral-200/60 shadow-2xs">
+          <div className="flex items-center gap-2 p-1 bg-white rounded-sm w-fit border border-[#7e2562]/15 shadow-2xs">
             <button
               onClick={() => { setPublisherFilter('ALL'); setCurrentPage(1); }}
-              className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all ${
+              className={`px-3.5 py-1.5 text-xs font-bold rounded-sm transition-all cursor-pointer ${
                 publisherFilter === 'ALL'
-                  ? 'bg-white text-black shadow-xs'
-                  : 'text-neutral-500 hover:text-black'
+                  ? 'bg-primary text-white shadow-plum-sm'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               All Books ({inventory.length})
             </button>
             <button
               onClick={() => { setPublisherFilter('KAIRALI'); setCurrentPage(1); }}
-              className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
+              className={`px-3.5 py-1.5 text-xs font-bold rounded-sm transition-all flex items-center gap-1.5 cursor-pointer ${
                 publisherFilter === 'KAIRALI'
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'text-neutral-600 hover:text-emerald-700'
+                  ? 'bg-[#3cb976] text-white shadow-xs'
+                  : 'text-[#22794d] hover:text-[#1b4f35]'
               }`}
             >
               <span>🌟</span>
@@ -335,69 +336,69 @@ export default function BranchInventoryPage() {
             </button>
             <button
               onClick={() => { setPublisherFilter('OTHER'); setCurrentPage(1); }}
-              className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all ${
+              className={`px-3.5 py-1.5 text-xs font-bold rounded-sm transition-all cursor-pointer ${
                 publisherFilter === 'OTHER'
-                  ? 'bg-white text-black shadow-xs'
-                  : 'text-neutral-500 hover:text-black'
+                  ? 'bg-primary text-white shadow-plum-sm'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               Other Publishers ({inventory.filter((i: any) => !(i.book?.publishType === 'KAIRALI_BOOKS' || i.book?.publisher?.name?.toLowerCase().includes('kairali') || Boolean(i.book?.pmsTitleId))).length})
             </button>
           </div>
 
-          <div className="bg-white shadow-sm border border-neutral-200 rounded-2xl overflow-hidden">
+          <div className="bg-white shadow-plum-sm border border-[#7e2562]/15 rounded-sm overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-neutral-200">
-              <thead className="bg-neutral-50/80">
+              <table className="min-w-full divide-y divide-[#7e2562]/8">
+              <thead className="bg-[#faf6f9]/60 border-b border-[#7e2562]/10">
                 <tr>
                   <th 
                     scope="col" 
                     onClick={() => toggleSort('title')}
-                    className="group px-6 py-3 text-left text-xs font-bold text-neutral-600 uppercase tracking-wider cursor-pointer select-none hover:bg-neutral-100/80 hover:text-black transition-colors"
+                    className="group px-6 py-3 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider cursor-pointer select-none hover:text-foreground transition-colors whitespace-nowrap"
                   >
                     <div className="flex items-center gap-1.5">
                       <span>Book</span>
                       {sortField === 'title' ? (
-                        sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-black font-bold" /> : <ArrowDown className="w-3.5 h-3.5 text-black font-bold" />
+                        sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-primary font-bold" /> : <ArrowDown className="w-3.5 h-3.5 text-primary font-bold" />
                       ) : (
-                        <ArrowUpDown className="w-3 h-3 text-neutral-400 opacity-50 group-hover:opacity-100 transition-opacity" />
+                        <ArrowUpDown className="w-3 h-3 text-muted-foreground/50 opacity-50 group-hover:opacity-100 transition-opacity" />
                       )}
                     </div>
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-bold text-neutral-600 uppercase tracking-wider">ISBN / Barcode</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">ISBN / Barcode</th>
                   <th 
                     scope="col" 
                     onClick={() => toggleSort('quantity')}
-                    className="group px-6 py-3 text-right text-xs font-bold text-neutral-600 uppercase tracking-wider cursor-pointer select-none hover:bg-neutral-100/80 hover:text-black transition-colors"
+                    className="group px-6 py-3 text-right text-xs font-bold text-muted-foreground uppercase tracking-wider cursor-pointer select-none hover:text-foreground transition-colors whitespace-nowrap"
                   >
                     <div className="flex items-center justify-end gap-1.5">
                       <span>Quantity</span>
                       {sortField === 'quantity' ? (
-                        sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-black font-bold" /> : <ArrowDown className="w-3.5 h-3.5 text-black font-bold" />
+                        sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-primary font-bold" /> : <ArrowDown className="w-3.5 h-3.5 text-primary font-bold" />
                       ) : (
-                        <ArrowUpDown className="w-3 h-3 text-neutral-400 opacity-50 group-hover:opacity-100 transition-opacity" />
+                        <ArrowUpDown className="w-3 h-3 text-muted-foreground/50 opacity-50 group-hover:opacity-100 transition-opacity" />
                       )}
                     </div>
                   </th>
                   <th 
                     scope="col" 
                     onClick={() => toggleSort('status')}
-                    className="group px-6 py-3 text-center text-xs font-bold text-neutral-600 uppercase tracking-wider cursor-pointer select-none hover:bg-neutral-100/80 hover:text-black transition-colors"
+                    className="group px-6 py-3 text-center text-xs font-bold text-muted-foreground uppercase tracking-wider cursor-pointer select-none hover:text-foreground transition-colors whitespace-nowrap"
                   >
                     <div className="flex items-center justify-center gap-1.5">
                       <span>Status & Alerts</span>
                       {sortField === 'status' ? (
-                        sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-black font-bold" /> : <ArrowDown className="w-3.5 h-3.5 text-black font-bold" />
+                        sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-primary font-bold" /> : <ArrowDown className="w-3.5 h-3.5 text-primary font-bold" />
                       ) : (
-                        <ArrowUpDown className="w-3 h-3 text-neutral-400 opacity-50 group-hover:opacity-100 transition-opacity" />
+                        <ArrowUpDown className="w-3 h-3 text-muted-foreground/50 opacity-50 group-hover:opacity-100 transition-opacity" />
                       )}
                     </div>
                   </th>
-                  <th scope="col" className="px-6 py-3 text-right text-xs font-bold text-neutral-600 uppercase tracking-wider">Actions</th>
+                  <th scope="col" className="px-6 py-3 text-right text-xs font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-neutral-100">
-                {paginatedInventory.map((item) => {
+              <tbody className="bg-white divide-y divide-[#7e2562]/8">
+                {inventory.map((item) => {
                   const isLowStock = item.quantity <= item.reorderThreshold;
                   const isNotified = !!notifiedItems[item.id];
                   const isCurrentlyNotifying = notifyingId === item.id;
@@ -407,43 +408,41 @@ export default function BranchInventoryPage() {
                     Boolean(item.book?.pmsTitleId);
 
                   return (
-                    <tr key={item.id} className="hover:bg-neutral-50/60 transition-colors">
+                    <tr key={item.id} className="hover:bg-[#faf6f9]/60 transition-colors">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-2">
-                          <span className="text-sm font-semibold text-black">{item.book.title}</span>
+                          <span className="text-sm font-semibold text-foreground">{item.book.title}</span>
                           {isKairali ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#f0fbf5] text-[#22794d] border border-[#bcecd2]">
                               Kairali Books
                             </span>
                           ) : (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-neutral-100 text-neutral-600 border border-neutral-200">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-[#faf6f9] text-muted-foreground border border-[#ece3ea]">
                               {item.book.publisher?.name || 'Other'}
                             </span>
                           )}
                         </div>
-                        <div className="text-xs text-neutral-500">{item.book.author?.name}</div>
+                        <div className="text-xs text-muted-foreground">{item.book.author?.name}</div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-xs text-neutral-600 font-mono">
+                      <td className="px-6 py-4 whitespace-nowrap text-xs text-muted-foreground font-mono">
                         {item.book.barcode || item.book.isbn}
                       </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-bold text-black">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-bold text-foreground">
                       {item.quantity}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">
                       <div className="flex flex-col items-center justify-center gap-1.5">
                         {item.quantity === 0 ? (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200 shadow-sm">
-                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-[#fef5f2] text-danger border border-[#fbd5c9] shadow-2xs">
+                            <span className="w-1.5 h-1.5 rounded-full bg-danger animate-pulse"></span>
                             Out of Stock (0)
                           </span>
                         ) : isLowStock ? (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 shadow-sm">
-                            {/* <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span> */}
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-[#fffbeb] text-amber-800 border border-[#fde68a] shadow-2xs">
                             Low Stock (≤{item.reorderThreshold})
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm">
-                            {/* <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> */}
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-[#f0fbf5] text-[#22794d] border border-[#bcecd2] shadow-2xs">
                             In Stock
                           </span>
                         )}
@@ -480,7 +479,7 @@ export default function BranchInventoryPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      {canAdjust ? (
+                      {canAdjust && (
                         <button
                           onClick={() => {
                             setSelectedBook(item);
@@ -488,19 +487,17 @@ export default function BranchInventoryPage() {
                             setAdjustmentReason('CORRECTION');
                             setIsAdjusting(true);
                           }}
-                          className="text-black hover:text-neutral-700 inline-flex items-center font-semibold text-xs border border-neutral-200 px-2.5 py-1 rounded-lg hover:bg-neutral-100 transition-colors"
+                          className="apple-button inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[#7e2562] bg-[#faedf5] hover:bg-[#f6dded] border border-[#7e2562]/20 rounded-sm transition-colors cursor-pointer"
                         >
-                          <Edit2 className="w-3.5 h-3.5 mr-1 text-black" />
-                          Adjust
+                          <Edit2 className="w-3.5 h-3.5" />
+                          <span>Adjust</span>
                         </button>
-                      ) : (
-                        <span className="text-neutral-400 font-medium text-xs">Read Only</span>
                       )}
                     </td>
                   </tr>
                 );
               })}
-              {filteredInventory.length === 0 && (
+              {inventory.length === 0 && (
                 <tr>
                   <td colSpan={5} className="px-6 py-12 text-center text-neutral-500 text-sm">
                     No inventory records found matching your criteria.
@@ -513,7 +510,7 @@ export default function BranchInventoryPage() {
 
         <Pagination
           currentPage={currentPage}
-          totalItems={filteredInventory.length}
+          totalItems={totalCount}
           pageSize={pageSize}
           onPageChange={(page) => setCurrentPage(page)}
           onPageSizeChange={(size) => {
@@ -664,11 +661,11 @@ export default function BranchInventoryPage() {
                   </p>
                 </div>
 
-                <div className="p-3 rounded-xl bg-neutral-50 border border-neutral-200/80 text-xs text-neutral-600 space-y-1">
+                {/* <div className="p-3 rounded-xl bg-neutral-50 border border-neutral-200/80 text-xs text-neutral-600 space-y-1">
                   <div className="font-semibold text-black">Delivery Pipeline:</div>
                   <div>• If Central Warehouse has stock, it will be dispatched to your branch.</div>
                   <div>• If out of stock chain-wide, a Purchase Order will be initiated to restock the central pool.</div>
-                </div>
+                </div> */}
 
                 <div className="flex justify-end space-x-2.5 mt-6">
                   <button

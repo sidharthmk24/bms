@@ -62,9 +62,9 @@ export const Pagination: React.FC<PaginationProps> = ({
           <span>No records to display</span>
         ) : (
           <span>
-            Showing <strong className="text-black font-bold">{startItem}</strong> to{' '}
-            <strong className="text-black font-bold">{endItem}</strong> of{' '}
-            <strong className="text-black font-bold">{totalItems}</strong> entries
+            Showing <strong className="text-neutral-900 font-bold">{startItem}</strong> to{' '}
+            <strong className="text-neutral-900 font-bold">{endItem}</strong> of{' '}
+            <strong className="text-neutral-900 font-bold">{totalItems}</strong> entries
           </span>
         )}
       </div>
@@ -82,7 +82,7 @@ export const Pagination: React.FC<PaginationProps> = ({
                   value: String(opt),
                   label: String(opt),
                 }))}
-                selectClassName="!py-1 !px-2.5 !rounded-xl !text-xs font-bold text-black border-neutral-300 bg-white shadow-none hover:border-neutral-400"
+                selectClassName="!py-1 !px-2.5 !rounded-sm !text-xs font-bold text-neutral-900 border-[#7e2562]/20 bg-white shadow-none hover:border-[#7e2562]"
               />
             </div>
           </div>
@@ -95,7 +95,7 @@ export const Pagination: React.FC<PaginationProps> = ({
             disabled={safeCurrentPage <= 1}
             onClick={() => onPageChange(safeCurrentPage - 1)}
             aria-label="Previous page"
-            className="inline-flex items-center justify-center p-1.5 rounded-xl border border-neutral-200 text-neutral-600 hover:bg-neutral-100 hover:text-black active:scale-95 disabled:opacity-40 disabled:pointer-events-none transition-all"
+            className="inline-flex items-center justify-center p-1.5 rounded-sm border border-neutral-200 text-neutral-600 hover:bg-[#faedf5] hover:text-[#7e2562] hover:border-[#7e2562]/30 active:scale-95 disabled:opacity-40 disabled:pointer-events-none transition-all"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
@@ -120,10 +120,10 @@ export const Pagination: React.FC<PaginationProps> = ({
                 key={`page-${pageNum}`}
                 type="button"
                 onClick={() => onPageChange(pageNum)}
-                className={`min-w-[32px] h-8 px-2 text-xs font-bold rounded-xl transition-all ${
+                className={`min-w-[32px] h-8 px-2 text-xs font-bold rounded-sm transition-all ${
                   isActive
-                    ? 'bg-black text-white shadow-sm'
-                    : 'text-neutral-700 hover:bg-neutral-100 border border-transparent hover:border-neutral-200'
+                    ? 'bg-[#7e2562] text-white shadow-sm shadow-plum-sm'
+                    : 'text-neutral-700 hover:bg-[#faedf5] hover:text-[#7e2562] border border-transparent hover:border-[#7e2562]/20'
                 }`}
               >
                 {pageNum}
@@ -136,7 +136,7 @@ export const Pagination: React.FC<PaginationProps> = ({
             disabled={safeCurrentPage >= totalPages}
             onClick={() => onPageChange(safeCurrentPage + 1)}
             aria-label="Next page"
-            className="inline-flex items-center justify-center p-1.5 rounded-xl border border-neutral-200 text-neutral-600 hover:bg-neutral-100 hover:text-black active:scale-95 disabled:opacity-40 disabled:pointer-events-none transition-all"
+            className="inline-flex items-center justify-center p-1.5 rounded-sm border border-neutral-200 text-neutral-600 hover:bg-[#faedf5] hover:text-[#7e2562] hover:border-[#7e2562]/30 active:scale-95 disabled:opacity-40 disabled:pointer-events-none transition-all"
           >
             <ChevronRight className="w-4 h-4" />
           </button>

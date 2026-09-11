@@ -208,9 +208,9 @@ export class BillingService {
 
   // ── 2. GET BILLS ───────────────────────────────────────────────────────────
 
-  async getBills(query: GetBillsQueryDto, currentUser: JwtPayload) {
+  async getBills(query: any, currentUser: JwtPayload) {
     // Resolve branch boundary filtering
-    const effectiveBranchId = currentUser.branchId || query.branchId;
+    const effectiveBranchId = currentUser.branchId || (query.branchId && query.branchId !== 'all' ? query.branchId : undefined);
     if (currentUser.branchId) {
       // Scoped users can only read their own branch bills
       this.checkBranchAccess(currentUser, currentUser.branchId);
@@ -218,8 +218,9 @@ export class BillingService {
 
     const { billRepository } = await this.getRepos();
 
-    const { search, page = 1, limit = 15, startDate, endDate } = query;
-    const skip = (page - 1) * limit;
+    const pageNum = Math.max(1, parseInt(String(query.page || 1), 10));
+    const limitNum = Math.max(1, parseInt(String(query.limit || 20), 10));
+    const skip = (pageNum - 1) * limitNum;
 
     const qb = billRepository
       .createQueryBuilder('b')
@@ -229,21 +230,42 @@ export class BillingService {
       .leftJoinAndSelect('items.book', 'book')
       .orderBy('b.createdAt', 'DESC')
       .skip(skip)
-      .take(limit);
+      .take(limitNum);
 
     if (effectiveBranchId) {
       qb.andWhere('b.branchId = :branchId', { branchId: effectiveBranchId });
     }
 
-    if (search) {
-      qb.andWhere('(b.billNumber LIKE :search OR b.customerName LIKE :search)', {
-        search: `%${search}%`,
-      });
+    // Payment mode filter
+    if (query.paymentMode && query.paymentMode !== 'all') {
+      qb.andWhere('b.paymentMode = :paymentMode', { paymentMode: query.paymentMode });
     }
 
-    if (startDate || endDate) {
-      const start = startDate ? new Date(startDate) : new Date('2000-01-01');
-      const end = endDate ? new Date(endDate) : new Date('2100-01-01');
+    // Status filter
+    if (query.status && query.status !== 'all') {
+      qb.andWhere('b.status = :status', { status: query.status });
+    }
+
+    // Source filter (STORE vs EXHIBITION)
+    if (query.source === 'STORE') {
+      qb.andWhere('b.exhibitionId IS NULL');
+    } else if (query.source === 'EXHIBITION') {
+      qb.andWhere('b.exhibitionId IS NOT NULL');
+    }
+
+    // Search filter across billNumber, customerName, customerPhone, branch, and book details
+    if (query.search && String(query.search).trim()) {
+      const searchStr = `%${String(query.search).trim()}%`;
+      qb.andWhere(
+        '(b.billNumber LIKE :searchStr OR b.customerName LIKE :searchStr OR b.customerPhone LIKE :searchStr OR branch.name LIKE :searchStr OR book.title LIKE :searchStr OR book.isbn LIKE :searchStr OR book.barcode LIKE :searchStr)',
+        { searchStr }
+      );
+    }
+
+    // Date range filter
+    if (query.startDate || query.endDate) {
+      const start = query.startDate ? new Date(query.startDate) : new Date('2000-01-01');
+      const end = query.endDate ? new Date(query.endDate) : new Date('2100-01-01');
       qb.andWhere('b.createdAt BETWEEN :start AND :end', { start, end });
     }
 
@@ -252,9 +274,9 @@ export class BillingService {
     return {
       items,
       total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit),
+      page: pageNum,
+      limit: limitNum,
+      totalPages: Math.ceil(total / limitNum),
     };
   }
 

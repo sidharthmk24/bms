@@ -8,39 +8,40 @@ interface StatCardProps {
   icon: LucideIcon;
   trend?: string;
   trendUp?: boolean;
-  color?: 'blue' | 'green' | 'red' | 'purple' | 'amber';
+  color?: 'blue' | 'green' | 'red' | 'purple' | 'amber' | 'plum';
 }
 
 const colorMap = {
-  blue: 'bg-blue-50 text-blue-600',
-  green: 'bg-green-50 text-green-600',
-  red: 'bg-red-50 text-red-600',
-  purple: 'bg-purple-50 text-purple-600',
-  amber: 'bg-amber-50 text-amber-600',
+  plum: 'bg-[#faedf5] text-[#7e2562]',
+  blue: 'bg-sky-50 text-sky-600',
+  green: 'bg-[#f0fbf5] text-[#3cb976]',
+  red: 'bg-[#fef5f2] text-[#e45e34]',
+  purple: 'bg-[#faf0f7] text-[#9b3179]',
+  amber: 'bg-[#fffbeb] text-[#d97706]',
 };
 
-export function StatCard({ title, value, icon: Icon, trend, trendUp, color = 'blue' }: StatCardProps) {
+export function StatCard({ title, value, icon: Icon, trend, trendUp, color = 'plum' }: StatCardProps) {
   return (
     <motion.div 
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-white rounded-xl border border-gray-100 p-6 shadow-sm hover:shadow-md transition-shadow"
+      className="bg-white rounded-sm border border-[#7e2562]/12 p-5 shadow-plum-sm hover:border-[#7e2562]/25 hover:shadow-plum-md transition-all"
     >
       <div className="flex items-center justify-between">
-        <p className="text-sm font-medium text-gray-500 truncate">{title}</p>
-        <div className={`p-2 rounded-lg ${colorMap[color]}`}>
-          <Icon className="w-5 h-5" />
+        <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider truncate">{title}</p>
+        <div className={`p-2 rounded-sm ${colorMap[color] || colorMap.plum}`}>
+          <Icon className="w-4 h-4" />
         </div>
       </div>
-      <div className="mt-4 flex items-baseline">
-        <p className="text-3xl font-bold text-gray-900">{value}</p>
+      <div className="mt-3 flex items-baseline">
+        <p className="text-2xl font-black tracking-tight text-foreground">{value}</p>
       </div>
       {trend && (
-        <div className="mt-2 flex items-center text-sm">
-          <span className={`font-medium ${trendUp ? 'text-green-600' : 'text-red-600'}`}>
+        <div className="mt-2 flex items-center text-xs">
+          <span className={`font-bold ${trendUp ? 'text-success' : 'text-danger'}`}>
             {trend}
           </span>
-          <span className="ml-2 text-gray-500 text-xs uppercase tracking-wide">vs last month</span>
+          <span className="ml-2 text-muted-foreground text-[10px] uppercase tracking-wide">vs last month</span>
         </div>
       )}
     </motion.div>

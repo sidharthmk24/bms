@@ -21,9 +21,13 @@ export class CreditCopiesService {
     };
   }
 
-  async findAll(user: JwtPayload): Promise<CreditCopy[]> {
+  async findAll(user: JwtPayload, query: any = {}): Promise<any> {
     const { creditCopyRepo } = await this.getRepos();
     const isAdmin = hasRole(user, UserRole.SUPER_ADMIN) || hasRole(user, UserRole.ADMIN) || hasRole(user, UserRole.FINANCE);
+
+    const pageNum = Math.max(1, parseInt(String(query.page || 1), 10));
+    const limitNum = Math.max(1, parseInt(String(query.limit || 20), 10));
+    const skip = (pageNum - 1) * limitNum;
 
     const qb = creditCopyRepo.createQueryBuilder('cc')
       .leftJoinAndSelect('cc.book', 'book')
@@ -32,11 +36,31 @@ export class CreditCopiesService {
       .orderBy('cc.createdAt', 'DESC');
 
     if (!isAdmin) {
-      if (!user.branchId) return [];
+      if (!user.branchId) return { items: [], total: 0, page: pageNum, limit: limitNum, totalPages: 0 };
       qb.where('cc.branchId = :branchId', { branchId: user.branchId });
+    } else if (query.branchId && query.branchId !== 'all') {
+      qb.where('cc.branchId = :branchId', { branchId: query.branchId });
     }
 
-    return qb.getMany();
+    if (query.search && String(query.search).trim()) {
+      const searchStr = `%${String(query.search).trim()}%`;
+      qb.andWhere(
+        '(book.title LIKE :searchStr OR book.isbn LIKE :searchStr OR book.barcode LIKE :searchStr OR cc.recipientName LIKE :searchStr OR cc.note LIKE :searchStr OR branch.name LIKE :searchStr)',
+        { searchStr }
+      );
+    }
+
+    qb.skip(skip).take(limitNum);
+
+    const [items, total] = await qb.getManyAndCount();
+
+    return {
+      items,
+      total,
+      page: pageNum,
+      limit: limitNum,
+      totalPages: Math.ceil(total / limitNum),
+    };
   }
 
   async issueCreditCopy(
@@ -99,11 +123,11 @@ export class CreditCopiesService {
       const billNumber = await generateBillNumber(dataSource, branch.code, queryRunner.manager);
 
       const subTotal = Number(book.price) * quantity;
-      const discount = subTotal; // 100% discount for credit copies
-      const totalAmount = 0;
+      const discount = 0;
+      const totalAmount = subTotal;
       const totalCost = Number(book.costPrice || 0) * quantity;
 
-      // 5. Create Bill
+      // 5. Create Bill (marked as CREDIT COPY)
       const newBill = queryRunner.manager.create(Bill, {
         billNumber,
         branchId: branch.id,
@@ -115,7 +139,7 @@ export class CreditCopiesService {
         paymentStatus: PaymentStatus.PAID,
         paymentMode: PaymentMode.CREDIT,
         status: BillStatus.COMPLETED,
-        customerName: recipientName,
+        customerName: recipientName.toLowerCase().includes('credit') ? recipientName : `Credit Copy: ${recipientName}`,
         customerPhone: null,
         exhibitionId: null,
       } as any);

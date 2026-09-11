@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useConfirm } from '@/contexts/ConfirmContext';
 import { useApiData } from '@/hooks/useApiData';
 import { api } from '@/lib/api';
 import { 
@@ -14,6 +15,7 @@ import { BranchInventoryExhibitionsView } from './BranchInventoryExhibitionsView
 
 export default function ExhibitionsPage() {
   const { user } = useAuth();
+  const confirm = useConfirm();
   const checkHasRole = (r: string) => {
     return user?.roles?.includes(r) || user?.role === r || user?.primaryRole === r;
   };
@@ -26,7 +28,6 @@ export default function ExhibitionsPage() {
   const isBranch = (isBranchManager || isBranchInventory || isBranchFrontOffice) && !isAdmin;
 
   const { data: exhibitions, loading, error } = useApiData<any[]>('/exhibitions', []);
-  const { data: catalog } = useApiData<any>('/catalog/books?limit=1000', []);
   const { data: usersResponse } = useApiData<any>('/users', []);
   const { data: branchesResponse } = useApiData<any>('/branches', []);
   
@@ -280,12 +281,22 @@ export default function ExhibitionsPage() {
     setEditWarehouseQtyInput(0);
   };
 
-  const handleRemoveFromEditCart = (idx: number) => {
+  const handleRemoveFromEditCart = async (idx: number) => {
     const item = editCart[idx];
     if (item.quantitySold && item.quantitySold > 0) {
       alert(`Cannot remove "${item.title}" because ${item.quantitySold} copies have already been sold.`);
       return;
     }
+
+    const ok = await confirm({
+      title: "Remove Book from Exhibition",
+      message: `Are you sure you want to remove "${item.title}" from this exhibition?`,
+      confirmText: "Yes, Remove",
+      cancelText: "No, Keep",
+      variant: "danger",
+    });
+    if (!ok) return;
+
     setEditCart(editCart.filter((_, i) => i !== idx));
   };
 
@@ -296,6 +307,15 @@ export default function ExhibitionsPage() {
       alert('The exhibition must contain at least one book.');
       return;
     }
+
+    const ok = await confirm({
+      title: "Update Exhibition",
+      message: `Are you sure you want to save modifications to exhibition "${editFormData.name}"?`,
+      confirmText: "Yes, Save Changes",
+      cancelText: "No, Cancel",
+      variant: "primary",
+    });
+    if (!ok) return;
 
     try {
       setIsSubmitting(true);
@@ -340,6 +360,16 @@ export default function ExhibitionsPage() {
   };
 
   const handleCreate = async () => {
+    const totalItems = cart.reduce((acc, i) => acc + i.quantityRequested, 0);
+    const ok = await confirm({
+      title: "Create Exhibition Request",
+      message: `Submit request for new exhibition "${eventName}" with ${cart.length} book titles (${totalItems} total copies)?`,
+      confirmText: "Yes, Create Request",
+      cancelText: "No, Cancel",
+      variant: "primary",
+    });
+    if (!ok) return;
+
     try {
       setIsSubmitting(true);
       await api.post('/exhibitions', {
@@ -367,6 +397,15 @@ export default function ExhibitionsPage() {
   };
 
   const handleApproveReject = async (id: string, action: 'approve' | 'reject') => {
+    const ok = await confirm({
+      title: `${action === 'approve' ? 'Approve' : 'Reject'} Exhibition`,
+      message: `Are you sure you want to ${action} this exhibition event?`,
+      confirmText: action === 'approve' ? 'Yes, Approve' : 'Yes, Reject',
+      cancelText: 'No, Cancel',
+      variant: action === 'approve' ? 'success' : 'danger',
+    });
+    if (!ok) return;
+
     try {
       setIsSubmitting(true);
       await api.post(`/exhibitions/${id}/review`, { 
@@ -380,6 +419,15 @@ export default function ExhibitionsPage() {
   };
 
   const handleDispatch = async (id: string) => {
+    const ok = await confirm({
+      title: "Dispatch Exhibition Stock",
+      message: "Are you sure you want to dispatch all stock allocated for this exhibition?",
+      confirmText: "Yes, Dispatch Now",
+      cancelText: "No, Cancel",
+      variant: "primary",
+    });
+    if (!ok) return;
+
     try {
       setIsSubmitting(true);
       await api.post(`/exhibitions/${id}/dispatch`);
@@ -401,6 +449,15 @@ export default function ExhibitionsPage() {
         return;
       }
     }
+
+    const ok = await confirm({
+      title: "Finalize & Close Exhibition",
+      message: `Are you sure you want to finalize reconciliation and close exhibition "${closingExhibition.name || closingExhibition.eventName}"? This will return unsold stock to inventory.`,
+      confirmText: "Yes, Finalize & Close",
+      cancelText: "No, Review Entries",
+      variant: "warning",
+    });
+    if (!ok) return;
 
     try {
       setIsSubmitting(true);
@@ -425,30 +482,30 @@ export default function ExhibitionsPage() {
 
   const getStatusBadge = (ex: any) => {
     switch (ex.status) {
-      case 'REQUESTED': return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">Requested</span>;
-      case 'APPROVED': return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">Approved</span>;
+      case 'REQUESTED': return <span className="bg-amber-50 text-amber-800 border border-amber-200 font-bold rounded-sm text-[11px] px-2.5 py-1">Requested</span>;
+      case 'APPROVED': return <span className="bg-[#faedf5] text-[#7e2562] border border-[#7e2562]/30 font-bold rounded-sm text-[11px] px-2.5 py-1">Approved</span>;
       case 'REJECTED': 
         if (ex.rejectionReason) {
           return (
             <button 
               onClick={() => setViewingRejectionReason(ex.rejectionReason)}
-              className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 hover:bg-red-200 transition-colors cursor-pointer inline-flex items-center"
+              className="bg-[#fef5f2] text-[#e45e34] border border-[#e45e34]/30 hover:bg-[#fdeae3] font-bold rounded-sm text-[11px] px-2.5 py-1 transition-colors cursor-pointer inline-flex items-center"
             >
               Rejected <AlertCircle className="w-3 h-3 ml-1" />
             </button>
           );
         }
-        return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Rejected</span>;
-      case 'ONGOING': return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Ongoing</span>;
-      case 'CLOSED': return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">Closed</span>;
-      case 'OVERDUE': return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-rose-100 text-rose-800 border border-rose-200">Overdue</span>;
-      case 'EXPIRED': return <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-zinc-100 text-zinc-800 border border-zinc-200">Expired</span>;
+        return <span className="bg-[#fef5f2] text-[#e45e34] border border-[#e45e34]/30 font-bold rounded-sm text-[11px] px-2.5 py-1">Rejected</span>;
+      case 'ONGOING': return <span className="bg-[#f0fbf5] text-[#3cb976] border border-[#3cb976]/30 font-bold rounded-sm text-[11px] px-2.5 py-1">Ongoing</span>;
+      case 'CLOSED': return <span className="bg-zinc-100 text-zinc-700 border border-zinc-200 font-bold rounded-sm text-[11px] px-2.5 py-1">Closed</span>;
+      case 'OVERDUE': return <span className="bg-[#fef5f2] text-[#e45e34] border border-[#e45e34]/40 font-bold rounded-sm text-[11px] px-2.5 py-1">Overdue</span>;
+      case 'EXPIRED': return <span className="bg-zinc-100 text-zinc-700 border border-zinc-200 font-bold rounded-sm text-[11px] px-2.5 py-1">Expired</span>;
       default: return null;
     }
   };
 
   if (loading && (!exhibitions || exhibitions.length === 0)) {
-    return <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin text-blue-600" /></div>;
+    return <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin text-[#7e2562]" /></div>;
   }
 
   return (
@@ -469,7 +526,7 @@ export default function ExhibitionsPage() {
             {(isBranch || isAdmin) && (
               <button
                 onClick={() => setIsCreating(true)}
-                className="flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+                className="flex items-center px-4 py-2 text-sm font-semibold text-white bg-[#7e2562] hover:bg-[#681b50] rounded-sm shadow-xs transition-all active:scale-[0.98]"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 {isAdmin ? 'Create Exhibition' : 'Request Exhibition'}
@@ -477,28 +534,28 @@ export default function ExhibitionsPage() {
             )}
           </div>
 
-      <div className="bg-white shadow-sm border border-gray-200 rounded-xl overflow-hidden">
+      <div className="bg-white shadow-sm border border-[#7e2562]/10 rounded-sm overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+          <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562] uppercase tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
             <tr>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Event / Branch</th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dates</th>
-              <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-              <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+              <th scope="col" className="px-6 py-3 text-left">Event / Branch</th>
+              <th scope="col" className="px-6 py-3 text-left">Dates</th>
+              <th scope="col" className="px-6 py-3 text-center">Status</th>
+              <th scope="col" className="px-6 py-3 text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {(exhibitions || []).map((ex: any) => (
-              <tr key={ex.id}>
+              <tr key={ex.id} className="hover:bg-[#faf6f9]/40 transition-colors">
                 <td className="px-6 py-4 whitespace-nowrap">
                   <button 
                     onClick={() => handleViewHistory(ex)}
-                    className="text-sm font-bold text-gray-900 hover:text-blue-600 transition-colors text-left"
+                    className="text-sm font-bold text-gray-900 hover:text-[#7e2562] transition-colors text-left"
                   >
                     {ex.name || ex.eventName}
                   </button>
                   <div className="text-xs text-gray-500">{ex.location} • {ex.branch?.name}</div>
-                  {ex.assignedUser && <div className="text-xs text-blue-600 mt-1">Assigned: {ex.assignedUser.name}</div>}
+                  {ex.assignedUser && <div className="text-xs text-[#7e2562] font-semibold mt-1">Assigned: {ex.assignedUser.name}</div>}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   {new Date(ex.startDate).toLocaleDateString()} - {new Date(ex.endDate).toLocaleDateString()}
@@ -512,7 +569,7 @@ export default function ExhibitionsPage() {
                     <div className="flex items-center justify-end gap-2">
                       <button 
                         onClick={() => handleViewHistory(ex)}
-                        className="inline-flex items-center px-3 py-1.5 text-xs font-semibold text-gray-700 bg-white hover:bg-gray-50 border border-gray-300 rounded-lg shadow-sm transition-all hover:text-blue-600 hover:border-blue-300 active:scale-95"
+                        className="inline-flex items-center px-3 py-1.5 text-xs font-semibold text-gray-700 bg-white hover:bg-[#faedf5] hover:text-[#7e2562] border border-gray-300 hover:border-[#7e2562]/30 rounded-sm shadow-xs transition-all active:scale-95"
                       >
                         <Eye className="w-3.5 h-3.5 mr-1 text-gray-500" />
                         View Details
@@ -521,7 +578,7 @@ export default function ExhibitionsPage() {
                       {isAdmin && ex.status === 'REQUESTED' && (
                         <button 
                           onClick={() => handleApproveReject(ex.id, 'approve')} 
-                          className="inline-flex items-center px-2.5 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition-colors"
+                          className="inline-flex items-center px-2.5 py-1.5 text-xs font-semibold text-white bg-[#3cb976] hover:bg-[#329e64] rounded-sm shadow-xs transition-colors"
                         >
                           Approve
                         </button>
@@ -535,7 +592,7 @@ export default function ExhibitionsPage() {
                       ) && (
                         <button 
                           onClick={() => handleOpenEdit(ex)} 
-                          className="inline-flex items-center px-2.5 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors shadow-sm"
+                          className="inline-flex items-center px-2.5 py-1.5 text-xs font-semibold text-[#7e2562] bg-[#faedf5] hover:bg-[#f6dbe9] border border-[#7e2562]/20 rounded-sm transition-colors shadow-xs"
                         >
                           <Pencil className="w-3.5 h-3.5 mr-1" /> Edit / Manage Stock
                         </button>
@@ -548,7 +605,7 @@ export default function ExhibitionsPage() {
                       ) && (
                         <button 
                           onClick={() => handleDispatch(ex.id)} 
-                          className="inline-flex items-center px-2.5 py-1.5 text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg transition-colors shadow-sm"
+                          className="inline-flex items-center px-2.5 py-1.5 text-xs font-semibold text-white bg-[#7e2562] hover:bg-[#681b50] rounded-sm transition-colors shadow-xs"
                         >
                           <Send className="w-3.5 h-3.5 mr-1" /> Dispatch Stock
                         </button>
@@ -569,7 +626,7 @@ export default function ExhibitionsPage() {
                               quantityCredit: 0
                             })));
                           }} 
-                          className="inline-flex items-center px-2.5 py-1.5 text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-colors shadow-sm"
+                          className="inline-flex items-center px-2.5 py-1.5 text-xs font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-sm transition-colors shadow-xs"
                         >
                           <ArchiveRestore className="w-3.5 h-3.5 mr-1" /> Close & Reconcile
                         </button>
@@ -586,7 +643,7 @@ export default function ExhibitionsPage() {
                               setAssignBranchId('');
                               setAssignUserId(ex.assignedUserId || '');
                             }} 
-                            className="inline-flex items-center px-2.5 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors"
+                            className="inline-flex items-center px-2.5 py-1.5 text-xs font-semibold text-[#3cb976] bg-[#f0fbf5] hover:bg-[#e0f7eb] border border-[#3cb976]/30 rounded-sm transition-colors"
                           >
                             Assign
                           </button>
@@ -595,7 +652,7 @@ export default function ExhibitionsPage() {
                         {isAdmin && ex.status === 'REQUESTED' && (
                           <button 
                             onClick={() => handleApproveReject(ex.id, 'reject')} 
-                            className="inline-flex items-center px-2.5 py-1.5 text-xs font-medium text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition-colors"
+                            className="inline-flex items-center px-2.5 py-1.5 text-xs font-semibold text-[#e45e34] bg-[#fef5f2] hover:bg-[#fdeae3] border border-[#e45e34]/30 rounded-sm transition-colors"
                           >
                             Reject
                           </button>
@@ -618,12 +675,12 @@ export default function ExhibitionsPage() {
       {/* Creation Modal */}
       <AnimatePresence>
         {isCreating && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-6">
-              <h3 className="text-lg font-bold text-gray-900 mb-2 flex items-center"><Tent className="w-5 h-5 mr-2"/> {isAdmin ? 'Create Exhibition' : 'Request Exhibition'}</h3>
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-sm shadow-xl w-full max-w-2xl p-6 border border-[#7e2562]/10">
+              <h3 className="text-lg font-bold text-gray-900 mb-2 flex items-center"><Tent className="w-5 h-5 mr-2 text-[#7e2562]"/> {isAdmin ? 'Create Exhibition' : 'Request Exhibition'}</h3>
               
-              <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-800 flex items-start">
-                <AlertCircle className="w-4 h-4 mr-2 text-blue-600 shrink-0 mt-0.5" />
+              <div className="mb-4 bg-[#faedf5] border border-[#7e2562]/20 rounded-sm p-3 text-xs text-[#7e2562] flex items-start">
+                <AlertCircle className="w-4 h-4 mr-2 text-[#7e2562] shrink-0 mt-0.5" />
                 <span>
                   <strong>Immediate Inventory Check-Out:</strong> Selecting books for this event will immediately deduct them from the branch shelf inventory so they cannot be sold to walk-in customers while away at the exhibition.
                 </span>
@@ -631,16 +688,16 @@ export default function ExhibitionsPage() {
               
               <div className="grid grid-cols-2 gap-4 mb-4">
                 <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Event Name</label>
-                  <input type="text" value={eventName} onChange={e => setEventName(e.target.value)} className="block w-full px-3 py-2 border border-gray-300 rounded-lg sm:text-sm" />
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Event Name</label>
+                  <input type="text" value={eventName} onChange={e => setEventName(e.target.value)} className="block w-full px-3 py-2 border border-gray-300 rounded-sm text-sm focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
-                  <input type="text" value={location} onChange={e => setLocation(e.target.value)} className="block w-full px-3 py-2 border border-gray-300 rounded-lg sm:text-sm" />
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Location</label>
+                  <input type="text" value={location} onChange={e => setLocation(e.target.value)} className="block w-full px-3 py-2 border border-gray-300 rounded-sm text-sm focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" />
                 </div>
                 {isAdmin && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Select Branch</label>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Select Branch</label>
                     <Dropdown
                       value={createBranchId}
                       onChange={(val) => {
@@ -653,7 +710,7 @@ export default function ExhibitionsPage() {
                   </div>
                 )}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Assigned Staff</label>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Assigned Staff</label>
                   <Dropdown
                     value={assignedUserId}
                     onChange={(val) => setAssignedUserId(val)}
@@ -675,17 +732,17 @@ export default function ExhibitionsPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
-                  <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="block w-full px-3 py-2 border border-gray-300 rounded-lg sm:text-sm" />
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Start Date</label>
+                  <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="block w-full px-3 py-2 border border-gray-300 rounded-sm text-sm focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
-                  <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="block w-full px-3 py-2 border border-gray-300 rounded-lg sm:text-sm" />
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">End Date</label>
+                  <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="block w-full px-3 py-2 border border-gray-300 rounded-sm text-sm focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" />
                 </div>
               </div>
 
-              <div className="border-t pt-4 mb-4">
-                <h4 className="text-sm font-medium text-gray-700 mb-2">Requested Stock</h4>
+              <div className="border-t border-gray-200 pt-4 mb-4">
+                <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Requested Stock</h4>
                 <div className="space-y-3">
                   <div>
                     <Dropdown
@@ -731,20 +788,20 @@ export default function ExhibitionsPage() {
                           barcode: b.barcode,
                           sublabel: `ISBN: ${b.isbn || 'N/A'}${b.barcode ? ` • Barcode: ${b.barcode}` : ''}`,
                           badge: badgeText,
-                          badgeClassName: totalStock > 0 ? 'bg-neutral-100 text-black border border-neutral-300' : 'bg-neutral-100 text-neutral-500 border border-neutral-200'
+                          badgeClassName: totalStock > 0 ? 'bg-[#faedf5] text-[#7e2562] border border-[#7e2562]/30' : 'bg-neutral-100 text-neutral-500 border border-neutral-200'
                         };
                       })}
                     />
                   </div>
 
                   {bookInput && (
-                    <div className="p-3 bg-neutral-50 border border-neutral-200 rounded-xl space-y-3">
+                    <div className="p-3 bg-[#faf6f9]/60 border border-[#7e2562]/15 rounded-sm space-y-3">
                       <div className="flex flex-wrap items-center justify-between text-xs text-neutral-600 gap-2">
                         <span className="font-semibold text-gray-800">Customize Source Split:</span>
                         <div className="flex items-center gap-3 font-semibold">
-                          <span className="text-blue-700">🏪 Branch Shelf: {getBranchStockQty(bookInput)}</span>
-                          <span className="text-purple-700">🏭 Warehouse: {getCentralStockQty(bookInput)}</span>
-                          <span className="text-black font-bold">Total Available: {getBranchStockQty(bookInput) + getCentralStockQty(bookInput)}</span>
+                          <span className="text-[#7e2562]">🏪 Branch Shelf: {getBranchStockQty(bookInput)}</span>
+                          <span className="text-[#9b3179]">🏭 Warehouse: {getCentralStockQty(bookInput)}</span>
+                          <span className="text-gray-900 font-bold">Total Available: {getBranchStockQty(bookInput) + getCentralStockQty(bookInput)}</span>
                         </div>
                       </div>
 
@@ -759,7 +816,7 @@ export default function ExhibitionsPage() {
                             max={getBranchStockQty(bookInput)}
                             value={branchQtyInput} 
                             onChange={e => setBranchQtyInput(Math.max(0, Number(e.target.value)))} 
-                            className="block w-full px-3 py-1.5 border border-neutral-300 rounded-lg text-sm font-semibold focus:ring-black focus:border-black bg-white" 
+                            className="block w-full px-3 py-1.5 border border-gray-300 rounded-sm text-sm font-semibold focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562] bg-white" 
                           />
                         </div>
 
@@ -773,14 +830,14 @@ export default function ExhibitionsPage() {
                             max={getCentralStockQty(bookInput)}
                             value={warehouseQtyInput} 
                             onChange={e => setWarehouseQtyInput(Math.max(0, Number(e.target.value)))} 
-                            className="block w-full px-3 py-1.5 border border-neutral-300 rounded-lg text-sm font-semibold focus:ring-black focus:border-black bg-white" 
+                            className="block w-full px-3 py-1.5 border border-gray-300 rounded-sm text-sm font-semibold focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562] bg-white" 
                           />
                         </div>
 
                         <div className="flex items-center gap-2">
-                          <div className="flex-1 bg-white border border-neutral-200 rounded-lg px-3 py-1 text-center shadow-xs">
+                          <div className="flex-1 bg-white border border-[#7e2562]/20 rounded-sm px-3 py-1 text-center shadow-xs">
                             <div className="text-[10px] uppercase font-bold text-neutral-400">Total</div>
-                            <div className="text-base font-bold text-black">{branchQtyInput + warehouseQtyInput}</div>
+                            <div className="text-base font-bold text-gray-900">{branchQtyInput + warehouseQtyInput}</div>
                           </div>
                           <button 
                             type="button"
@@ -836,7 +893,7 @@ export default function ExhibitionsPage() {
                               setWarehouseQtyInput(0);
                             }}
                             disabled={(branchQtyInput + warehouseQtyInput) <= 0}
-                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-lg text-xs font-bold transition-all shrink-0 shadow-sm"
+                            className="px-4 py-2 bg-[#7e2562] hover:bg-[#681b50] disabled:opacity-40 text-white rounded-sm text-xs font-bold transition-all shrink-0 shadow-xs active:scale-95"
                           >
                             Add to Event
                           </button>
@@ -847,9 +904,9 @@ export default function ExhibitionsPage() {
                 </div>
               </div>
 
-              <div className="border rounded-lg max-h-48 overflow-y-auto mb-6">
+              <div className="border border-[#7e2562]/10 rounded-sm max-h-48 overflow-y-auto mb-6">
                 <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50 text-[11px] text-gray-500 uppercase">
+                  <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562] uppercase tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
                     <tr>
                       <th className="px-4 py-2 text-left">Book</th>
                       <th className="px-4 py-2 text-right">Total Qty</th>
@@ -865,17 +922,17 @@ export default function ExhibitionsPage() {
                         <td className="px-4 py-2 text-gray-600">
                           {(item.quantityFromBranch ?? 0) > 0 && (item.quantityFromCentral ?? 0) > 0 ? (
                             <span className="inline-flex items-center gap-1.5">
-                              <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-medium">Branch: {item.quantityFromBranch}</span>
-                              <span className="px-2 py-0.5 rounded bg-purple-50 text-purple-700 font-medium">Warehouse: {item.quantityFromCentral}</span>
+                              <span className="px-2 py-0.5 rounded-sm bg-[#faedf5] text-[#7e2562] font-semibold border border-[#7e2562]/20">Branch: {item.quantityFromBranch}</span>
+                              <span className="px-2 py-0.5 rounded-sm bg-purple-50 text-purple-700 font-semibold border border-purple-200">Warehouse: {item.quantityFromCentral}</span>
                             </span>
                           ) : (item.quantityFromCentral ?? 0) > 0 ? (
-                            <span className="px-2 py-0.5 rounded bg-purple-50 text-purple-700 font-medium">Warehouse: {item.quantityFromCentral}</span>
+                            <span className="px-2 py-0.5 rounded-sm bg-purple-50 text-purple-700 font-semibold border border-purple-200">Warehouse: {item.quantityFromCentral}</span>
                           ) : (
-                            <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-medium">Branch: {item.quantityFromBranch ?? item.quantityRequested}</span>
+                            <span className="px-2 py-0.5 rounded-sm bg-[#faedf5] text-[#7e2562] font-semibold border border-[#7e2562]/20">Branch: {item.quantityFromBranch ?? item.quantityRequested}</span>
                           )}
                         </td>
                         <td className="px-4 py-2 text-right">
-                          <button onClick={() => setCart(cart.filter((_, i) => i !== idx))} className="text-red-500 hover:text-red-700 font-medium text-xs">Remove</button>
+                          <button onClick={() => setCart(cart.filter((_, i) => i !== idx))} className="text-[#e45e34] hover:text-[#c74c25] font-semibold text-xs">Remove</button>
                         </td>
                       </tr>
                     ))}
@@ -889,8 +946,8 @@ export default function ExhibitionsPage() {
               </div>
               
               <div className="flex justify-end space-x-3">
-                <button onClick={() => setIsCreating(false)} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
-                <button onClick={handleCreate} disabled={cart.length === 0 || !eventName || isSubmitting} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                <button onClick={() => setIsCreating(false)} className="px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-sm hover:bg-gray-50">Cancel</button>
+                <button onClick={handleCreate} disabled={cart.length === 0 || !eventName || isSubmitting} className="px-4 py-2 text-sm font-semibold text-white bg-[#7e2562] hover:bg-[#681b50] rounded-sm disabled:opacity-50 shadow-xs transition-all active:scale-[0.98]">
                   {isSubmitting ? 'Submitting...' : 'Submit Request'}
                 </button>
               </div>
@@ -902,27 +959,27 @@ export default function ExhibitionsPage() {
       {/* Reconciliation Modal */}
       <AnimatePresence>
         {closingExhibition && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-xl shadow-xl w-full max-w-4xl p-6">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-sm shadow-xl w-full max-w-4xl p-6 border border-[#7e2562]/10">
               <h3 className="text-lg font-bold text-gray-900 mb-2">Close & Reconcile Exhibition</h3>
               <p className="text-sm text-gray-500 mb-4">{closingExhibition.eventName}</p>
               
-              <div className="bg-blue-50 text-blue-800 p-3 rounded-lg mb-4 text-sm flex items-start">
-                <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0" />
+              <div className="bg-[#faedf5] text-[#7e2562] border border-[#7e2562]/20 p-3 rounded-sm mb-4 text-sm flex items-start">
+                <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0 text-[#7e2562]" />
                 <p>You must account for every book taken. For each row: <strong>Sold + Not Sold + Damaged + Lost + Credit = Taken</strong>.</p>
               </div>
 
-              <div className="max-h-96 overflow-y-auto mb-6 border rounded-lg">
+              <div className="max-h-96 overflow-y-auto mb-6 border border-[#7e2562]/10 rounded-sm">
                 <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
+                  <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562] uppercase tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
                     <tr>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Book</th>
-                      <th className="px-4 py-2 text-center text-xs font-medium text-gray-500">Taken</th>
-                      <th className="px-4 py-2 text-center text-xs font-medium text-gray-500">Sold</th>
-                      <th className="px-4 py-2 text-center text-xs font-medium text-gray-500">Not Sold</th>
-                      <th className="px-4 py-2 text-center text-xs font-medium text-red-500">Damaged</th>
-                      <th className="px-4 py-2 text-center text-xs font-medium text-red-500">Lost</th>
-                      <th className="px-4 py-2 text-center text-xs font-medium text-rose-500">Credit</th>
+                      <th className="px-4 py-2 text-left">Book</th>
+                      <th className="px-4 py-2 text-center">Taken</th>
+                      <th className="px-4 py-2 text-center text-[#3cb976]">Sold</th>
+                      <th className="px-4 py-2 text-center text-[#7e2562]">Not Sold</th>
+                      <th className="px-4 py-2 text-center text-[#e45e34]">Damaged</th>
+                      <th className="px-4 py-2 text-center text-[#e45e34]">Lost</th>
+                      <th className="px-4 py-2 text-center text-purple-700">Credit</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
@@ -931,7 +988,7 @@ export default function ExhibitionsPage() {
                       const isBalanced = total === rec.quantityTaken;
                       
                       return (
-                        <tr key={rec.stockId} className={!isBalanced ? 'bg-red-50' : ''}>
+                        <tr key={rec.stockId} className={!isBalanced ? 'bg-[#fef5f2]' : ''}>
                           <td className="px-4 py-3 text-sm text-gray-900">{rec.title}</td>
                           <td className="px-4 py-3 text-sm text-center font-bold">{rec.quantityTaken}</td>
                           <td className="px-2 py-3 text-center">
@@ -939,35 +996,35 @@ export default function ExhibitionsPage() {
                               const newRec = [...reconciliation];
                               newRec[idx].quantitySold = Number(e.target.value);
                               setReconciliation(newRec);
-                            }} className="w-16 text-center border rounded py-1" />
+                            }} className="w-16 text-center border border-gray-300 rounded-sm py-1 font-semibold text-[#3cb976]" />
                           </td>
                           <td className="px-2 py-3 text-center">
                             <input type="number" min="0" value={rec.quantityReturned} onChange={(e) => {
                               const newRec = [...reconciliation];
                               newRec[idx].quantityReturned = Number(e.target.value);
                               setReconciliation(newRec);
-                            }} className="w-16 text-center border rounded py-1" />
+                            }} className="w-16 text-center border border-gray-300 rounded-sm py-1 font-semibold text-[#7e2562]" />
                           </td>
                           <td className="px-2 py-3 text-center">
                             <input type="number" min="0" value={rec.quantityDamaged} onChange={(e) => {
                               const newRec = [...reconciliation];
                               newRec[idx].quantityDamaged = Number(e.target.value);
                               setReconciliation(newRec);
-                            }} className="w-16 text-center border border-red-300 rounded py-1" />
+                            }} className="w-16 text-center border border-[#e45e34]/40 rounded-sm py-1 font-semibold text-[#e45e34]" />
                           </td>
                           <td className="px-2 py-3 text-center">
                             <input type="number" min="0" value={rec.quantityLost} onChange={(e) => {
                               const newRec = [...reconciliation];
                               newRec[idx].quantityLost = Number(e.target.value);
                               setReconciliation(newRec);
-                            }} className="w-16 text-center border border-red-300 rounded py-1" />
+                            }} className="w-16 text-center border border-[#e45e34]/40 rounded-sm py-1 font-semibold text-[#e45e34]" />
                           </td>
                           <td className="px-2 py-3 text-center">
                             <input type="number" min="0" value={rec.quantityCredit} onChange={(e) => {
                               const newRec = [...reconciliation];
                               newRec[idx].quantityCredit = Number(e.target.value);
                               setReconciliation(newRec);
-                            }} className="w-16 text-center border border-rose-300 rounded py-1" />
+                            }} className="w-16 text-center border border-purple-300 rounded-sm py-1 font-semibold text-purple-700" />
                           </td>
                         </tr>
                       );
@@ -977,8 +1034,8 @@ export default function ExhibitionsPage() {
               </div>
 
               <div className="flex justify-end space-x-3">
-                <button onClick={() => setClosingExhibition(null)} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
-                <button onClick={handleClose} disabled={isSubmitting} className="px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 disabled:opacity-50">
+                <button onClick={() => setClosingExhibition(null)} className="px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-sm hover:bg-gray-50">Cancel</button>
+                <button onClick={handleClose} disabled={isSubmitting} className="px-4 py-2 text-sm font-semibold text-white bg-amber-600 rounded-sm hover:bg-amber-700 disabled:opacity-50 shadow-xs transition-all active:scale-95">
                   {isSubmitting ? 'Processing...' : 'Confirm Reconciliation'}
                 </button>
               </div>
@@ -990,19 +1047,19 @@ export default function ExhibitionsPage() {
       {/* Rejection Reason Modal */}
       <AnimatePresence>
         {viewingRejectionReason && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
-              <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center text-red-600">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-sm shadow-xl w-full max-w-md p-6 border border-[#e45e34]/20">
+              <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center text-[#e45e34]">
                 <XCircle className="w-5 h-5 mr-2" />
                 Exhibition Rejected
               </h3>
-              <div className="bg-red-50 p-4 rounded-lg border border-red-100 text-sm text-red-800 whitespace-pre-wrap">
+              <div className="bg-[#fef5f2] p-4 rounded-sm border border-[#e45e34]/20 text-sm text-[#e45e34] whitespace-pre-wrap font-medium">
                 {viewingRejectionReason}
               </div>
               <div className="flex justify-end mt-6">
                 <button 
                   onClick={() => setViewingRejectionReason(null)} 
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                  className="px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-sm hover:bg-gray-50"
                 >
                   Close
                 </button>
@@ -1015,17 +1072,17 @@ export default function ExhibitionsPage() {
       {/* Edit Exhibition & Manage Stock Modal */}
       <AnimatePresence>
         {editingExhibition && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }} 
               animate={{ opacity: 1, scale: 1 }} 
               exit={{ opacity: 0, scale: 0.95 }} 
-              className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden"
+              className="bg-white rounded-sm shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden border border-[#7e2562]/10"
             >
               {/* Header */}
-              <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-blue-50/50 to-indigo-50/50 flex justify-between items-center shrink-0">
+              <div className="px-6 py-4 border-b border-[#7e2562]/10 bg-gradient-to-r from-[#faedf5]/70 to-[#faf6f9] flex justify-between items-center shrink-0">
                 <div className="flex items-center space-x-3">
-                  <div className="p-2 bg-blue-600 text-white rounded-xl shadow-sm">
+                  <div className="p-2 bg-[#7e2562] text-white rounded-sm shadow-xs">
                     <Tent className="w-5 h-5" />
                   </div>
                   <div>
@@ -1039,7 +1096,7 @@ export default function ExhibitionsPage() {
                 </div>
                 <button 
                   onClick={() => setEditingExhibition(null)} 
-                  className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
+                  className="p-1.5 text-gray-400 hover:text-gray-600 rounded-sm hover:bg-gray-100 transition-colors"
                 >
                   <XCircle className="w-6 h-6" />
                 </button>
@@ -1048,8 +1105,8 @@ export default function ExhibitionsPage() {
               {/* Scrollable Form Body */}
               <form id="edit-exhibition-form" onSubmit={handleEdit} className="flex-1 overflow-y-auto p-6 space-y-6">
                 {/* 1. Basic Details Card */}
-                <div className="bg-gray-50/80 border border-gray-200 rounded-xl p-4 space-y-4">
-                  <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wider">Event Details</h4>
+                <div className="bg-[#faf6f9]/50 border border-[#7e2562]/10 rounded-sm p-4 space-y-4">
+                  <h4 className="text-xs font-bold text-[#7e2562] uppercase tracking-wider">Event Details</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-semibold text-gray-700 mb-1">Event Name</label>
@@ -1058,7 +1115,7 @@ export default function ExhibitionsPage() {
                         type="text" 
                         value={editFormData.name} 
                         onChange={e => setEditFormData({...editFormData, name: e.target.value})} 
-                        className="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-blue-500 focus:border-blue-500" 
+                        className="block w-full px-3 py-2 border border-gray-300 rounded-sm text-sm bg-white focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" 
                       />
                     </div>
                     <div>
@@ -1068,7 +1125,7 @@ export default function ExhibitionsPage() {
                         type="text" 
                         value={editFormData.location} 
                         onChange={e => setEditFormData({...editFormData, location: e.target.value})} 
-                        className="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-blue-500 focus:border-blue-500" 
+                        className="block w-full px-3 py-2 border border-gray-300 rounded-sm text-sm bg-white focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" 
                       />
                     </div>
                     <div>
@@ -1078,7 +1135,7 @@ export default function ExhibitionsPage() {
                         type="date" 
                         value={editFormData.startDate} 
                         onChange={e => setEditFormData({...editFormData, startDate: e.target.value})} 
-                        className="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-blue-500 focus:border-blue-500" 
+                        className="block w-full px-3 py-2 border border-gray-300 rounded-sm text-sm bg-white focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" 
                       />
                     </div>
                     <div>
@@ -1088,7 +1145,7 @@ export default function ExhibitionsPage() {
                         type="date" 
                         value={editFormData.endDate} 
                         onChange={e => setEditFormData({...editFormData, endDate: e.target.value})} 
-                        className="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-blue-500 focus:border-blue-500" 
+                        className="block w-full px-3 py-2 border border-gray-300 rounded-sm text-sm bg-white focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" 
                       />
                     </div>
                   </div>
@@ -1115,7 +1172,7 @@ export default function ExhibitionsPage() {
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-                        <BookOpen className="w-4 h-4 text-blue-600" />
+                        <BookOpen className="w-4 h-4 text-[#7e2562]" />
                         Allocated Books & Quantities
                       </h4>
                       <p className="text-xs text-gray-500">
@@ -1123,14 +1180,14 @@ export default function ExhibitionsPage() {
                       </p>
                     </div>
 
-                    <div className="text-xs text-blue-800 bg-blue-50 px-3 py-1 rounded-full border border-blue-200">
+                    <div className="text-xs text-[#7e2562] bg-[#faedf5] px-3 py-1 rounded-sm border border-[#7e2562]/20 font-medium">
                       💡 Lowering a quantity returns excess books to shelf/warehouse automatically.
                     </div>
                   </div>
 
-                  <div className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                  <div className="border border-[#7e2562]/10 rounded-sm overflow-hidden shadow-xs">
                     <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50 text-xs font-medium text-gray-600 uppercase">
+                      <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562] uppercase tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
                         <tr>
                           <th className="px-4 py-3 text-left">Book Title & ISBN</th>
                           <th className="px-3 py-3 text-center">Current Qty</th>
@@ -1146,7 +1203,7 @@ export default function ExhibitionsPage() {
                           const isSold = (item.quantitySold || 0) > 0;
 
                           return (
-                            <tr key={idx} className="hover:bg-gray-50/80 transition-colors">
+                            <tr key={idx} className="hover:bg-[#faf6f9]/40 transition-colors">
                               <td className="px-4 py-3">
                                 <div className="font-semibold text-gray-900">{item.title}</div>
                                 <div className="text-[11px] text-gray-500">
@@ -1170,7 +1227,7 @@ export default function ExhibitionsPage() {
                                     type="button"
                                     onClick={() => handleEditQuantityChange(idx, Math.max((item.quantitySold || 0), item.quantityRequested - 1))}
                                     disabled={item.quantityRequested <= (item.quantitySold || 0)}
-                                    className="w-7 h-7 rounded border border-gray-300 bg-gray-50 hover:bg-gray-100 flex items-center justify-center font-bold text-gray-700 disabled:opacity-40"
+                                    className="w-7 h-7 rounded-sm border border-gray-300 bg-gray-50 hover:bg-gray-100 flex items-center justify-center font-bold text-gray-700 disabled:opacity-40"
                                   >
                                     -
                                   </button>
@@ -1179,12 +1236,12 @@ export default function ExhibitionsPage() {
                                     min={item.quantitySold || 0}
                                     value={item.quantityRequested}
                                     onChange={(e) => handleEditQuantityChange(idx, Number(e.target.value))}
-                                    className="w-16 px-2 py-1 text-center font-bold text-sm border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
+                                    className="w-16 px-2 py-1 text-center font-bold text-sm border border-gray-300 rounded-sm focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]"
                                   />
                                   <button
                                     type="button"
                                     onClick={() => handleEditQuantityChange(idx, item.quantityRequested + 1)}
-                                    className="w-7 h-7 rounded border border-gray-300 bg-gray-50 hover:bg-gray-100 flex items-center justify-center font-bold text-gray-700"
+                                    className="w-7 h-7 rounded-sm border border-gray-300 bg-gray-50 hover:bg-gray-100 flex items-center justify-center font-bold text-gray-700"
                                   >
                                     +
                                   </button>
@@ -1193,15 +1250,15 @@ export default function ExhibitionsPage() {
 
                               <td className="px-4 py-3">
                                 {delta < 0 ? (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-[11px] font-bold bg-[#fef5f2] text-[#e45e34] border border-[#e45e34]/30">
                                     ↓ Returning {Math.abs(delta)} to stock
                                   </span>
                                 ) : delta > 0 ? (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-[11px] font-bold bg-[#f0fbf5] text-[#3cb976] border border-[#3cb976]/30">
                                     ↑ Taking +{delta} from stock
                                   </span>
                                 ) : (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-[11px] font-medium bg-gray-100 text-gray-600">
                                     No change
                                   </span>
                                 )}
@@ -1213,7 +1270,7 @@ export default function ExhibitionsPage() {
                                   onClick={() => handleRemoveFromEditCart(idx)}
                                   disabled={isSold}
                                   title={isSold ? "Cannot remove book with recorded sales" : "Remove book from exhibition"}
-                                  className="text-red-500 hover:text-red-700 p-1.5 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                  className="text-[#e45e34] hover:text-[#c74c25] p-1.5 hover:bg-[#fef5f2] rounded-sm transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                                 >
                                   <Trash2 className="w-4 h-4" />
                                 </button>
@@ -1235,9 +1292,9 @@ export default function ExhibitionsPage() {
                 </div>
 
                 {/* 3. Add Books Section */}
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
-                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center">
-                    <Plus className="w-4 h-4 mr-1.5 text-blue-600" />
+                <div className="bg-[#faf6f9]/50 border border-[#7e2562]/10 rounded-sm p-4 space-y-3">
+                  <h4 className="text-xs font-bold text-[#7e2562] uppercase tracking-wider flex items-center">
+                    <Plus className="w-4 h-4 mr-1.5 text-[#7e2562]" />
                     Add More Books to Exhibition
                   </h4>
 
@@ -1287,7 +1344,7 @@ export default function ExhibitionsPage() {
                             barcode: b.barcode,
                             sublabel: `ISBN: ${b.isbn || 'N/A'}${b.barcode ? ` • Barcode: ${b.barcode}` : ''}`,
                             badge: badgeText,
-                            badgeClassName: totalStock > 0 ? 'bg-neutral-100 text-black border border-neutral-300' : 'bg-neutral-100 text-neutral-500 border border-neutral-200'
+                            badgeClassName: totalStock > 0 ? 'bg-[#faedf5] text-[#7e2562] border border-[#7e2562]/30' : 'bg-neutral-100 text-neutral-500 border border-neutral-200'
                           };
                         })}
                       />
@@ -1299,11 +1356,11 @@ export default function ExhibitionsPage() {
                       </label>
                       <input 
                         type="number" 
-                        min="0"
+                        min="0" 
                         value={editBranchQtyInput} 
                         onChange={e => setEditBranchQtyInput(Math.max(0, Number(e.target.value)))}
                         disabled={!editBookInput || branches.find((b: any) => b.id === editingExhibition?.sourceBranchId)?.type === 'WAREHOUSE'}
-                        className="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white disabled:bg-gray-100" 
+                        className="block w-full px-3 py-2 border border-gray-300 rounded-sm text-sm bg-white disabled:bg-gray-100 focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" 
                       />
                     </div>
 
@@ -1313,11 +1370,11 @@ export default function ExhibitionsPage() {
                       </label>
                       <input 
                         type="number" 
-                        min="0"
+                        min="0" 
                         value={editWarehouseQtyInput} 
                         onChange={e => setEditWarehouseQtyInput(Math.max(0, Number(e.target.value)))}
                         disabled={!editBookInput}
-                        className="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white disabled:bg-gray-100" 
+                        className="block w-full px-3 py-2 border border-gray-300 rounded-sm text-sm bg-white disabled:bg-gray-100 focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" 
                       />
                     </div>
 
@@ -1326,7 +1383,7 @@ export default function ExhibitionsPage() {
                         type="button"
                         onClick={handleAddBookToEditCart}
                         disabled={!editBookInput || (editBranchQtyInput + editWarehouseQtyInput <= 0)}
-                        className="w-full inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg shadow-sm transition-colors"
+                        className="w-full inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-white bg-[#7e2562] hover:bg-[#681b50] disabled:opacity-50 rounded-sm shadow-xs transition-colors active:scale-95"
                       >
                         <Plus className="w-4 h-4 mr-1" /> Add
                       </button>
@@ -1345,7 +1402,7 @@ export default function ExhibitionsPage() {
                   <button 
                     type="button" 
                     onClick={() => setEditingExhibition(null)} 
-                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                    className="px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-sm hover:bg-gray-50"
                   >
                     Cancel
                   </button>
@@ -1353,7 +1410,7 @@ export default function ExhibitionsPage() {
                     type="submit" 
                     form="edit-exhibition-form"
                     disabled={isSubmitting || editCart.length === 0} 
-                    className="inline-flex items-center px-5 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg shadow-sm transition-colors"
+                    className="inline-flex items-center px-5 py-2 text-sm font-semibold text-white bg-[#7e2562] hover:bg-[#681b50] disabled:opacity-50 rounded-sm shadow-xs transition-colors active:scale-[0.98]"
                   >
                     {isSubmitting ? (
                       <>
@@ -1373,14 +1430,14 @@ export default function ExhibitionsPage() {
       {/* Assign User Modal */}
       <AnimatePresence>
         {assigningExhibition && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-sm shadow-xl w-full max-w-lg p-6 border border-[#7e2562]/10">
               <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">Assign Staff to Exhibition</h3>
               <form onSubmit={handleAssign} className="space-y-4">
                 <p className="text-sm text-gray-500 mb-4">Assign a staff member to oversee the <strong>{assigningExhibition.name}</strong> event.</p>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Select Branch</label>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Select Branch</label>
                   <Dropdown
                     value={assignBranchId}
                     onChange={(val) => {
@@ -1393,7 +1450,7 @@ export default function ExhibitionsPage() {
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Select Staff Member</label>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Select Staff Member</label>
                   <Dropdown
                     value={assignUserId}
                     onChange={(val) => setAssignUserId(val)}
@@ -1411,9 +1468,9 @@ export default function ExhibitionsPage() {
                   />
                 </div>
 
-                <div className="flex justify-end space-x-3 mt-6 pt-4 border-t">
-                  <button type="button" onClick={() => setAssigningExhibition(null)} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
-                  <button type="submit" disabled={isSubmitting} className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50">
+                <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-gray-200">
+                  <button type="button" onClick={() => setAssigningExhibition(null)} className="px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-sm hover:bg-gray-50">Cancel</button>
+                  <button type="submit" disabled={isSubmitting} className="inline-flex items-center px-4 py-2 text-sm font-semibold text-white bg-[#3cb976] hover:bg-[#329e64] rounded-sm disabled:opacity-50 shadow-xs transition-colors active:scale-[0.98]">
                     {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : 'Assign'}
                   </button>
                 </div>
@@ -1426,18 +1483,18 @@ export default function ExhibitionsPage() {
       {/* Exhibition Details & History Modal */}
       <AnimatePresence>
         {viewingExhibitionHistory && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }} 
               animate={{ opacity: 1, scale: 1 }} 
               exit={{ opacity: 0, scale: 0.95 }} 
-              className="bg-white rounded-2xl shadow-xl w-full max-w-4xl p-6 overflow-hidden flex flex-col max-h-[90vh]"
+              className="bg-white rounded-sm shadow-xl w-full max-w-4xl p-6 overflow-hidden flex flex-col max-h-[90vh] border border-[#7e2562]/10"
             >
               {/* Header */}
-              <div className="flex justify-between items-start border-b pb-4 mb-4">
+              <div className="flex justify-between items-start border-b border-gray-200 pb-4 mb-4">
                 <div>
                   <h3 className="text-xl font-bold text-gray-900 flex items-center">
-                    <Tent className="w-5 h-5 mr-2 text-blue-600" />
+                    <Tent className="w-5 h-5 mr-2 text-[#7e2562]" />
                     {viewingExhibitionHistory.name || viewingExhibitionHistory.eventName}
                   </h3>
                   <p className="text-xs text-gray-500 mt-1">
@@ -1449,14 +1506,14 @@ export default function ExhibitionsPage() {
                   {viewingExhibitionHistory.status !== 'CLOSED' && viewingExhibitionHistory.status !== 'REJECTED' && (
                     <button
                       onClick={() => handleOpenEdit(viewingExhibitionHistory)}
-                      className="inline-flex items-center px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors shadow-sm"
+                      className="inline-flex items-center px-3 py-1.5 text-xs font-semibold text-[#7e2562] bg-[#faedf5] hover:bg-[#f6dbe9] border border-[#7e2562]/20 rounded-sm transition-colors shadow-xs"
                     >
                       <Pencil className="w-3.5 h-3.5 mr-1" /> Edit Exhibition & Stock
                     </button>
                   )}
                   <button 
                     onClick={() => setViewingExhibitionHistory(null)}
-                    className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition"
+                    className="p-1.5 hover:bg-slate-100 rounded-sm text-slate-400 hover:text-slate-600 transition"
                   >
                     <XCircle className="w-6 h-6" />
                   </button>
@@ -1465,13 +1522,13 @@ export default function ExhibitionsPage() {
 
               {loadingHistory ? (
                 <div className="py-24 flex flex-col items-center justify-center space-y-3">
-                  <Loader2 className="w-10 h-10 animate-spin text-blue-500" />
+                  <Loader2 className="w-10 h-10 animate-spin text-[#7e2562]" />
                   <p className="text-sm font-semibold text-slate-400">Loading exhibition report...</p>
                 </div>
               ) : historyData ? (
                 <div className="flex-1 overflow-y-auto pr-1 space-y-6">
                   {/* Basic Details card for everyone */}
-                  <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+                  <div className="bg-[#faf6f9]/60 border border-[#7e2562]/10 rounded-sm p-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
                     <div>
                       <span className="text-slate-400 block font-semibold uppercase tracking-wider">Start Date</span>
                       <strong className="text-sm text-slate-700 block mt-0.5">{new Date(historyData.exhibition.startDate).toLocaleDateString()}</strong>
@@ -1490,63 +1547,63 @@ export default function ExhibitionsPage() {
                     </div>
                   </div>
 
-                  {/* Financial Report Section (Point 1 - only for Finance, Admin, Super Admin) */}
+                  {/* Financial Report Section */}
                   {showFullHistory ? (
                     <div className="space-y-6">
-                      <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider border-l-4 border-blue-500 pl-2">Financial Summary</h4>
+                      <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider border-l-4 border-[#7e2562] pl-2">Financial Summary</h4>
                       
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-4 flex flex-col">
-                          <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Total Cash/UPI Revenue</span>
+                        <div className="bg-[#f0fbf5] border border-[#3cb976]/20 rounded-sm p-4 flex flex-col">
+                          <span className="text-[10px] font-bold text-[#3cb976] uppercase tracking-wider">Total Cash/UPI Revenue</span>
                           <strong className="text-xl text-emerald-800 mt-1">₹{Number(historyData.metrics.totalRevenue).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
                         </div>
-                        <div className="bg-amber-50/50 border border-amber-100 rounded-xl p-4 flex flex-col">
-                          <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">Total Credit Sales Amount</span>
-                          <strong className="text-xl text-amber-800 mt-1">₹{Number(historyData.metrics.totalCreditAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
+                        <div className="bg-amber-50/70 border border-amber-200 rounded-sm p-4 flex flex-col">
+                          <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">Total Credit Sales Amount</span>
+                          <strong className="text-xl text-amber-900 mt-1">₹{Number(historyData.metrics.totalCreditAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
                         </div>
-                        <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-4 flex flex-col">
-                          <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">Books Sold (From Invoices)</span>
-                          <strong className="text-xl text-blue-800 mt-1">{historyData.metrics.totalBooksSoldFromBills} books</strong>
+                        <div className="bg-[#faedf5] border border-[#7e2562]/20 rounded-sm p-4 flex flex-col">
+                          <span className="text-[10px] font-bold text-[#7e2562] uppercase tracking-wider">Books Sold (From Invoices)</span>
+                          <strong className="text-xl text-[#7e2562] mt-1">{historyData.metrics.totalBooksSoldFromBills} books</strong>
                         </div>
                       </div>
 
                       {/* Stock Reconciliation Summary Metrics */}
-                      <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 grid grid-cols-3 md:grid-cols-6 gap-3 text-center text-xs">
+                      <div className="bg-[#faf6f9]/60 border border-[#7e2562]/10 rounded-sm p-4 grid grid-cols-3 md:grid-cols-6 gap-3 text-center text-xs">
                         <div>
                           <span className="text-slate-400 font-semibold block">Taken</span>
                           <strong className="text-sm text-slate-700 block mt-0.5">{historyData.metrics.totalTaken}</strong>
                         </div>
                         <div>
-                          <span className="text-slate-400 font-semibold block">Sold (Reconciled)</span>
-                          <strong className="text-sm text-slate-700 block mt-0.5">{historyData.metrics.totalSold}</strong>
+                          <span className="text-[#3cb976] font-semibold block">Sold (Reconciled)</span>
+                          <strong className="text-sm text-[#3cb976] block mt-0.5">{historyData.metrics.totalSold}</strong>
                         </div>
                         <div>
                           <span className="text-slate-400 font-semibold block">Not Sold</span>
                           <strong className="text-sm text-slate-700 block mt-0.5">{historyData.metrics.totalReturned}</strong>
                         </div>
                         <div>
-                          <span className="text-red-500 font-semibold block">Damaged</span>
-                          <strong className="text-sm text-red-700 block mt-0.5">{historyData.metrics.totalDamaged}</strong>
+                          <span className="text-[#e45e34] font-semibold block">Damaged</span>
+                          <strong className="text-sm text-[#e45e34] block mt-0.5">{historyData.metrics.totalDamaged}</strong>
                         </div>
                         <div>
-                          <span className="text-red-500 font-semibold block">Lost</span>
-                          <strong className="text-sm text-red-700 block mt-0.5">{historyData.metrics.totalLost}</strong>
+                          <span className="text-[#e45e34] font-semibold block">Lost</span>
+                          <strong className="text-sm text-[#e45e34] block mt-0.5">{historyData.metrics.totalLost}</strong>
                         </div>
                         <div>
-                          <span className="text-rose-500 font-semibold block">Credit Copy</span>
-                          <strong className="text-sm text-rose-700 block mt-0.5">{historyData.metrics.totalCreditQty}</strong>
+                          <span className="text-purple-600 font-semibold block">Credit Copy</span>
+                          <strong className="text-sm text-purple-700 block mt-0.5">{historyData.metrics.totalCreditQty}</strong>
                         </div>
                       </div>
 
                       {/* Invoices List */}
                       <div className="space-y-3">
-                        <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider border-l-4 border-blue-500 pl-2">Sales Invoice History ({historyData.bills.length})</h4>
+                        <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider border-l-4 border-[#7e2562] pl-2">Sales Invoice History ({historyData.bills.length})</h4>
                         {historyData.bills.length === 0 ? (
                           <p className="text-xs text-slate-400 italic">No invoices recorded for this exhibition.</p>
                         ) : (
-                          <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                          <div className="border border-[#7e2562]/10 rounded-sm overflow-hidden shadow-xs">
                             <table className="min-w-full divide-y divide-slate-100 text-left text-xs text-slate-600">
-                              <thead className="bg-slate-50 font-bold uppercase text-[9px] text-slate-400 tracking-wider">
+                              <thead className="bg-[#faf6f9]/70 font-bold uppercase text-[10px] text-[#7e2562] tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
                                 <tr>
                                   <th className="px-4 py-2.5">Invoice No</th>
                                   <th className="px-4 py-2.5">Customer</th>
@@ -1558,15 +1615,15 @@ export default function ExhibitionsPage() {
                               </thead>
                               <tbody className="divide-y divide-slate-100 bg-white">
                                 {historyData.bills.map((bill: any) => (
-                                  <tr key={bill.id} className="hover:bg-slate-50/50">
+                                  <tr key={bill.id} className="hover:bg-[#faf6f9]/30">
                                     <td className="px-4 py-2.5 font-semibold text-slate-800">{bill.billNumber}</td>
                                     <td className="px-4 py-2.5">
                                       <div>{bill.customerName || 'Walk-in Customer'}</div>
                                       {bill.customerPhone && <div className="text-[10px] text-slate-400">{bill.customerPhone}</div>}
                                     </td>
                                     <td className="px-4 py-2.5">
-                                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                        bill.paymentStatus === 'PAID' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+                                      <span className={`px-2 py-0.5 rounded-sm text-[10px] font-bold ${
+                                        bill.paymentStatus === 'PAID' ? 'bg-[#f0fbf5] text-[#3cb976] border border-[#3cb976]/30' : 'bg-amber-50 text-amber-700 border border-amber-200'
                                       }`}>
                                         {bill.paymentStatus}
                                       </span>
@@ -1584,46 +1641,46 @@ export default function ExhibitionsPage() {
                     </div>
                   ) : null}
 
-                  {/* Stock List (visible to everyone, but formatted nicely) */}
+                  {/* Stock List */}
                   <div className="space-y-3">
-                    <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider border-l-4 border-blue-500 pl-2">
+                    <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider border-l-4 border-[#7e2562] pl-2">
                       {showFullHistory ? 'Reconciled Stock Detail' : 'Stock List'}
                     </h4>
                     {historyData.stock.length === 0 ? (
                       <p className="text-xs text-slate-400 italic">No stock registered for this exhibition.</p>
                     ) : (
-                      <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                      <div className="border border-[#7e2562]/10 rounded-sm overflow-hidden shadow-xs">
                         <table className="min-w-full divide-y divide-slate-100 text-left text-xs text-slate-600">
-                          <thead className="bg-slate-50 font-bold uppercase text-[9px] text-slate-400 tracking-wider">
+                          <thead className="bg-[#faf6f9]/70 font-bold uppercase text-[10px] text-[#7e2562] tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
                             <tr>
                               <th className="px-4 py-2.5">Book Title</th>
                               <th className="px-4 py-2.5 text-center">Taken</th>
-                              <th className="px-4 py-2.5 text-center">Sold</th>
+                              <th className="px-4 py-2.5 text-center text-[#3cb976]">Sold</th>
                               {showFullHistory && (
                                 <>
                                   <th className="px-4 py-2.5 text-center">Not Sold</th>
-                                  <th className="px-4 py-2.5 text-center text-red-500">Damaged</th>
-                                  <th className="px-4 py-2.5 text-center text-red-500">Lost</th>
-                                  <th className="px-4 py-2.5 text-center text-rose-500">Credit</th>
+                                  <th className="px-4 py-2.5 text-center text-[#e45e34]">Damaged</th>
+                                  <th className="px-4 py-2.5 text-center text-[#e45e34]">Lost</th>
+                                  <th className="px-4 py-2.5 text-center text-purple-600">Credit</th>
                                 </>
                               )}
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100 bg-white">
                             {historyData.stock.map((s: any) => (
-                              <tr key={s.id} className="hover:bg-slate-50/50">
+                              <tr key={s.id} className="hover:bg-[#faf6f9]/30">
                                 <td className="px-4 py-2.5">
                                   <div className="font-semibold text-slate-800">{s.bookTitle}</div>
                                   <div className="text-[10px] text-slate-400 font-mono mt-0.5">{s.isbn}</div>
                                 </td>
                                 <td className="px-4 py-2.5 text-center font-bold text-slate-700">{s.quantityTaken}</td>
-                                <td className="px-4 py-2.5 text-center font-semibold text-slate-700">{s.quantitySold}</td>
+                                <td className="px-4 py-2.5 text-center font-semibold text-[#3cb976]">{s.quantitySold}</td>
                                 {showFullHistory && (
                                   <>
                                     <td className="px-4 py-2.5 text-center text-slate-500">{s.quantityReturned}</td>
-                                    <td className="px-4 py-2.5 text-center text-red-600 font-medium">{s.quantityDamaged}</td>
-                                    <td className="px-4 py-2.5 text-center text-red-600 font-medium">{s.quantityLost}</td>
-                                    <td className="px-4 py-2.5 text-center text-rose-600 font-medium">{s.quantityCredit}</td>
+                                    <td className="px-4 py-2.5 text-center text-[#e45e34] font-medium">{s.quantityDamaged}</td>
+                                    <td className="px-4 py-2.5 text-center text-[#e45e34] font-medium">{s.quantityLost}</td>
+                                    <td className="px-4 py-2.5 text-center text-purple-600 font-medium">{s.quantityCredit}</td>
                                   </>
                                 )}
                               </tr>
@@ -1638,10 +1695,10 @@ export default function ExhibitionsPage() {
                 <div className="py-12 text-center text-sm text-slate-400">Failed to load history metrics.</div>
               )}
 
-              <div className="flex justify-end pt-4 border-t mt-4">
+              <div className="flex justify-end pt-4 border-t border-gray-200 mt-4">
                 <button 
                   onClick={() => setViewingExhibitionHistory(null)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-semibold transition"
+                  className="px-4 py-2 bg-[#faedf5] hover:bg-[#f6dbe9] text-[#7e2562] border border-[#7e2562]/20 rounded-sm text-sm font-semibold transition"
                 >
                   Close Report
                 </button>

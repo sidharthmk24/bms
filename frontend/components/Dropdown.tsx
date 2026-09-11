@@ -142,11 +142,11 @@ export function Dropdown({
         type="button"
         disabled={disabled}
         onClick={handleToggle}
-        className={`w-full flex items-center justify-between px-3 py-2 bg-white border border-neutral-300 rounded-xl text-sm transition-all focus:outline-none focus:ring-2 focus:ring-black focus:border-black ${
-          disabled ? 'bg-neutral-100 text-neutral-400 cursor-not-allowed' : 'text-black cursor-pointer hover:bg-neutral-50'
+        className={`w-full flex items-center justify-between px-3 py-2 bg-white border border-[#7e2562]/20 rounded-sm text-sm transition-all focus:outline-none focus:ring-2 focus:ring-[#7e2562]/20 focus:border-[#7e2562] ${
+          disabled ? 'bg-neutral-100 text-neutral-400 cursor-not-allowed' : 'text-neutral-900 cursor-pointer hover:bg-[#faf6f9] hover:border-[#7e2562]/40'
         } ${selectClassName}`}
       >
-        <span className={`block truncate ${selectedOptions.length === 0 ? 'text-neutral-400' : 'text-black font-medium'}`}>
+        <span className={`block truncate ${selectedOptions.length === 0 ? 'text-neutral-400' : 'text-neutral-900 font-medium'}`}>
           {selectedOptions.length > 0 
             ? selectedOptions.map(o => o.label).join(', ') 
             : placeholder}
@@ -164,12 +164,12 @@ export function Dropdown({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: dropdownPosition === 'top' ? 8 : -8 }}
             transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-            className={`absolute z-50 w-full bg-white border border-neutral-200 rounded-xl shadow-2xl max-h-64 overflow-auto focus:outline-none ${
+            className={`absolute z-50 w-full bg-white border border-[#7e2562]/20 rounded-sm shadow-xl max-h-64 overflow-auto focus:outline-none ${
               dropdownPosition === 'top' ? 'bottom-full mb-1' : 'top-full mt-1'
             }`}
           >
             {searchable && (
-              <div className="p-2 border-b border-neutral-100 sticky top-0 bg-white z-10">
+              <div className="p-2 border-b border-[#7e2562]/10 sticky top-0 bg-white z-10">
                 <input
                   type="text"
                   autoFocus
@@ -177,7 +177,7 @@ export function Dropdown({
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onClick={(e) => e.stopPropagation()}
-                  className="w-full px-3 py-1.5 text-xs border border-neutral-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-black focus:border-black text-black"
+                  className="w-full px-3 py-1.5 text-xs border border-[#7e2562]/20 rounded-sm focus:outline-none focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562] text-neutral-900"
                 />
               </div>
             )}
@@ -212,14 +212,14 @@ export function Dropdown({
                         handleSelect(opt.value);
                       }}
                       className={`flex items-center justify-between px-3 py-2 text-xs cursor-pointer transition-colors ${
-                        isSelected ? 'bg-neutral-100 text-black font-semibold' : 'text-neutral-800 hover:bg-neutral-50 hover:text-black'
+                        isSelected ? 'bg-[#faedf5] text-[#7e2562] font-semibold' : 'text-neutral-800 hover:bg-[#faf6f9] hover:text-[#7e2562]'
                       }`}
                     >
                       <div className="flex-1 min-w-0 mr-2">
                         <div className="flex items-center justify-between">
                           <span className="block truncate">{opt.label}</span>
                           {opt.badge && (
-                            <span className={`ml-2 px-2 py-0.5 text-[10px] font-bold rounded-full ${opt.badgeClassName || 'bg-neutral-100 text-black border border-neutral-200'}`}>
+                            <span className={`ml-2 px-2 py-0.5 text-[10px] font-bold rounded-full ${opt.badgeClassName || 'bg-[#faedf5] text-[#7e2562] border border-[#7e2562]/20'}`}>
                               {opt.badge}
                             </span>
                           )}
@@ -230,7 +230,7 @@ export function Dropdown({
                           </span>
                         )}
                       </div>
-                      {isSelected && <Check className="w-4 h-4 text-black flex-shrink-0" />}
+                      {isSelected && <Check className="w-4 h-4 text-[#7e2562] flex-shrink-0" />}
                     </li>
                   );
                 });

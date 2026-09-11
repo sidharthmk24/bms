@@ -12,7 +12,10 @@ import { Exhibition, ExhibitionStatus } from '../api-backend/exhibitions/entitie
 import { Branch, BranchType } from '../api-backend/branches/entities/branch.entity';
 import { ExhibitionStock } from '../api-backend/exhibitions/entities/exhibition-stock.entity';
 import { CreditCopy } from '../api-backend/credit-copies/entities/credit-copy.entity';
-import { Bill, BillStatus, PaymentStatus } from '../api-backend/billing/entities/bill.entity';
+import { Bill, BillStatus, PaymentStatus, PaymentMode } from '../api-backend/billing/entities/bill.entity';
+import { BillItem } from '../api-backend/billing/entities/bill-item.entity';
+import { Book } from '../api-backend/catalog/entities/book.entity';
+import { generateBillNumber } from '../api-backend/common/helpers/bill-number.helper';
 import { User } from '../api-backend/users/entities/user.entity';
 import { Notification } from '../api-backend/notifications/entities/notification.entity';
 import { CreateExhibitionDto } from '../api-backend/exhibitions/dto/create-exhibition.dto';
@@ -1213,6 +1216,157 @@ export class ExhibitionsService {
         }
       }
 
+      // ── Generate Bills for Sold and Credited Books ───────────────────────────
+      // Resolve branch for bill association and numbering
+      let branch = exhibition.sourceBranch;
+      if (!branch && exhibition.sourceBranchId) {
+        branch = (await queryRunner.manager.getRepository(Branch).findOne({ where: { id: exhibition.sourceBranchId } })) as Branch;
+      }
+      if (!branch) {
+        branch = (await queryRunner.manager.getRepository(Branch).findOne({ where: { isActive: true } })) as Branch;
+      }
+      const branchCode = branch?.code || 'EXH';
+
+      // 1. Process Sold Items (Regular Sales Bill)
+      const soldItems: { stockItem: ExhibitionStock; book: Book; quantity: number }[] = [];
+      for (const closeItem of dto.items) {
+        if (closeItem.quantitySold && closeItem.quantitySold > 0) {
+          const stockItem = exhibition.stock.find((s) => s.id === closeItem.stockId)!;
+          let book = stockItem.book;
+          if (!book) {
+            book = (await queryRunner.manager.getRepository(Book).findOne({ where: { id: stockItem.bookId } })) as Book;
+          }
+          soldItems.push({
+            stockItem,
+            book,
+            quantity: closeItem.quantitySold,
+          });
+        }
+      }
+
+      if (soldItems.length > 0) {
+        const salesBillNumber = await generateBillNumber(dataSource, branchCode, queryRunner.manager);
+        let subTotal = 0;
+        let totalCost = 0;
+        const billItemsToSave: Partial<BillItem>[] = [];
+
+        for (const item of soldItems) {
+          const unitPrice = Number(item.book?.price || 0);
+          const unitCost = Number(item.book?.costPrice || 0);
+          const lineTotal = item.quantity * unitPrice;
+          const lineCost = item.quantity * unitCost;
+
+          subTotal += lineTotal;
+          totalCost += lineCost;
+
+          billItemsToSave.push({
+            bookId: item.stockItem.bookId,
+            quantity: item.quantity,
+            unitPrice,
+            unitCost,
+            lineTotal,
+          });
+        }
+
+        const salesBill = queryRunner.manager.getRepository(Bill).create({
+          billNumber: salesBillNumber,
+          branchId: branch?.id || exhibition.sourceBranchId,
+          exhibitionId: exhibition.id,
+          createdById: user.userId,
+          customerName: `Exhibition Sale: ${exhibition.name}`,
+          customerPhone: null,
+          subTotal,
+          discount: 0,
+          totalAmount: subTotal,
+          totalCost,
+          paymentStatus: PaymentStatus.PAID,
+          paymentMode: PaymentMode.CASH,
+          status: BillStatus.COMPLETED,
+        });
+
+        const savedSalesBill = await queryRunner.manager.getRepository(Bill).save(salesBill);
+
+        for (const bItem of billItemsToSave) {
+          bItem.billId = savedSalesBill.id;
+        }
+        await queryRunner.manager.getRepository(BillItem).save(billItemsToSave);
+
+        await queryRunner.manager.query(
+          'INSERT INTO `audit_log`(`id`,`user_id`,`action`,`entity_type`,`entity_id`,`before_json`,`after_json`,`ip_address`,`created_at`) VALUES (UUID(),?,?,?,?,NULL,?,?,DEFAULT)',
+          [user.userId, 'BILL_CREATED', 'Bill', savedSalesBill.id, JSON.stringify(savedSalesBill), ipAddress],
+        );
+      }
+
+      // 2. Process Credited Items (Credit Copy Bill)
+      const creditItems: { stockItem: ExhibitionStock; book: Book; quantity: number }[] = [];
+      for (const closeItem of dto.items) {
+        if (closeItem.quantityCredit && closeItem.quantityCredit > 0) {
+          const stockItem = exhibition.stock.find((s) => s.id === closeItem.stockId)!;
+          let book = stockItem.book;
+          if (!book) {
+            book = (await queryRunner.manager.getRepository(Book).findOne({ where: { id: stockItem.bookId } })) as Book;
+          }
+          creditItems.push({
+            stockItem,
+            book,
+            quantity: closeItem.quantityCredit,
+          });
+        }
+      }
+
+      if (creditItems.length > 0) {
+        const creditBillNumber = await generateBillNumber(dataSource, branchCode, queryRunner.manager);
+        let subTotal = 0;
+        let totalCost = 0;
+        const creditBillItemsToSave: Partial<BillItem>[] = [];
+
+        for (const item of creditItems) {
+          const unitPrice = Number(item.book?.price || 0);
+          const unitCost = Number(item.book?.costPrice || 0);
+          const lineTotal = item.quantity * unitPrice;
+          const lineCost = item.quantity * unitCost;
+
+          subTotal += lineTotal;
+          totalCost += lineCost;
+
+          creditBillItemsToSave.push({
+            bookId: item.stockItem.bookId,
+            quantity: item.quantity,
+            unitPrice,
+            unitCost,
+            lineTotal,
+          });
+        }
+
+        const creditBill = queryRunner.manager.getRepository(Bill).create({
+          billNumber: creditBillNumber,
+          branchId: branch?.id || exhibition.sourceBranchId,
+          exhibitionId: exhibition.id,
+          createdById: user.userId,
+          customerName: `Credit Copy: Exhibition - ${exhibition.name}`,
+          customerPhone: null,
+          subTotal,
+          discount: 0,
+          totalAmount: subTotal,
+          totalCost,
+          paymentStatus: PaymentStatus.PAID,
+          paymentMode: PaymentMode.CREDIT,
+          status: BillStatus.COMPLETED,
+        });
+
+        const savedCreditBill = await queryRunner.manager.getRepository(Bill).save(creditBill);
+
+        for (const bItem of creditBillItemsToSave) {
+          bItem.billId = savedCreditBill.id;
+        }
+        await queryRunner.manager.getRepository(BillItem).save(creditBillItemsToSave);
+
+        await queryRunner.manager.query(
+          'INSERT INTO `audit_log`(`id`,`user_id`,`action`,`entity_type`,`entity_id`,`before_json`,`after_json`,`ip_address`,`created_at`) VALUES (UUID(),?,?,?,?,NULL,?,?,DEFAULT)',
+          [user.userId, 'BILL_CREATED', 'Bill', savedCreditBill.id, JSON.stringify(savedCreditBill), ipAddress],
+        );
+      }
+
       await queryRunner.manager.getRepository(Exhibition).update({ id }, { status: ExhibitionStatus.CLOSED });
 
       await queryRunner.manager.query(
@@ -1224,6 +1378,7 @@ export class ExhibitionsService {
       this.notificationsService.triggerRefresh('exhibition_changed');
       this.notificationsService.triggerRefresh('stock_changed');
       this.notificationsService.triggerRefresh('inventory_changed');
+      this.notificationsService.triggerRefresh('bill_created');
 
       await this.notificationsService.notifyRoles(
         [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.FINANCE],
