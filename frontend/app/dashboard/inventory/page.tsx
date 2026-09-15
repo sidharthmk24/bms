@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useConfirm } from '@/contexts/ConfirmContext';
 import { api } from '@/lib/api';
-import { Loader2, AlertCircle, Search, Edit2, Bell, Check, ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, PackagePlus } from 'lucide-react';
+import { Loader2, AlertCircle, Search, Edit2, Bell, Check, ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, PackagePlus, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useApiData } from '@/hooks/useApiData';
 import { Dropdown } from '@/components/Dropdown';
@@ -286,7 +286,7 @@ export default function BranchInventoryPage() {
             />
           </div>
 
-          {selectedBranchId && (
+          {selectedBranchId && !isGlobalAdmin && (
             <button
               onClick={() => {
                 setRequestStockBook(null);
@@ -332,7 +332,7 @@ export default function BranchInventoryPage() {
                   : 'text-[#22794d] hover:text-[#1b4f35]'
               }`}
             >
-              <span>🌟</span>
+              <Sparkles className="w-3.5 h-3.5" />
               <span>Kairali Books ({inventory.filter((i: any) => i.book?.publishType === 'KAIRALI_BOOKS' || i.book?.publisher?.name?.toLowerCase().includes('kairali') || Boolean(i.book?.pmsTitleId)).length})</span>
             </button>
             <button

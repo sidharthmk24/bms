@@ -74,12 +74,17 @@ export class RestockService {
     currentUser: JwtPayload,
     ipAddress: string,
   ): Promise<RestockRequest> {
-    const branchId = currentUser.branchId;
-    if (!branchId) {
-      throw new BadRequestException('Restock requests must be created under a specific branch context.');
-    }
-
     const { branchRepository, dataSource } = await this.getRepos();
+    let branchId = currentUser.branchId || dto.branchId;
+
+    if (!branchId) {
+      const firstRetail = await branchRepository.findOne({ where: { type: 'RETAIL' } });
+      if (firstRetail) {
+        branchId = firstRetail.id;
+      } else {
+        throw new BadRequestException('Restock requests must specify a destination branch.');
+      }
+    }
 
     // Verify branch exists and is NOT a warehouse
     const branch = await branchRepository.findOne({ where: { id: branchId } });

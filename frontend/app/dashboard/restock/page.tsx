@@ -36,7 +36,8 @@ export default function RestockRequestsPage() {
   const router = useRouter();
   const { user } = useAuth();
   const confirm = useConfirm();
-  const isCentral = (user?.roles?.some(r => ['SUPER_ADMIN', 'ADMIN', 'CENTRAL_INVENTORY_MANAGER'].includes(r)) || false);
+  const isCentral = (user?.roles?.some(r => ['SUPER_ADMIN', 'ADMIN', 'CENTRAL_INVENTORY_MANAGER'].includes(r)) || !user?.branchId);
+  const isBranchUser = Boolean(user?.branchId && !['SUPER_ADMIN', 'ADMIN', 'CENTRAL_INVENTORY_MANAGER'].includes(user?.primaryRole || user?.role || ''));
   const isAdminOrSuper = (user?.roles?.some(r => ['SUPER_ADMIN', 'ADMIN'].includes(r)) || false);
   
   const { data: requestsResponse, loading, error, refetch } = useApiData<any>('/restock', []);
@@ -45,6 +46,9 @@ export default function RestockRequestsPage() {
   // PO Requests Data
   const { data: poRequestsResponse, refetch: refetchPoRequests } = useApiData<any>('/procurement/requests', []);
   const poRequests = Array.isArray(poRequestsResponse) ? poRequestsResponse : (poRequestsResponse?.items || []);
+
+  const { data: branchesResponse } = useApiData<any>('/branches', []);
+  const branches = (branchesResponse?.items || (Array.isArray(branchesResponse) ? branchesResponse : [])).filter((b: any) => b.type !== 'WAREHOUSE');
 
   // Filter and Search State
   const [statusFilter, setStatusFilter] = useState('');
@@ -58,6 +62,7 @@ export default function RestockRequestsPage() {
   // Creation State (Branch)
   const [isCreating, setIsCreating] = useState(false);
   const { data: catalog } = useApiData<any>(isCreating ? '/catalog/books?limit=100' : null, []);
+  const [destinationBranchId, setDestinationBranchId] = useState('');
   const [cart, setCart] = useState<{bookId: string, quantity: number, title?: string, isbn?: string}[]>([]);
   const [selectedBook, setSelectedBook] = useState('');
   const [quantity, setQuantity] = useState(5);
@@ -90,10 +95,17 @@ export default function RestockRequestsPage() {
   const handleCreate = async () => {
     if (cart.length === 0) return;
 
+    const targetBranchId = user?.branchId || destinationBranchId;
+    if ((!user?.branchId || isAdminOrSuper) && !targetBranchId && branches.length > 0) {
+      alert('Please select a destination branch for the restock request.');
+      return;
+    }
+
     const totalCopies = cart.reduce((acc, i) => acc + i.quantity, 0);
+    const targetBranchName = branches.find((b: any) => b.id === targetBranchId)?.name;
     const ok = await confirm({
       title: "Submit Restock Request",
-      message: `Submit restock request for ${cart.length} title(s) (${totalCopies} total copies) to the Central Warehouse?`,
+      message: `Submit restock request for ${cart.length} title(s) (${totalCopies} total copies)${targetBranchName ? ` for ${targetBranchName}` : ''} to the Central Warehouse?`,
       confirmText: "Yes, Submit Request",
       cancelText: "No, Cancel",
       variant: "primary",
@@ -103,10 +115,12 @@ export default function RestockRequestsPage() {
     try {
       setIsSubmittingCreate(true);
       await api.post('/restock', {
+        branchId: targetBranchId || undefined,
         items: cart.map(i => ({ bookId: i.bookId, quantity: i.quantity }))
       });
       setIsCreating(false);
       setCart([]);
+      setDestinationBranchId('');
       await refetch();
       alert('Restock request submitted successfully');
     } catch (err: any) {
@@ -418,10 +432,10 @@ export default function RestockRequestsPage() {
           >
             <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-[#7e2562]' : ''}`} />
           </button>
-          {!isCentral && (
+          {isBranchUser && (
             <button
               onClick={() => setIsCreating(true)}
-              className="flex items-center gap-2 px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-white bg-[#7e2562] rounded-sm hover:bg-[#681b50] shadow-sm shadow-plum-sm active:scale-95 transition-all"
+              className="flex items-center gap-2 px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-white bg-[#7e2562] rounded-sm hover:bg-[#681b50] shadow-sm shadow-plum-sm active:scale-95 transition-all cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               <span>New Request</span>
@@ -1029,6 +1043,20 @@ export default function RestockRequestsPage() {
                   <X className="w-5 h-5" />
                 </button>
               </div>
+
+              {(!user?.branchId || isAdminOrSuper) && (
+                <div className="mb-4">
+                  <label className="block text-xs font-bold text-[#7e2562] uppercase tracking-wider mb-1">Destination Branch</label>
+                  <Dropdown
+                    value={destinationBranchId}
+                    onChange={(val) => setDestinationBranchId(val)}
+                    placeholder="Select destination branch..."
+                    options={branches.map((b: any) => ({ value: b.id, label: b.name }))}
+                    selectClassName="!rounded-sm !py-2 border-[#7e2562]/20"
+                  />
+                  <p className="text-[11px] text-neutral-400 mt-1">Select the retail branch requesting this stock replenishment.</p>
+                </div>
+              )}
 
               <div className="flex space-x-2 mb-6">
                 <div className="flex-1">

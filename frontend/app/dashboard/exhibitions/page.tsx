@@ -1629,7 +1629,21 @@ export default function ExhibitionsPage() {
                                         {bill.paymentStatus}
                                       </span>
                                     </td>
-                                    <td className="px-4 py-2.5 font-mono text-[10px]">{bill.paymentMode || 'N/A'}</td>
+                                     <td className="px-4 py-2.5 whitespace-nowrap">
+                                       {bill.paymentMode === 'CREDIT' ? (
+                                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-sm border bg-[#F2E9EF] text-[#7e2562] border-[#7e2562]/20">
+                                           CREDIT COPY
+                                         </span>
+                                       ) : bill.paymentMode === 'UPI' ? (
+                                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-sm border bg-[#567bbd]/10 text-[#567bbd] border-[#567bbd]/20">
+                                           UPI
+                                         </span>
+                                       ) : (
+                                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-sm border bg-[#f0fbf5] text-[#3cb976] border-[#3cb976]/20">
+                                           {bill.paymentMode || 'CASH'}
+                                         </span>
+                                       )}
+                                     </td>
                                     <td className="px-4 py-2.5 text-slate-400">{new Date(bill.createdAt).toLocaleString()}</td>
                                     <td className="px-4 py-2.5 text-right font-bold text-slate-800">₹{Number(bill.totalAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
                                   </tr>

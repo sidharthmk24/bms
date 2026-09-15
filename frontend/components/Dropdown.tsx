@@ -113,8 +113,16 @@ export function Dropdown({
     }
   };
 
+  const isSelected = isMulti
+    ? Array.isArray(value) && value.length > 0
+    : value !== undefined &&
+      value !== null &&
+      String(value) !== '' &&
+      String(value) !== 'all' &&
+      String(value) !== 'ALL';
+
   return (
-    <div className={`relative ${className}`} ref={containerRef}>
+    <div className={`relative ${isOpen ? 'z-50' : 'z-auto'} ${className}`} ref={containerRef}>
       {/* Visually hidden native select for HTML5 validation (required) */}
       <select
         ref={selectRef}
@@ -142,17 +150,23 @@ export function Dropdown({
         type="button"
         disabled={disabled}
         onClick={handleToggle}
-        className={`w-full flex items-center justify-between px-3 py-2 bg-white border border-[#7e2562]/20 rounded-sm text-sm transition-all focus:outline-none focus:ring-2 focus:ring-[#7e2562]/20 focus:border-[#7e2562] ${
-          disabled ? 'bg-neutral-100 text-neutral-400 cursor-not-allowed' : 'text-neutral-900 cursor-pointer hover:bg-[#faf6f9] hover:border-[#7e2562]/40'
+        className={`w-full flex items-center justify-between px-3 py-2 border rounded-sm text-sm transition-all focus:outline-none focus:ring-2 focus:ring-[#7e2562]/30 focus:border-[#7e2562] ${
+          disabled
+            ? 'bg-neutral-100 text-neutral-400 cursor-not-allowed border-black/10'
+            : isSelected
+            ? 'border-[#7e2562] ring-2 ring-[#7e2562]/30 shadow-plum-sm bg-[#faedf5]/40 text-neutral-900 font-bold hover:bg-[#faedf5]/60'
+            : 'bg-white border-[#7e2562]/20 text-neutral-900 cursor-pointer hover:bg-[#faf6f9] hover:border-[#7e2562]/40'
         } ${selectClassName}`}
       >
-        <span className={`block truncate ${selectedOptions.length === 0 ? 'text-neutral-400' : 'text-neutral-900 font-medium'}`}>
+        <span className={`block truncate ${selectedOptions.length === 0 ? 'text-neutral-400 font-normal' : isSelected ? 'text-neutral-900 font-bold' : 'text-neutral-900 font-medium'}`}>
           {selectedOptions.length > 0 
             ? selectedOptions.map(o => o.label).join(', ') 
             : placeholder}
         </span>
         <ChevronDown
-          className={`w-4 h-4 ml-2 text-neutral-400 transition-transform duration-200 ${isOpen ? (dropdownPosition === 'top' ? 'rotate-0' : 'rotate-180') : ''}`}
+          className={`w-4 h-4 ml-2 transition-transform duration-200 ${
+            isSelected ? 'text-[#7e2562]' : 'text-neutral-400'
+          } ${isOpen ? (dropdownPosition === 'top' ? 'rotate-0' : 'rotate-180') : ''}`}
         />
       </button>
 
@@ -164,7 +178,7 @@ export function Dropdown({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: dropdownPosition === 'top' ? 8 : -8 }}
             transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-            className={`absolute z-50 w-full bg-white border border-[#7e2562]/20 rounded-sm shadow-xl max-h-64 overflow-auto focus:outline-none ${
+            className={`absolute z-[100] w-full bg-white border border-[#7e2562]/20 rounded-sm shadow-xl max-h-64 overflow-auto focus:outline-none ${
               dropdownPosition === 'top' ? 'bottom-full mb-1' : 'top-full mt-1'
             }`}
           >

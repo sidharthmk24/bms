@@ -248,7 +248,7 @@ export default function CatalogManagementPage() {
         ))}
       </div>
 
-      <div className="bg-white shadow-sm border border-[#7e2562]/10 rounded-sm overflow-hidden">
+      <div className="bg-white shadow-sm border border-[#7e2562]/10 rounded-sm">
         {activeTab === 'BOOKS' && (
           <div className="p-4 border-b border-[#7e2562]/10 flex flex-col sm:flex-row gap-4 bg-[#faf6f9]/50 items-start sm:items-center">
             <div className="flex-1 w-full">

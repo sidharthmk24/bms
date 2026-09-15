@@ -26,8 +26,9 @@ import { generateBillPDF } from '@/lib/pdfUtils';
 const PAYMENT_MODE_COLORS: Record<string, string> = {
   CASH:  'bg-[#f0fbf5] text-[#3cb976] border-[#3cb976]/30',
   CARD:  'bg-[#faedf5] text-[#7e2562] border-[#7e2562]/25',
-  UPI:   'bg-violet-50 text-violet-700 border-violet-200',
-  CREDIT_COPY: 'bg-[#fef5f2] text-[#e45e34] border-[#e45e34]/30',
+  UPI:   'bg-[#567bbd]/10 text-[#567bbd] border-[#567bbd]/30',
+  CREDIT: 'bg-[#F2E9EF] text-[#7e2562] border-[#7e2562]/20',
+  CREDIT_COPY: 'bg-[#F2E9EF] text-[#7e2562] border-[#7e2562]/20',
   OTHER: 'bg-neutral-100 text-neutral-800 border-neutral-200',
 };
 
@@ -263,7 +264,7 @@ export default function EODSalesPage() {
       )}
 
       {/* Bills table */}
-      <div className="bg-white rounded-sm border border-neutral-200/80 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-sm border border-neutral-200/80 shadow-sm relative z-10">
         <div className="px-6 py-4 border-b border-neutral-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <h3 className="text-sm font-bold text-neutral-900">Bills</h3>

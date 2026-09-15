@@ -630,7 +630,7 @@ export default function BillingPage() {
                       onClick={() => setPaymentMode('UPI')}
                       className={`flex-1 px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-r-sm border-y border-r border-l-0 transition-colors ${
                         paymentMode === 'UPI' 
-                          ? 'bg-[#faedf5] border-[#7e2562] text-[#7e2562] z-10' 
+                          ? 'bg-[#567bbd]/10 border-[#567bbd] text-[#567bbd] z-10' 
                           : 'bg-white border-neutral-300 text-neutral-700 hover:bg-[#faf6f9]'
                       }`}
                     >
