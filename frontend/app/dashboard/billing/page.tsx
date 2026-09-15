@@ -619,7 +619,7 @@ export default function BillingPage() {
                       onClick={() => setPaymentMode('CASH')}
                       className={`flex-1 px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-l-sm border transition-colors ${
                         paymentMode === 'CASH' 
-                          ? 'bg-[#f0fbf5] border-[#3cb976] text-[#3cb976] z-10' 
+                          ? 'bg-emerald-50 border-emerald-500 text-emerald-700 z-10 font-bold ring-1 ring-emerald-500/20' 
                           : 'bg-white border-neutral-300 text-neutral-700 hover:bg-[#faf6f9]'
                       }`}
                     >
@@ -630,7 +630,7 @@ export default function BillingPage() {
                       onClick={() => setPaymentMode('UPI')}
                       className={`flex-1 px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-r-sm border-y border-r border-l-0 transition-colors ${
                         paymentMode === 'UPI' 
-                          ? 'bg-[#567bbd]/10 border-[#567bbd] text-[#567bbd] z-10' 
+                          ? 'bg-blue-50 border-blue-500 text-blue-700 z-10 font-bold ring-1 ring-blue-500/20' 
                           : 'bg-white border-neutral-300 text-neutral-700 hover:bg-[#faf6f9]'
                       }`}
                     >

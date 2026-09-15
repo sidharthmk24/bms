@@ -487,15 +487,15 @@ export default function BillsPage() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       {bill.status === 'COMPLETED' ? (
                         bill.paymentMode === 'CREDIT' ? (
-                          <span className="bg-[#F2E9EF] text-[#7e2562] text-xs font-bold px-2.5 py-0.5 rounded-sm border border-[#7e2562]/20">
+                          <span className="bg-[#faedf5] text-[#7e2562] text-xs font-bold px-2.5 py-0.5 rounded-sm border border-[#7e2562]/20">
                             CREDIT COPY
                           </span>
                         ) : bill.paymentMode === 'UPI' ? (
-                          <span className="bg-[#567bbd]/10 text-[#567bbd] text-xs font-bold px-2.5 py-0.5 rounded-sm border border-[#567bbd]/20">
+                          <span className="bg-blue-50 text-blue-700 text-xs font-bold px-2.5 py-0.5 rounded-sm border border-blue-200">
                             UPI
                           </span>
                         ) : (
-                          <span className="bg-[#f0fbf5] text-[#3cb976] text-xs font-bold px-2.5 py-0.5 rounded-sm border border-[#3cb976]/20">
+                          <span className="bg-emerald-50 text-emerald-700 text-xs font-bold px-2.5 py-0.5 rounded-sm border border-emerald-200">
                             {bill.paymentMode || 'CASH'}
                           </span>
                         )

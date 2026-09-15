@@ -24,11 +24,11 @@ import { Dropdown } from '@/components/Dropdown';
 import { generateBillPDF } from '@/lib/pdfUtils';
 
 const PAYMENT_MODE_COLORS: Record<string, string> = {
-  CASH:  'bg-[#f0fbf5] text-[#3cb976] border-[#3cb976]/30',
-  CARD:  'bg-[#faedf5] text-[#7e2562] border-[#7e2562]/25',
-  UPI:   'bg-[#567bbd]/10 text-[#567bbd] border-[#567bbd]/30',
-  CREDIT: 'bg-[#F2E9EF] text-[#7e2562] border-[#7e2562]/20',
-  CREDIT_COPY: 'bg-[#F2E9EF] text-[#7e2562] border-[#7e2562]/20',
+  CASH:  'bg-emerald-50 text-emerald-700 border-emerald-200',
+  CARD:  'bg-purple-50 text-purple-700 border-purple-200',
+  UPI:   'bg-blue-50 text-blue-700 border-blue-200',
+  CREDIT: 'bg-[#faedf5] text-[#7e2562] border-[#7e2562]/20',
+  CREDIT_COPY: 'bg-[#faedf5] text-[#7e2562] border-[#7e2562]/20',
   OTHER: 'bg-neutral-100 text-neutral-800 border-neutral-200',
 };
 

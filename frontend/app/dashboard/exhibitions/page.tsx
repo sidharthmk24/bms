@@ -1631,15 +1631,15 @@ export default function ExhibitionsPage() {
                                     </td>
                                      <td className="px-4 py-2.5 whitespace-nowrap">
                                        {bill.paymentMode === 'CREDIT' ? (
-                                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-sm border bg-[#F2E9EF] text-[#7e2562] border-[#7e2562]/20">
+                                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-sm border bg-[#faedf5] text-[#7e2562] border-[#7e2562]/20">
                                            CREDIT COPY
                                          </span>
                                        ) : bill.paymentMode === 'UPI' ? (
-                                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-sm border bg-[#567bbd]/10 text-[#567bbd] border-[#567bbd]/20">
+                                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-sm border bg-blue-50 text-blue-700 border-blue-200">
                                            UPI
                                          </span>
                                        ) : (
-                                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-sm border bg-[#f0fbf5] text-[#3cb976] border-[#3cb976]/20">
+                                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-sm border bg-emerald-50 text-emerald-700 border-emerald-200">
                                            {bill.paymentMode || 'CASH'}
                                          </span>
                                        )}
