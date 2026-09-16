@@ -322,7 +322,7 @@ export default function BranchInventoryPage() {
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              All Books ({inventory.length})
+              All Books{publisherFilter === 'ALL' ? ` (${totalCount || inventory.length})` : ''}
             </button>
             <button
               onClick={() => { setPublisherFilter('KAIRALI'); setCurrentPage(1); }}
@@ -333,7 +333,7 @@ export default function BranchInventoryPage() {
               }`}
             >
               <Sparkles className="w-3.5 h-3.5" />
-              <span>Kairali Books ({inventory.filter((i: any) => i.book?.publishType === 'KAIRALI_BOOKS' || i.book?.publisher?.name?.toLowerCase().includes('kairali') || Boolean(i.book?.pmsTitleId)).length})</span>
+              <span>Kairali Books{publisherFilter === 'KAIRALI' ? ` (${totalCount})` : ''}</span>
             </button>
             <button
               onClick={() => { setPublisherFilter('OTHER'); setCurrentPage(1); }}
@@ -343,7 +343,7 @@ export default function BranchInventoryPage() {
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              Other Publishers ({inventory.filter((i: any) => !(i.book?.publishType === 'KAIRALI_BOOKS' || i.book?.publisher?.name?.toLowerCase().includes('kairali') || Boolean(i.book?.pmsTitleId))).length})
+              Other Publishers{publisherFilter === 'OTHER' ? ` (${totalCount})` : ''}
             </button>
           </div>
 

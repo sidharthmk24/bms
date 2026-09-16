@@ -174,7 +174,7 @@ export default function CentralStockPage() {
               : 'text-muted-foreground hover:text-foreground'
           }`}
         >
-          All Books ({publisherFilter === 'ALL' ? totalStockCount : stockList.length})
+          All Books{publisherFilter === 'ALL' ? ` (${totalStockCount})` : ''}
         </button>
         <button
           onClick={() => { setPublisherFilter('KAIRALI'); setCurrentPage(1); }}
@@ -185,7 +185,7 @@ export default function CentralStockPage() {
           }`}
         >
           <Sparkles className="w-3.5 h-3.5" />
-          <span>Kairali Books {publisherFilter === 'KAIRALI' ? `(${totalStockCount})` : ''}</span>
+          <span>Kairali Books{publisherFilter === 'KAIRALI' ? ` (${totalStockCount})` : ''}</span>
         </button>
         <button
           onClick={() => { setPublisherFilter('OTHER'); setCurrentPage(1); }}
@@ -195,7 +195,7 @@ export default function CentralStockPage() {
               : 'text-muted-foreground hover:text-foreground'
           }`}
         >
-          Other Publishers {publisherFilter === 'OTHER' ? `(${totalStockCount})` : ''}
+          Other Publishers{publisherFilter === 'OTHER' ? ` (${totalStockCount})` : ''}
         </button>
       </div>
 
