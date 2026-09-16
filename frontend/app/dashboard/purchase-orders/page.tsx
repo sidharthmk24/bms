@@ -657,10 +657,18 @@ export default function PurchaseOrdersPage() {
                           <button 
                             onClick={() => {
                               setReceivingPO(po);
-                              setReceiveData(po.items.map((i: any) => ({ itemId: i.id, quantityReceived: i.quantityOrdered - i.quantityReceived })));
-                              setReceiveStatus('RECEIVED');
+                              const initialData = po.items.map((i: any) => ({
+                                itemId: i.id,
+                                quantityReceived: Math.max(0, i.quantityOrdered - i.quantityReceived)
+                              }));
+                              setReceiveData(initialData);
+                              const isAllFullyReceived = po.items.every((it: any) => {
+                                const cur = initialData.find((r: any) => r.itemId === it.id)?.quantityReceived || 0;
+                                return (it.quantityReceived + cur) >= it.quantityOrdered;
+                              });
+                              setReceiveStatus(isAllFullyReceived ? 'RECEIVED' : 'PARTIALLY_RECEIVED');
                             }} 
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-white bg-[#3cb976] hover:bg-[#2fa264] rounded-sm shadow-sm active:scale-95 transition-all"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-white bg-[#3cb976] hover:bg-[#2fa264] rounded-sm shadow-sm active:scale-95 transition-all cursor-pointer"
                           >
                             <PackageCheck className="w-3.5 h-3.5" />
                             Receive Items
@@ -1370,8 +1378,23 @@ export default function PurchaseOrdersPage() {
                           <input 
                             type="number" min="0" max={item.quantityOrdered - item.quantityReceived}
                             value={receiveData.find(r => r.itemId === item.id)?.quantityReceived || 0}
-                            onChange={(e) => setReceiveData(prev => prev.map(r => r.itemId === item.id ? { ...r, quantityReceived: Number(e.target.value) } : r))}
-                            className="w-20 text-right px-2 py-1 border border-[#7e2562]/20 rounded-sm text-xs font-mono focus:ring-1 focus:ring-[#7e2562]"
+                            onChange={(e) => {
+                              const maxAllowed = Math.max(0, item.quantityOrdered - item.quantityReceived);
+                              let val = Math.max(0, Number(e.target.value) || 0);
+                              if (val > maxAllowed) val = maxAllowed;
+
+                              const nextData = receiveData.map(r => r.itemId === item.id ? { ...r, quantityReceived: val } : r);
+                              setReceiveData(nextData);
+
+                              // Auto-calculate whether all items are 100% fulfilled
+                              const isAllFullyReceived = receivingPO.items.every((it: any) => {
+                                const receivingNow = nextData.find((r: any) => r.itemId === it.id)?.quantityReceived || 0;
+                                return (it.quantityReceived + receivingNow) >= it.quantityOrdered;
+                              });
+
+                              setReceiveStatus(isAllFullyReceived ? 'RECEIVED' : 'PARTIALLY_RECEIVED');
+                            }}
+                            className="w-20 text-right px-2 py-1 border border-[#7e2562]/20 rounded-sm text-xs font-mono focus:ring-1 focus:ring-[#7e2562] outline-none"
                           />
                         </td>
                       </tr>
@@ -1380,16 +1403,25 @@ export default function PurchaseOrdersPage() {
                 </table>
               </div>
 
-              <div className="mb-6">
-                <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-2">Final Status</label>
-                <div className="flex space-x-4">
-                  <label className="flex items-center">
+              <div className="mb-6 p-3 bg-[#faf6f9]/60 border border-[#7e2562]/15 rounded-sm">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700">Computed Status</label>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                    receiveStatus === 'RECEIVED' 
+                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' 
+                      : 'bg-amber-100 text-amber-800 border border-amber-300'
+                  }`}>
+                    {receiveStatus === 'RECEIVED' ? 'Fully Received' : 'Partially Received'}
+                  </span>
+                </div>
+                <div className="flex flex-col sm:flex-row sm:space-x-4 space-y-2 sm:space-y-0 text-xs">
+                  <label className={`flex items-center p-2 rounded border cursor-pointer transition-all ${receiveStatus === 'RECEIVED' ? 'bg-white border-[#7e2562] shadow-sm' : 'border-neutral-200 hover:bg-white/50'}`}>
                     <input type="radio" name="status" value="RECEIVED" checked={receiveStatus === 'RECEIVED'} onChange={() => setReceiveStatus('RECEIVED')} className="h-4 w-4 text-[#7e2562] focus:ring-[#7e2562]" />
-                    <span className="ml-2 text-xs font-medium text-neutral-800">Fully Received (Closes PO)</span>
+                    <span className="ml-2 font-medium text-neutral-800">Fully Received (Closes PO)</span>
                   </label>
-                  <label className="flex items-center">
+                  <label className={`flex items-center p-2 rounded border cursor-pointer transition-all ${receiveStatus === 'PARTIALLY_RECEIVED' ? 'bg-white border-[#7e2562] shadow-sm' : 'border-neutral-200 hover:bg-white/50'}`}>
                     <input type="radio" name="status" value="PARTIALLY_RECEIVED" checked={receiveStatus === 'PARTIALLY_RECEIVED'} onChange={() => setReceiveStatus('PARTIALLY_RECEIVED')} className="h-4 w-4 text-[#7e2562] focus:ring-[#7e2562]" />
-                    <span className="ml-2 text-xs font-medium text-neutral-800">Partially Received (Keep Open)</span>
+                    <span className="ml-2 font-medium text-neutral-800">Partially Received (Keep Open for Remaining)</span>
                   </label>
                 </div>
               </div>

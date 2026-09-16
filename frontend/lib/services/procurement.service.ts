@@ -487,9 +487,11 @@ export class ProcurementService {
         );
       }
 
-      // 4. Update PO status
-      po.status = newStatus;
-      await queryRunner.manager.query(`UPDATE purchase_order SET status = ? WHERE id = ?`, [newStatus, po.id]);
+      // 4. Update PO status automatically based on received quantities
+      const allFullyReceived = po.items.every(i => i.quantityReceived >= i.quantityOrdered);
+      const finalStatus = allFullyReceived ? PurchaseOrderStatus.RECEIVED : PurchaseOrderStatus.PARTIALLY_RECEIVED;
+      po.status = finalStatus;
+      await queryRunner.manager.query(`UPDATE purchase_order SET status = ? WHERE id = ?`, [finalStatus, po.id]);
 
       // 5. Record expense for the newly received goods
       if (receivedTotalCost > 0) {
