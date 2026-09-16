@@ -26,7 +26,8 @@ import {
   Building2,
   Check,
   Package,
-  ShoppingCart
+  ShoppingCart,
+  Sparkles,
 } from 'lucide-react';
 
 const COMMON_CATEGORIES = [
@@ -46,6 +47,7 @@ const COMMON_CATEGORIES = [
 
 export default function PurchaseOrdersPage() {
   const { user } = useAuth();
+  const confirm = useConfirm();
   const canReceive = user?.roles?.some(r => ['SUPER_ADMIN', 'CENTRAL_INVENTORY_MANAGER', 'ADMIN'].includes(r));
   const canReviewRequests = user?.roles?.some(r => ['SUPER_ADMIN', 'ADMIN'].includes(r));
   
@@ -372,6 +374,39 @@ export default function PurchaseOrdersPage() {
     }
     return true;
   });
+
+  const handleFillDemoPO = () => {
+    const firstSupplierId = (suppliers && suppliers.length > 0) ? suppliers[0].id : 'OTHER';
+    if (firstSupplierId === 'OTHER') {
+      setSelectedSupplier('OTHER');
+      setCustomSupplier('Current Books Wholesale Depot');
+    } else {
+      setSelectedSupplier(firstSupplierId);
+      setCustomSupplier('');
+    }
+    const d = new Date();
+    d.setDate(d.getDate() + 10);
+    setExpectedDate(d.toISOString().slice(0, 10));
+
+    if (cart.length === 0) {
+      setCart([
+        {
+          bookId: 'sample-book-1',
+          isNewBook: false,
+          title: 'ആടുജീവിതം (Aadujeevitham - Deluxe Edition)',
+          quantity: 25,
+          unitCost: 240,
+        },
+        {
+          bookId: 'sample-book-2',
+          isNewBook: false,
+          title: 'ഖസാക്കിന്റെ ഇതിഹാസം (The Legends of Khasak)',
+          quantity: 20,
+          unitCost: 280,
+        }
+      ]);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -797,7 +832,31 @@ export default function PurchaseOrdersPage() {
         {isCreating && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-sm shadow-xl w-full max-w-3xl p-6 border border-[#7e2562]/20">
-              <h3 className="text-lg font-bold text-neutral-900 mb-4">Create Purchase Order</h3>
+              <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
+                <h3 className="text-lg font-bold text-neutral-900">Create Purchase Order</h3>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleFillDemoPO}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[#7e2562] bg-[#faedf5] hover:bg-[#f3dcee] border border-[#7e2562]/20 rounded-sm shadow-2xs transition-all cursor-pointer"
+                    title="Fill sample PO data for staging"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-[#7e2562]" />
+                    <span>Fill Dummy PO</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCreating(false);
+                      setCart([]);
+                      setLinkedPoRequestId(null);
+                    }}
+                    className="p-1.5 text-neutral-400 hover:text-neutral-700 hover:bg-[#faedf5] rounded-sm transition-colors cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
               
               {linkedPoRequestId && (
                 <div className="mb-4 p-3.5 bg-[#faedf5] border border-[#7e2562]/30 rounded-sm flex items-center justify-between text-xs text-[#7e2562] shadow-sm">

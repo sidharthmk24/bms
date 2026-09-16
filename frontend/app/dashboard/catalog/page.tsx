@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useConfirm } from '@/contexts/ConfirmContext';
 import { useApiData } from '@/hooks/useApiData';
 import { api } from '@/lib/api';
-import { Loader2, Plus, Book, Users, Tag, Building2, Pencil, Trash2 } from 'lucide-react';
+import { Loader2, Plus, Book, Users, Tag, Building2, Pencil, Trash2, Sparkles, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Dropdown } from '@/components/Dropdown';
 import { Pagination } from '@/components/Pagination';
@@ -215,35 +215,73 @@ export default function CatalogManagementPage() {
 
   const isLoading = booksLoading || authorsLoading || categoriesLoading || pubLoading;
 
+  const handleFillDemoData = () => {
+    if (activeTab === 'BOOKS') {
+      const sampleTitles = [
+        { title: "രണ്ടാമൂഴം (Randamoozham)", author: "M. T. Vasudevan Nair (എം.ടി.)", price: 499, cost: 310 },
+        { title: "ആടുജീവിതം (Goat Days)", author: "Benyamin (ബെന്യാമിൻ)", price: 399, cost: 240 },
+        { title: "ഒരു ദേശത്തിന്റെ കഥ (Tales of Athiranippadam)", author: "S. K. Pottekkatt", price: 550, cost: 350 },
+        { title: "ഇനി ഞാൻ ഉറങ്ങട്ടെ (And Now Let Me Sleep)", author: "P. K. Balakrishnan", price: 420, cost: 260 },
+      ];
+      const picked = sampleTitles[Math.floor(Math.random() * sampleTitles.length)];
+      const randNum = Math.floor(1000 + Math.random() * 9000);
+      setBookForm({
+        title: picked.title,
+        isbn: `978-81-264-${randNum}-1`,
+        barcode: '',
+        description: '',
+        price: picked.price,
+        costPrice: picked.cost,
+        authorId: '',
+        publisherId: '',
+        categoryId: categories?.[0]?.id || 'OTHER',
+      });
+      setCustomAuthorName(picked.author);
+      setCustomPublisherName('Kairali Books');
+      setCustomCategoryName('Malayalam Fiction');
+    } else if (activeTab === 'AUTHORS') {
+      setNameInput("M. Mukundan (എം. മുകുന്ദൻ)");
+      setDescInput("Renowned Malayalam writer from Mayyazhi, recipient of the Sahitya Akademi Award.");
+    } else if (activeTab === 'CATEGORIES') {
+      setNameInput("Contemporary Malayalam Fiction");
+      setDescInput("Novels and anthologies reflecting modern social themes in Kerala.");
+    } else if (activeTab === 'PUBLISHERS') {
+      setNameInput("Kairali Books Publications");
+      setDescInput("Leading Malayalam literary and academic publication house.");
+    }
+  };
+
+  const genericData = activeTab === 'AUTHORS' ? authors : activeTab === 'CATEGORIES' ? categories : publishers;
+
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-gray-900">Catalog Management</h2>
-          <p className="text-sm text-gray-500">Manage books, authors, publishers, and categories.</p>
+          <h2 className="text-2xl font-bold tracking-tight text-neutral-900">Master Catalog</h2>
+          <p className="text-sm text-neutral-500 mt-0.5">Central registry of books, authors, publishers, and categories.</p>
         </div>
-        <button
-          onClick={() => openModal()}
-          className="flex items-center px-4 py-2 text-sm font-semibold text-white bg-[#7e2562] hover:bg-[#681b50] rounded-sm shadow-xs transition-all active:scale-[0.98]"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Add {getSingularLabel().replace(/^\w/, c => c.toUpperCase())}
-        </button>
+        {isAdmin && (
+          <button 
+            onClick={() => openModal()}
+            className="flex items-center gap-2 px-4 py-2 bg-[#7e2562] text-white rounded-sm text-sm font-semibold hover:bg-[#681b50] shadow-sm transition-all"
+          >
+            <Plus className="w-4 h-4"/> Add {getSingularLabel().replace(/^\w/, c => c.toUpperCase())}
+          </button>
+        )}
       </div>
 
-      <div className="flex space-x-1 border-b border-[#7e2562]/10">
-        {[
-          { id: 'BOOKS', icon: Book, label: 'Books' },
-          { id: 'AUTHORS', icon: Users, label: 'Authors' },
-          { id: 'CATEGORIES', icon: Tag, label: 'Categories' },
-          { id: 'PUBLISHERS', icon: Building2, label: 'Publishers' }
-        ].map(tab => (
+      <div className="flex border-b border-[#7e2562]/10 space-x-8">
+        {(['BOOKS', 'AUTHORS', 'CATEGORIES', 'PUBLISHERS'] as const).map((tab) => (
           <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id as any)}
-            className={`py-2 px-4 text-sm font-semibold border-b-2 outline-none flex items-center transition-colors ${activeTab === tab.id ? 'border-[#7e2562] text-[#7e2562]' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+            key={tab}
+            onClick={() => { setActiveTab(tab); setPage(1); }}
+            className={`pb-4 px-1 text-sm font-semibold capitalize border-b-2 transition-colors cursor-pointer ${
+              activeTab === tab 
+                ? 'border-[#7e2562] text-[#7e2562]' 
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
           >
-            <tab.icon className="w-4 h-4 mr-2" /> {tab.label}
+            {tab.toLowerCase()}
           </button>
         ))}
       </div>
@@ -328,15 +366,13 @@ export default function CatalogManagementPage() {
                           <span className="px-2 py-0.5 rounded-sm bg-[#faedf5] text-[#7e2562] text-xs font-semibold border border-[#7e2562]/20">{b.category?.name || 'General'}</span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900 font-bold">₹{b.price}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                          <div className="flex justify-end gap-2">
-                            <button onClick={() => openModal(b)} className="p-1.5 rounded-sm text-[#7e2562] hover:bg-[#faedf5] transition-colors" title="Edit book">
-                              <Pencil className="w-4 h-4" />
-                            </button>
-                            <button onClick={() => handleDeleteBook(b.id, b.title)} className="p-1.5 rounded-sm text-[#e45e34] hover:bg-[#fef5f2] transition-colors" title="Delete book">
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right space-x-2">
+                          {isAdmin && (
+                            <>
+                              <button onClick={() => openModal(b)} className="text-[#7e2562] hover:opacity-75"><Pencil className="w-4 h-4 inline"/></button>
+                              <button onClick={() => handleDeleteBook(b.id, b.title)} className="text-rose-600 hover:opacity-75"><Trash2 className="w-4 h-4 inline"/></button>
+                            </>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -357,27 +393,22 @@ export default function CatalogManagementPage() {
 
             {activeTab !== 'BOOKS' && (
               <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562] uppercase tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
+                <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562] uppercase tracking-wider border-b border-[#7e2562]/10">
                   <tr>
                     <th className="px-6 py-3 text-left">Name</th>
-                    <th className="px-6 py-3 text-left">Description</th>
+                    <th className="px-6 py-3 text-left">Description / Bio</th>
                     <th className="px-6 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {(activeTab === 'AUTHORS' ? authors : activeTab === 'CATEGORIES' ? categories : publishers)?.map((item: any) => (
+                  {genericData?.map((item: any) => (
                     <tr key={item.id} className="hover:bg-[#faf6f9]/30 transition-colors">
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">{item.name}</td>
-                      <td className="px-6 py-4 text-sm text-gray-500 truncate max-w-md">{item.description || item.biography || '-'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                        <div className="flex justify-end gap-2">
-                          <button onClick={() => openModal(item)} className="p-1.5 rounded-sm text-[#7e2562] hover:bg-[#faedf5] transition-colors" title={`Edit ${getSingularLabel()}`}>
-                            <Pencil className="w-4 h-4" />
-                          </button>
-                          <button onClick={() => handleDeleteEntity(item.id, item.name)} className="p-1.5 rounded-sm text-[#e45e34] hover:bg-[#fef5f2] transition-colors" title={`Delete ${getSingularLabel()}`}>
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
+                      <td className="px-6 py-4 text-sm text-gray-500">{item.description || item.biography || '-'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right space-x-2">
+                        {isAdmin && (
+                          <button onClick={() => openModal(item)} className="text-[#7e2562] hover:opacity-75"><Pencil className="w-4 h-4 inline"/></button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -392,7 +423,27 @@ export default function CatalogManagementPage() {
         {isModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-sm shadow-xl w-full max-w-2xl p-6 border border-[#7e2562]/10">
-              <h3 className="text-lg font-bold text-gray-900 mb-4">{editingId ? 'Edit' : 'Create'} {getSingularLabel().replace(/^\w/, c => c.toUpperCase())}</h3>
+              <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
+                <h3 className="text-lg font-bold text-gray-900">{editingId ? 'Edit' : 'Create'} {getSingularLabel().replace(/^\w/, c => c.toUpperCase())}</h3>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleFillDemoData}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[#7e2562] bg-[#faedf5] hover:bg-[#f3dcee] border border-[#7e2562]/20 rounded-sm shadow-2xs transition-all cursor-pointer"
+                    title="Fill sample data for staging"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-[#7e2562]" />
+                    <span>Fill Dummy Data</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    className="p-1.5 text-neutral-400 hover:text-neutral-700 hover:bg-[#faedf5] rounded-sm transition-colors cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
               
               <form onSubmit={handleSave} className="space-y-4">
                 {activeTab === 'BOOKS' ? (

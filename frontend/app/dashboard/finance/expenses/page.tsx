@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useApiData } from '@/hooks/useApiData';
 import { useConfirm } from '@/contexts/ConfirmContext';
 import { api } from '@/lib/api';
-import { Loader2, Plus, Trash2, ArrowLeft, Download, X } from 'lucide-react';
+import { Loader2, Plus, Trash2, ArrowLeft, Download, X, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { Dropdown } from '@/components/Dropdown';
 import { Pagination } from '@/components/Pagination';
@@ -174,6 +174,23 @@ export default function ExpensesPage() {
     }
   };
 
+  const handleFillDemoExpense = () => {
+    const sampleExpenses = [
+      { amount: '4500.00', category: 'UTILITIES', desc: 'Electricity & water utility bill for store counter' },
+      { amount: '2200.00', category: 'MAINTENANCE', desc: 'Bookstore display rack repair & lighting fixtures' },
+      { amount: '1850.00', category: 'SUPPLIES', desc: 'Stationery, thermal receipt paper rolls & packaging bags' },
+      { amount: '3500.00', category: 'MARKETING', desc: 'Local newspaper banner ads for new book launch event' },
+    ];
+    const picked = sampleExpenses[Math.floor(Math.random() * sampleExpenses.length)];
+    setFormData({
+      amount: picked.amount,
+      category: picked.category,
+      branchId: (branches && branches.length > 0) ? branches[0].id : '',
+      expenseDate: new Date().toISOString().slice(0, 10),
+      description: picked.desc,
+    });
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center space-x-4">
@@ -192,7 +209,18 @@ export default function ExpensesPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Add Expense Form */}
         <div className="bg-white rounded-sm border border-neutral-200/80 shadow-sm p-6 lg:col-span-1 h-fit">
-          <h3 className="text-xs font-bold text-[#7e2562] uppercase tracking-wider mb-4 border-b border-neutral-100 pb-2">Log New Expense</h3>
+          <div className="flex items-center justify-between mb-4 border-b border-neutral-100 pb-2">
+            <h3 className="text-xs font-bold text-[#7e2562] uppercase tracking-wider">Log New Expense</h3>
+            <button
+              type="button"
+              onClick={handleFillDemoExpense}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-[#7e2562] bg-[#faedf5] hover:bg-[#f3dcee] border border-[#7e2562]/20 rounded-sm shadow-2xs transition-all cursor-pointer"
+              title="Fill sample expense data for staging"
+            >
+              <Sparkles className="w-3 h-3 text-[#7e2562]" />
+              <span>Fill Dummy Data</span>
+            </button>
+          </div>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-bold text-[#7e2562] uppercase tracking-wider mb-1">Amount (₹)</label>

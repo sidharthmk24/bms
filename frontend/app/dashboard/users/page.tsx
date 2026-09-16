@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useConfirm } from '@/contexts/ConfirmContext';
 import { useApiData } from '@/hooks/useApiData';
 import { api } from '@/lib/api';
-import { Loader2, Plus, Shield, UserX, UserCheck, Settings } from 'lucide-react';
+import { Loader2, Plus, Shield, UserX, UserCheck, Settings, Sparkles, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Dropdown } from '@/components/Dropdown';
 import { Pagination } from '@/components/Pagination';
@@ -259,7 +259,32 @@ export default function UsersManagementPage() {
         {isModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-sm shadow-xl w-full max-w-md p-6 border border-[#7e2562]/20">
-              <h3 className="text-lg font-bold text-neutral-900 mb-4 flex items-center"><Shield className="w-5 h-5 mr-2 text-[#7e2562]"/> {editingUser ? 'Edit Staff Role' : 'Provision New Staff'}</h3>
+              <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
+                <h3 className="text-lg font-bold text-neutral-900 flex items-center">
+                  <Shield className="w-5 h-5 mr-2 text-[#7e2562]"/>
+                  {editingUser ? 'Edit Staff Role' : 'Provision New Staff'}
+                </h3>
+                <div className="flex items-center gap-2">
+                  {!editingUser && (
+                    <button
+                      type="button"
+                      onClick={handleFillDemoUser}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[#7e2562] bg-[#faedf5] hover:bg-[#f3dcee] border border-[#7e2562]/20 rounded-sm shadow-2xs transition-all cursor-pointer"
+                      title="Fill sample staff data for staging"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-[#7e2562]" />
+                      <span>Fill Dummy Data</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setIsModalOpen(false)}
+                    className="p-1.5 text-neutral-400 hover:text-neutral-700 hover:bg-[#faedf5] rounded-sm transition-colors cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
               
               <form onSubmit={handleSave} className="space-y-4">
                 <div>

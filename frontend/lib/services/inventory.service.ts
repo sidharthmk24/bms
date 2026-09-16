@@ -94,9 +94,9 @@ export class InventoryService {
     }
 
     if (query.publisherFilter === 'KAIRALI') {
-      qb.andWhere('(LOWER(publisher.name) LIKE :kairali OR book.publisherId IS NULL)', { kairali: '%kairali%' });
+      qb.andWhere('(LOWER(publisher.name) LIKE :kairali OR book.publishType = :kairaliType OR book.pmsTitleId IS NOT NULL OR book.publisherId IS NULL)', { kairali: '%kairali%', kairaliType: 'KAIRALI_BOOKS' });
     } else if (query.publisherFilter === 'OTHER') {
-      qb.andWhere('(LOWER(publisher.name) NOT LIKE :kairali AND book.publisherId IS NOT NULL)', { kairali: '%kairali%' });
+      qb.andWhere('(LOWER(publisher.name) NOT LIKE :kairali AND (book.publishType != :kairaliType OR book.publishType IS NULL) AND book.pmsTitleId IS NULL AND book.publisherId IS NOT NULL)', { kairali: '%kairali%', kairaliType: 'KAIRALI_BOOKS' });
     }
 
     const sortDir: 'ASC' | 'DESC' = (String(query.sortDirection || '').toUpperCase() === 'DESC') ? 'DESC' : 'ASC';
@@ -104,6 +104,9 @@ export class InventoryService {
       qb.orderBy('cs.quantity', sortDir);
     } else if (query.sortField === 'reorderThreshold') {
       qb.orderBy('cs.reorderThreshold', sortDir);
+    } else if (query.sortField === 'status') {
+      qb.orderBy('CASE WHEN cs.quantity <= cs.reorderThreshold THEN 0 ELSE 1 END', 'ASC')
+        .addOrderBy('cs.quantity', 'ASC');
     } else {
       qb.orderBy('book.title', sortDir);
     }
@@ -389,9 +392,9 @@ export class InventoryService {
     }
 
     if (query.publisherFilter === 'KAIRALI') {
-      qb.andWhere('(LOWER(publisher.name) LIKE :kairali OR book.publisherId IS NULL)', { kairali: '%kairali%' });
+      qb.andWhere('(LOWER(publisher.name) LIKE :kairali OR book.publishType = :kairaliType OR book.pmsTitleId IS NOT NULL OR book.publisherId IS NULL)', { kairali: '%kairali%', kairaliType: 'KAIRALI_BOOKS' });
     } else if (query.publisherFilter === 'OTHER') {
-      qb.andWhere('(LOWER(publisher.name) NOT LIKE :kairali AND book.publisherId IS NOT NULL)', { kairali: '%kairali%' });
+      qb.andWhere('(LOWER(publisher.name) NOT LIKE :kairali AND (book.publishType != :kairaliType OR book.publishType IS NULL) AND book.pmsTitleId IS NULL AND book.publisherId IS NOT NULL)', { kairali: '%kairali%', kairaliType: 'KAIRALI_BOOKS' });
     }
 
     const sortDir: 'ASC' | 'DESC' = (String(query.sortDirection || '').toUpperCase() === 'DESC') ? 'DESC' : 'ASC';
@@ -399,6 +402,9 @@ export class InventoryService {
       qb.orderBy('bi.quantity', sortDir);
     } else if (query.sortField === 'reorderThreshold') {
       qb.orderBy('bi.reorderThreshold', sortDir);
+    } else if (query.sortField === 'status') {
+      qb.orderBy('CASE WHEN bi.quantity <= bi.reorderThreshold THEN 0 ELSE 1 END', 'ASC')
+        .addOrderBy('bi.quantity', 'ASC');
     } else {
       qb.orderBy('book.title', sortDir);
     }

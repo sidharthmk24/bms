@@ -121,13 +121,15 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
                 </div>
 
                 <div className="mt-6 pt-4 border-t border-gray-100 flex items-center justify-end gap-3">
-                  <button
-                    type="button"
-                    onClick={() => handleClose(false)}
-                    className="apple-button px-4 py-2 text-xs font-bold uppercase tracking-wider text-gray-700 bg-white border border-gray-300 rounded-sm hover:bg-gray-50 transition-colors cursor-pointer"
-                  >
-                    {options.cancelText || "No, Cancel"}
-                  </button>
+                  {options.cancelText !== null && (
+                    <button
+                      type="button"
+                      onClick={() => handleClose(false)}
+                      className="apple-button px-4 py-2 text-xs font-bold uppercase tracking-wider text-gray-700 bg-white border border-gray-300 rounded-sm hover:bg-gray-50 transition-colors cursor-pointer"
+                    >
+                      {options.cancelText || "No, Cancel"}
+                    </button>
+                  )}
                   <button
                     type="button"
                     autoFocus

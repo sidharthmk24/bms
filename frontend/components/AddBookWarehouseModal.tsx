@@ -12,7 +12,8 @@ import {
   Building2, 
   Tag, 
   User as UserIcon,
-  Check
+  Check,
+  Sparkles,
 } from 'lucide-react';
 import { Dropdown } from '@/components/Dropdown';
 
@@ -56,6 +57,66 @@ export default function AddBookWarehouseModal({
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Staging Helper: Auto-fill dummy book data
+  const handleFillDummyData = () => {
+    const sampleBooks = [
+      {
+        title: "ആടുജീവിതം (Goat Days - Special Edition)",
+        author: "Benyamin (ബെന്യാമിൻ)",
+        publisher: "Kairali Books",
+        category: "Fiction & Literature",
+        price: 399,
+        costPrice: 240,
+        qty: 100,
+        threshold: 20,
+      },
+      {
+        title: "ഖസാക്കിന്റെ ഇതിഹാസം (The Legends of Khasak)",
+        author: "O. V. Vijayan",
+        publisher: "Kairali Books",
+        category: "Fiction & Literature",
+        price: 450,
+        costPrice: 270,
+        qty: 75,
+        threshold: 15,
+      },
+      {
+        title: "കേരള ചരിത്രം (History of Kerala)",
+        author: "Prof. A. Sreedhara Menon",
+        publisher: "Kairali Academy",
+        category: "History & Politics",
+        price: 599,
+        costPrice: 380,
+        qty: 50,
+        threshold: 10,
+      },
+      {
+        title: "Modern Fullstack Engineering with React & Node",
+        author: "Dr. K. R. Nambiar",
+        publisher: "Kairali Tech Press",
+        category: "Technology & Programming",
+        price: 799,
+        costPrice: 480,
+        qty: 60,
+        threshold: 12,
+      },
+    ];
+    const picked = sampleBooks[Math.floor(Math.random() * sampleBooks.length)];
+    const randNum = Math.floor(1000 + Math.random() * 9000);
+    const randIsbn = `978-81-264-${randNum}-1`;
+    setTitle(picked.title);
+    setIsbn(randIsbn);
+    setBarcode(`97881264${randNum}`);
+    setAuthorName(picked.author);
+    setPublisherName(picked.publisher);
+    setSelectedCategory(picked.category);
+    setPrice(picked.price);
+    setCostPrice(picked.costPrice);
+    setInitialQuantity(picked.qty);
+    setReorderThreshold(picked.threshold);
+    setError(null);
+  };
 
   // Handle ISBN change: auto-sync barcode if barcode hasn't been custom modified
   const handleIsbnChange = (val: string) => {
@@ -150,12 +211,24 @@ export default function AddBookWarehouseModal({
               <p className="text-xs text-neutral-500">Register a new title directly into Central Warehouse inventory.</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 text-neutral-400 hover:text-neutral-700 hover:bg-[#faedf5] rounded-sm transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleFillDummyData}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[#7e2562] bg-[#faedf5] hover:bg-[#f3dcee] border border-[#7e2562]/20 rounded-sm shadow-2xs transition-all cursor-pointer"
+              title="Fill with realistic sample data for staging"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-[#7e2562]" />
+              <span>Fill Dummy Data</span>
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 text-neutral-400 hover:text-neutral-700 hover:bg-[#faedf5] rounded-sm transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Form */}

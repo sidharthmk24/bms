@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useConfirm } from '@/contexts/ConfirmContext';
 import { useApiData } from '@/hooks/useApiData';
 import { api } from '@/lib/api';
-import { Loader2, Plus, Store, MapPin, Mail, Phone, Edit2 } from 'lucide-react';
+import { Loader2, Plus, Store, MapPin, Mail, Phone, Edit2, Sparkles, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 import { Dropdown } from '@/components/Dropdown';
@@ -90,52 +90,68 @@ export default function BranchesManagementPage() {
     }
   };
 
+  const handleFillDemoBranch = () => {
+    const sampleBranches = [
+      { name: "Kozhikode Beach Road Branch", code: "KKD-02", city: "Kozhikode", address: "Opposite Town Hall, Beach Road, Kozhikode, Kerala 673001" },
+      { name: "Ernakulam Marine Drive Store", code: "EKM-03", city: "Kochi", address: "Shanmugham Road, Marine Drive, Kochi, Kerala 682031" },
+      { name: "Kottayam Central Depot", code: "KTM-01", city: "Kottayam", address: "Baker Junction, MC Road, Kottayam, Kerala 686001" },
+      { name: "Thrissur Round South Store", code: "TSR-02", city: "Thrissur", address: "Swaraj Round South, Thrissur, Kerala 680001" },
+    ];
+    const picked = sampleBranches[Math.floor(Math.random() * sampleBranches.length)];
+    setFormData({
+      name: picked.name,
+      code: picked.code,
+      city: picked.city,
+      address: picked.address,
+      type: 'STORE',
+      isActive: true,
+    });
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-neutral-900">Branch Management</h2>
-          <p className="text-sm text-neutral-500">Manage physical bookstore locations across the enterprise.</p>
+          <p className="text-sm text-neutral-500 mt-0.5">Manage store locations, central warehouses, and regional fulfillment hubs.</p>
         </div>
-        <button
-          onClick={() => openModal()}
-          className="flex items-center px-4 py-2 text-sm font-semibold text-white bg-[#7e2562] rounded-sm hover:bg-[#681b50] active:scale-95 transition-all shadow-sm shadow-plum-sm"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          Add Branch
-        </button>
+        {isSuperAdmin && (
+          <button 
+            onClick={() => openModal()}
+            className="flex items-center gap-2 px-4 py-2 bg-[#7e2562] text-white rounded-sm text-sm font-semibold hover:bg-[#681b50] shadow-sm shadow-plum-sm transition-all"
+          >
+            <Plus className="w-4 h-4"/> Register Branch
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {loading ? (
-          <div className="col-span-full p-10 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-[#7e2562]"/></div>
+          <div className="col-span-full py-12 flex justify-center">
+            <Loader2 className="w-8 h-8 animate-spin text-[#7e2562]" />
+          </div>
+        ) : branchesList.length === 0 ? (
+          <div className="col-span-full bg-white rounded-sm border border-neutral-200 p-8 text-center text-neutral-500 text-sm">
+            No branches found. Click above to register a new store or warehouse.
+          </div>
         ) : (
           branchesList.map((b: any) => (
             <div key={b.id} className="bg-white rounded-sm shadow-sm border border-[#7e2562]/15 overflow-hidden hover:shadow-md transition-shadow">
-              <div className="p-4 border-b border-[#7e2562]/10 bg-[#faf6f9]/70 flex justify-between items-start">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-sm bg-[#faedf5] flex items-center justify-center text-[#7e2562]">
-                    <Store className="w-4 h-4" />
+              <div className="p-5 border-b border-neutral-100 flex items-start justify-between bg-[#faf6f9]/50">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-sm bg-[#7e2562] text-white flex items-center justify-center font-bold text-sm shadow-sm">
+                    {b.code?.substring(0, 3) || 'LOC'}
                   </div>
                   <div>
-                    <h3 className={`font-bold text-sm ${b.isActive !== false ? 'text-neutral-900' : 'text-neutral-400 line-through'}`}>{b.name}</h3>
-                    <span className="text-[11px] font-mono text-neutral-500">{b.code || 'N/A'}</span>
+                    <h3 className="text-sm font-bold text-neutral-900">{b.name}</h3>
+                    <span className="text-[11px] font-mono text-[#7e2562]">{b.code}</span>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {b.isActive !== false ? (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wider bg-[#f0fbf5] text-[#3cb976] border border-[#3cb976]/20">
-                      Active
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wider bg-[#fef5f2] text-[#e45e34] border border-[#e45e34]/20">
-                      Inactive
-                    </span>
-                  )}
-                  <button onClick={() => openModal(b)} className="text-neutral-400 hover:text-[#7e2562] p-1 transition-colors">
-                    <Edit2 className="w-3.5 h-3.5" />
+                {isSuperAdmin && (
+                  <button onClick={() => openModal(b)} className="p-1 text-neutral-400 hover:text-[#7e2562] rounded-sm transition-colors">
+                    <Edit2 className="w-4 h-4" />
                   </button>
-                </div>
+                )}
               </div>
               <div className="p-4 space-y-2.5 text-xs text-neutral-600">
                 <div className="flex items-center justify-between">
@@ -166,7 +182,32 @@ export default function BranchesManagementPage() {
         {isModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-sm shadow-xl w-full max-w-md p-6 border border-[#7e2562]/20">
-              <h3 className="text-lg font-bold text-neutral-900 mb-4 flex items-center"><Store className="w-5 h-5 mr-2 text-[#7e2562]"/> {editingBranch ? 'Edit Branch' : 'Register New Branch'}</h3>
+              <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
+                <h3 className="text-lg font-bold text-neutral-900 flex items-center">
+                  <Store className="w-5 h-5 mr-2 text-[#7e2562]"/>
+                  {editingBranch ? 'Edit Branch' : 'Register New Branch'}
+                </h3>
+                <div className="flex items-center gap-2">
+                  {!editingBranch && (
+                    <button
+                      type="button"
+                      onClick={handleFillDemoBranch}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[#7e2562] bg-[#faedf5] hover:bg-[#f3dcee] border border-[#7e2562]/20 rounded-sm shadow-2xs transition-all cursor-pointer"
+                      title="Fill sample branch data for staging"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-[#7e2562]" />
+                      <span>Fill Dummy Data</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setIsModalOpen(false)}
+                    className="p-1.5 text-neutral-400 hover:text-neutral-700 hover:bg-[#faedf5] rounded-sm transition-colors cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
               
               <form onSubmit={handleSave} className="space-y-4">
                 <div>

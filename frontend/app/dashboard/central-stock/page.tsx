@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useApiData } from '@/hooks/useApiData';
 import { api } from '@/lib/api';
-import { Loader2, AlertCircle, Search, Settings2, Bell, Check, Plus, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Loader2, AlertCircle, Search, Settings2, Bell, Check, Plus, ArrowUpDown, ArrowUp, ArrowDown, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import AddBookWarehouseModal from '@/components/AddBookWarehouseModal';
 import { Dropdown } from '@/components/Dropdown';
@@ -96,15 +96,15 @@ export default function CentralStockPage() {
   if (loading && (!stockList || stockList.length === 0)) {
     return (
       <div className="flex justify-center items-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-black" />
+        <Loader2 className="h-8 w-8 animate-spin text-[#7e2562]" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="bg-neutral-100 text-black border border-neutral-300 p-4 rounded-xl flex items-center">
-        <AlertCircle className="w-5 h-5 mr-2 text-black" />
+      <div className="bg-[#fef5f2] text-[#e45e34] border border-[#e45e34]/20 p-4 rounded-sm flex items-center">
+        <AlertCircle className="w-5 h-5 mr-2 text-[#e45e34]" />
         {error}
       </div>
     );
@@ -114,8 +114,8 @@ export default function CentralStockPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-black">Central Warehouse Stock</h2>
-          <p className="text-sm text-neutral-500">Master inventory pool, reorder thresholds, and low stock alerts.</p>
+          <h2 className="text-2xl font-bold tracking-tight text-foreground">Central Warehouse Stock</h2>
+          <p className="text-sm text-muted-foreground">Master inventory pool, reorder thresholds, and low stock alerts.</p>
         </div>
         <div className="mt-4 sm:mt-0 flex flex-wrap items-center gap-3 w-full sm:w-auto">
           <div className="relative w-full sm:w-64">
@@ -126,7 +126,10 @@ export default function CentralStockPage() {
               type="text"
               placeholder="Search title, author, ISBN, barcode, keywords..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1);
+              }}
               className="block w-full pl-10 pr-3 py-2 border border-[#7e2562]/15 rounded-sm focus:ring-[#7e2562]/10 focus:border-[#7e2562] text-xs font-medium text-foreground bg-white outline-none"
             />
           </div>
@@ -159,6 +162,41 @@ export default function CentralStockPage() {
             <span>Add Book</span>
           </button>
         </div>
+      </div>
+
+      {/* Publisher Type Filter Tabs */}
+      <div className="flex items-center gap-2 p-1 bg-white rounded-sm w-fit border border-[#7e2562]/15 shadow-2xs">
+        <button
+          onClick={() => { setPublisherFilter('ALL'); setCurrentPage(1); }}
+          className={`px-3.5 py-1.5 text-xs font-bold rounded-sm transition-all cursor-pointer ${
+            publisherFilter === 'ALL'
+              ? 'bg-primary text-white shadow-plum-sm'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          All Books ({publisherFilter === 'ALL' ? totalStockCount : stockList.length})
+        </button>
+        <button
+          onClick={() => { setPublisherFilter('KAIRALI'); setCurrentPage(1); }}
+          className={`px-3.5 py-1.5 text-xs font-bold rounded-sm transition-all flex items-center gap-1.5 cursor-pointer ${
+            publisherFilter === 'KAIRALI'
+              ? 'bg-[#3cb976] text-white shadow-xs'
+              : 'text-[#22794d] hover:text-[#1b4f35]'
+          }`}
+        >
+          <Sparkles className="w-3.5 h-3.5" />
+          <span>Kairali Books {publisherFilter === 'KAIRALI' ? `(${totalStockCount})` : ''}</span>
+        </button>
+        <button
+          onClick={() => { setPublisherFilter('OTHER'); setCurrentPage(1); }}
+          className={`px-3.5 py-1.5 text-xs font-bold rounded-sm transition-all cursor-pointer ${
+            publisherFilter === 'OTHER'
+              ? 'bg-primary text-white shadow-plum-sm'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          Other Publishers {publisherFilter === 'OTHER' ? `(${totalStockCount})` : ''}
+        </button>
       </div>
 
       <div className="bg-white shadow-plum-sm border border-[#7e2562]/15 rounded-sm overflow-hidden">
@@ -285,10 +323,10 @@ export default function CentralStockPage() {
                           <button
                             onClick={() => handleNotifyCentralManager(item)}
                             disabled={isCurrentlyNotifying || isNotified}
-                            className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg border transition-all duration-150 ${
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-sm border transition-all duration-150 ${
                               isNotified
-                                ? 'bg-neutral-100 text-black border-neutral-300 cursor-default'
-                                : 'bg-black text-white hover:bg-neutral-900 border-neutral-800 shadow-sm active:scale-95 disabled:opacity-50'
+                                ? 'bg-neutral-100 text-muted-foreground border-neutral-300 cursor-default'
+                                : 'bg-primary text-white hover:bg-primary-hover border-transparent shadow-plum-sm active:scale-95 disabled:opacity-50 cursor-pointer'
                             }`}
                             title="Send low stock notification to Central Inventory Manager"
                           >
@@ -299,7 +337,7 @@ export default function CentralStockPage() {
                               </>
                             ) : isNotified ? (
                               <>
-                                <Check className="w-3 h-3 text-black" />
+                                <Check className="w-3 h-3 text-[#22794d]" />
                                 <span>Notified ✓</span>
                               </>
                             ) : (
@@ -319,9 +357,9 @@ export default function CentralStockPage() {
                           setNewThreshold(item.reorderThreshold);
                           setIsAdjusting(true);
                         }}
-                        className="text-black hover:text-neutral-700 inline-flex items-center font-semibold text-xs border border-neutral-200 px-2.5 py-1 rounded-lg hover:bg-neutral-100 transition-colors"
+                        className="apple-button inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[#7e2562] bg-[#faedf5] hover:bg-[#f6dded] border border-[#7e2562]/20 rounded-sm transition-colors cursor-pointer"
                       >
-                        <Settings2 className="w-3.5 h-3.5 mr-1 text-black" />
+                        <Settings2 className="w-3.5 h-3.5 mr-1 text-[#7e2562]" />
                         Set Count
                       </button>
                     </td>
@@ -330,7 +368,7 @@ export default function CentralStockPage() {
               })}
               {stockList.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-neutral-500 text-sm">
+                  <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground text-sm">
                     No books found matching your criteria.
                   </td>
                 </tr>
@@ -354,15 +392,15 @@ export default function CentralStockPage() {
       {/* Threshold Modal */}
       <AnimatePresence>
         {isAdjusting && selectedItem && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-2xl shadow-2xl border border-neutral-200 w-full max-w-md p-6"
+              className="bg-white rounded-sm shadow-xl border border-[#7e2562]/10 w-full max-w-md p-6"
             >
-              <h3 className="text-base font-bold text-black mb-1">Update Reorder Threshold</h3>
-              <p className="text-xs text-neutral-600 mb-6">
+              <h3 className="text-base font-bold text-foreground mb-1">Update Reorder Threshold</h3>
+              <p className="text-xs text-muted-foreground mb-6">
                 {selectedItem.book.title}
               </p>
 
@@ -375,23 +413,23 @@ export default function CentralStockPage() {
                     required
                     value={newThreshold}
                     onChange={(e) => setNewThreshold(Number(e.target.value))}
-                    className="block w-full px-3 py-2 border border-neutral-300 rounded-xl focus:ring-black focus:border-black text-sm"
+                    className="block w-full px-3 py-2 border border-gray-300 rounded-sm focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562] text-sm outline-none"
                   />
-                  <p className="text-[11px] text-neutral-500 mt-1">If stock drops below this number, it will be flagged for restock.</p>
+                  <p className="text-[11px] text-muted-foreground mt-1">If stock drops below this number, it will be flagged for restock.</p>
                 </div>
 
                 <div className="flex justify-end space-x-2.5 mt-6">
                   <button
                     type="button"
                     onClick={() => setIsAdjusting(false)}
-                    className="px-4 py-2 text-xs font-semibold text-black bg-white border border-neutral-300 rounded-xl hover:bg-neutral-100 transition-colors"
+                    className="px-4 py-2 text-xs font-semibold text-gray-700 bg-white border border-gray-300 rounded-sm hover:bg-gray-50 transition-colors cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="flex items-center px-4 py-2 text-xs font-semibold text-white bg-black rounded-xl hover:bg-neutral-900 disabled:opacity-50 transition-colors"
+                    className="flex items-center px-4 py-2 text-xs font-semibold text-white bg-[#7e2562] hover:bg-[#681b50] rounded-sm disabled:opacity-50 shadow-xs transition-colors cursor-pointer"
                   >
                     {isSubmitting && <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin text-white" />}
                     Save

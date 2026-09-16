@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { api } from '@/lib/api';
-import { Search, Plus, Minus, Trash2, Receipt, AlertCircle, Loader2, Printer, CheckCircle2, MessageCircle, User, Phone, ShoppingCart as ShoppingCartIcon } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, Receipt, AlertCircle, Loader2, Printer, CheckCircle2, MessageCircle, User, Phone, ShoppingCart as ShoppingCartIcon, Sparkles } from 'lucide-react';
 import { generateBillPDF } from '@/lib/pdfUtils';
 import { useApiData } from '@/hooks/useApiData';
 import { useConfirm } from '@/contexts/ConfirmContext';
@@ -477,7 +477,22 @@ export default function BillingPage() {
 
             {/* Checkout Details */}
             <div className="bg-white rounded-sm border border-[#7e2562]/15 shadow-sm p-5 flex-1 flex flex-col">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-[#7e2562] mb-4 border-b border-[#7e2562]/10 pb-2">Checkout Details</h3>
+              <div className="flex items-center justify-between mb-4 border-b border-[#7e2562]/10 pb-2">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-[#7e2562]">Checkout Details</h3>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustomerName("Rahul Menon");
+                    setCustomerPhone("9847012345");
+                    if (phoneError) setPhoneError('');
+                  }}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold text-[#7e2562] bg-[#faedf5] hover:bg-[#f3dcee] border border-[#7e2562]/20 rounded-xs transition-colors cursor-pointer"
+                  title="Fill demo customer for quick testing"
+                >
+                  <Sparkles className="w-3 h-3 text-[#7e2562]" />
+                  <span>Demo Customer</span>
+                </button>
+              </div>
               
               <div className="space-y-4 flex-1" ref={customerDropdownRef}>
                 {/* Customer Name Field with Autocomplete */}
