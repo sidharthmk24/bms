@@ -389,22 +389,62 @@ export default function PurchaseOrdersPage() {
     setExpectedDate(d.toISOString().slice(0, 10));
 
     if (cart.length === 0) {
-      setCart([
-        {
-          bookId: 'sample-book-1',
-          isNewBook: false,
-          title: 'ആടുജീവിതം (Aadujeevitham - Deluxe Edition)',
-          quantity: 25,
-          unitCost: 240,
-        },
-        {
-          bookId: 'sample-book-2',
-          isNewBook: false,
-          title: 'ഖസാക്കിന്റെ ഇതിഹാസം (The Legends of Khasak)',
-          quantity: 20,
-          unitCost: 280,
-        }
-      ]);
+      const bookList = catalog?.books || catalog?.items || catalog?.data || (Array.isArray(catalog) ? catalog : []);
+      if (bookList.length > 0) {
+        const item1 = bookList[0];
+        const item2 = bookList.length > 1 ? bookList[1] : bookList[0];
+        setCart([
+          {
+            bookId: item1.id,
+            isNewBook: false,
+            title: item1.title,
+            quantity: 25,
+            unitCost: item1.costPrice ? Number(item1.costPrice) : (item1.price ? Math.round(Number(item1.price) * 0.6) : 240),
+          },
+          ...(bookList.length > 1 ? [{
+            bookId: item2.id,
+            isNewBook: false,
+            title: item2.title,
+            quantity: 20,
+            unitCost: item2.costPrice ? Number(item2.costPrice) : (item2.price ? Math.round(Number(item2.price) * 0.6) : 280),
+          }] : [])
+        ]);
+      } else {
+        const rand1 = Math.floor(1000 + Math.random() * 9000);
+        const rand2 = Math.floor(1000 + Math.random() * 9000);
+        setCart([
+          {
+            isNewBook: true,
+            newBook: {
+              title: 'ആടുജീവിതം (Aadujeevitham - Deluxe Edition)',
+              isbn: `978-81-264-${rand1}-1`,
+              barcode: `97881264${rand1}1`,
+              authorName: 'Benyamin (ബെന്യാമിൻ)',
+              categoryName: 'Fiction & Literature',
+              publisherName: 'DC Books Publications',
+              price: 399,
+            },
+            title: 'ആടുജീവിതം (Aadujeevitham - Deluxe Edition)',
+            quantity: 25,
+            unitCost: 240,
+          },
+          {
+            isNewBook: true,
+            newBook: {
+              title: 'ഖസാക്കിന്റെ ഇതിഹാസം (The Legends of Khasak)',
+              isbn: `978-81-264-${rand2}-2`,
+              barcode: `97881264${rand2}2`,
+              authorName: 'O. V. Vijayan (ഒ. വി. വിജയൻ)',
+              categoryName: 'Fiction & Literature',
+              publisherName: 'DC Books Publications',
+              price: 450,
+            },
+            title: 'ഖസാക്കിന്റെ ഇതിഹാസം (The Legends of Khasak)',
+            quantity: 20,
+            unitCost: 280,
+          }
+        ]);
+      }
     }
   };
 

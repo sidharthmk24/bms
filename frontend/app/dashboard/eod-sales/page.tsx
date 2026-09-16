@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useApiData } from '@/hooks/useApiData';
 import { api } from '@/lib/api';
 import {
   Calendar,
@@ -21,6 +22,7 @@ import {
   ArrowDown,
   Search,
   X,
+  Building2,
 } from 'lucide-react';
 import { Dropdown } from '@/components/Dropdown';
 import { generateBillPDF } from '@/lib/pdfUtils';
@@ -50,7 +52,14 @@ function monthEnd(baseStr: string) {
 
 export default function EODSalesPage() {
   const { user } = useAuth();
+  const isChainWideUser = !user?.branchId || ['SUPER_ADMIN', 'ADMIN', 'FINANCE', 'CENTRAL_INVENTORY_MANAGER'].includes(user?.role || user?.primaryRole || '');
 
+  // Fetch branches for branch switcher
+  const { data: branchesResponse } = useApiData<any>('/branches');
+  const branchesList: any[] = branchesResponse?.items || (Array.isArray(branchesResponse) ? branchesResponse : (branchesResponse?.data || []));
+  const retailBranches = branchesList.filter((b: any) => b.isActive !== false && b.type !== 'WAREHOUSE' && b.name?.toLowerCase() !== 'central warehouse');
+
+  const [selectedBranch, setSelectedBranch] = useState<string>(user?.branchId || 'all');
   const [viewMode, setViewMode]       = useState<'day' | 'month'>('day');
   const [selectedDate, setSelectedDate]   = useState(todayStr());
   const [selectedMonth, setSelectedMonth] = useState(todayStr().slice(0, 7));
@@ -95,7 +104,8 @@ export default function EODSalesPage() {
         const q = searchQuery.toLowerCase().trim();
         const matchBillNo = (bill.billNumber || '').toLowerCase().includes(q);
         const matchCustomer = (bill.customerName || '').toLowerCase().includes(q);
-        if (!matchBillNo && !matchCustomer) return false;
+        const matchBranch = (bill.branch?.name || '').toLowerCase().includes(q);
+        if (!matchBillNo && !matchCustomer && !matchBranch) return false;
       }
       return true;
     });
@@ -135,13 +145,16 @@ export default function EODSalesPage() {
     };
   }, [viewMode, selectedDate, selectedMonth]);
 
-  useEffect(() => { fetchBills(); }, [startDate, endDate]);
+  useEffect(() => { fetchBills(); }, [startDate, endDate, selectedBranch]);
 
   async function fetchBills() {
     setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams({ startDate, endDate, limit: '500' });
+      if (selectedBranch && selectedBranch !== 'all') {
+        params.append('branchId', selectedBranch);
+      }
       const res = await api.get(`/billing?${params.toString()}`);
       const list = Array.isArray(res.data) ? res.data : ((res.data as any)?.items ?? (res as any)?.items ?? []);
       setBills(list);
@@ -182,17 +195,35 @@ export default function EODSalesPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-neutral-900">EOD Sales Report</h2>
-          <p className="text-sm text-neutral-500 mt-0.5">End-of-day and monthly sales overview for your branch.</p>
+          <p className="text-sm text-neutral-500 mt-0.5">End-of-day and monthly sales overview {selectedBranch === 'all' ? 'across all branches' : 'for selected branch'}.</p>
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
+          {/* Branch Filter Dropdown for Chain-Wide / Admin Roles */}
+          {isChainWideUser && (
+            <div className="w-52 shrink-0">
+              <Dropdown
+                value={selectedBranch}
+                onChange={(val) => setSelectedBranch(val)}
+                options={[
+                  { value: 'all', label: 'All Branches' },
+                  ...retailBranches.map((b: any) => ({
+                    value: b.id,
+                    label: b.name
+                  }))
+                ]}
+                selectClassName="!py-2 !rounded-sm !text-xs font-bold border-[#7e2562]/20 bg-white"
+              />
+            </div>
+          )}
+
           {/* Toggle */}
           <div className="inline-flex rounded-sm border border-[#7e2562]/20 bg-white shadow-sm overflow-hidden">
             {(['day', 'month'] as const).map(m => (
               <button
                 key={m}
                 onClick={() => setViewMode(m)}
-                className={`px-4 py-2 text-sm font-semibold capitalize transition-all ${
+                className={`px-4 py-2 text-sm font-semibold capitalize transition-all cursor-pointer ${
                   viewMode === m ? 'bg-[#7e2562] text-white' : 'text-neutral-600 hover:bg-[#faf6f9]'
                 }`}
               >
@@ -214,7 +245,7 @@ export default function EODSalesPage() {
             <div className="flex items-center gap-1 bg-white border border-[#7e2562]/20 rounded-sm px-2 py-1 shadow-sm">
               <button
                 onClick={() => shiftMonth(-1)}
-                className="p-1 hover:bg-[#faedf5] text-[#7e2562] rounded-sm transition-colors"
+                className="p-1 hover:bg-[#faedf5] text-[#7e2562] rounded-sm transition-colors cursor-pointer"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
@@ -223,7 +254,7 @@ export default function EODSalesPage() {
               </span>
               <button
                 onClick={() => shiftMonth(1)}
-                className="p-1 hover:bg-[#faedf5] text-[#7e2562] rounded-sm transition-colors"
+                className="p-1 hover:bg-[#faedf5] text-[#7e2562] rounded-sm transition-colors cursor-pointer"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
@@ -233,7 +264,7 @@ export default function EODSalesPage() {
           <button
             onClick={fetchBills}
             disabled={loading}
-            className="flex items-center gap-2 px-4 py-2 bg-[#7e2562] hover:bg-[#681b50] text-white text-sm font-semibold rounded-sm shadow-sm transition-all disabled:opacity-60"
+            className="flex items-center gap-2 px-4 py-2 bg-[#7e2562] hover:bg-[#681b50] text-white text-sm font-semibold rounded-sm shadow-sm transition-all disabled:opacity-60 cursor-pointer"
           >
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <TrendingUp className="w-4 h-4" />}
             Refresh
@@ -241,11 +272,17 @@ export default function EODSalesPage() {
         </div>
       </div>
 
-      {/* Period label */}
-      <div className="flex items-center gap-2 text-sm text-neutral-700 font-medium">
-        <Calendar className="w-4 h-4 text-[#7e2562]" />
-        <span>{displayLabel}</span>
-        {loading && <Loader2 className="w-4 h-4 animate-spin text-[#7e2562] ml-1" />}
+      {/* Period & Branch Indicators */}
+      <div className="flex items-center justify-between flex-wrap gap-2 text-sm text-neutral-700 font-medium">
+        <div className="flex items-center gap-2">
+          <Calendar className="w-4 h-4 text-[#7e2562]" />
+          <span>{displayLabel}</span>
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-sm text-xs font-bold bg-[#faedf5] text-[#7e2562] border border-[#7e2562]/20">
+            <Building2 className="w-3.5 h-3.5 text-[#7e2562]" />
+            <span>{selectedBranch === 'all' ? 'All Branches' : (retailBranches.find(b => b.id === selectedBranch)?.name || 'Branch')}</span>
+          </span>
+          {loading && <Loader2 className="w-4 h-4 animate-spin text-[#7e2562] ml-1" />}
+        </div>
       </div>
 
       {error && (
@@ -315,7 +352,7 @@ export default function EODSalesPage() {
               <Search className="w-3.5 h-3.5 text-neutral-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 type="text"
-                placeholder="Search bill or customer..."
+                placeholder="Search bill, customer, branch..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-8 pr-7 py-2 text-xs border border-[#7e2562]/20 rounded-sm focus:outline-none focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562] text-neutral-900 bg-white placeholder:text-neutral-400 font-medium"
@@ -323,7 +360,7 @@ export default function EODSalesPage() {
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700 cursor-pointer"
                 >
                   <X className="w-3 h-3" />
                 </button>
@@ -415,6 +452,9 @@ export default function EODSalesPage() {
                     )}
                   </div>
                 </th>
+                {selectedBranch === 'all' && (
+                  <th className="px-6 py-3.5">Branch</th>
+                )}
                 <th 
                   onClick={() => toggleSort('customerName')}
                   className="px-6 py-3.5 cursor-pointer select-none hover:bg-[#faedf5]/50 transition-colors group"
@@ -450,21 +490,21 @@ export default function EODSalesPage() {
             <tbody className="divide-y divide-neutral-100">
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-12 text-center">
+                  <td colSpan={selectedBranch === 'all' ? 9 : 8} className="px-6 py-12 text-center">
                     <Loader2 className="w-8 h-8 animate-spin text-[#7e2562] mx-auto" />
                   </td>
                 </tr>
               ) : bills.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-16 text-center">
+                  <td colSpan={selectedBranch === 'all' ? 9 : 8} className="px-6 py-16 text-center">
                     <FileText className="w-12 h-12 text-neutral-200 mx-auto mb-3" />
                     <p className="text-neutral-500 text-sm font-medium">No sales found for this period</p>
-                    <p className="text-neutral-400 text-xs mt-1">Try selecting a different date or month</p>
+                    <p className="text-neutral-400 text-xs mt-1">Try selecting a different branch, date, or month</p>
                   </td>
                 </tr>
               ) : sortedBills.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-12 text-center">
+                  <td colSpan={selectedBranch === 'all' ? 9 : 8} className="px-6 py-12 text-center">
                     <Search className="w-10 h-10 text-neutral-300 mx-auto mb-2" />
                     <p className="text-neutral-700 text-sm font-bold">No matching bills found</p>
                     <p className="text-neutral-400 text-xs mt-1">Try adjusting your search query or filter options</p>
@@ -492,6 +532,13 @@ export default function EODSalesPage() {
                         </div>
                       )}
                     </td>
+                    {selectedBranch === 'all' && (
+                      <td className="px-6 py-3.5 text-neutral-700 text-xs font-medium whitespace-nowrap">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-sm bg-[#faf6f9] text-[#7e2562] border border-[#7e2562]/15 text-[11px] font-bold">
+                          {bill.branch?.name || 'Branch'}
+                        </span>
+                      </td>
+                    )}
                     <td className="px-6 py-3.5 text-neutral-700 font-medium">{bill.customerName || <span className="text-neutral-400 italic">Walk-in</span>}</td>
                     <td className="px-6 py-3.5 whitespace-nowrap">
                       {bill.status === 'COMPLETED' ? (
@@ -521,7 +568,7 @@ export default function EODSalesPage() {
                     <td className="px-6 py-3.5 text-center">
                       <button
                         onClick={() => generateBillPDF(bill, bill.items || [], bill.branch || bill.branchId)}
-                        className="p-1.5 text-[#7e2562] hover:bg-[#faedf5] rounded-sm transition-colors inline-flex"
+                        className="p-1.5 text-[#7e2562] hover:bg-[#faedf5] rounded-sm transition-colors inline-flex cursor-pointer"
                         title="Download PDF"
                       >
                         <Download className="w-4 h-4" />
@@ -534,7 +581,7 @@ export default function EODSalesPage() {
             {!loading && bills.length > 0 && (
               <tfoot className="bg-[#faf6f9]/50 border-t border-neutral-200">
                 <tr>
-                  <td colSpan={5} className="px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-[#7e2562]">Total Revenue</td>
+                  <td colSpan={selectedBranch === 'all' ? 6 : 5} className="px-6 py-3.5 text-xs font-bold uppercase tracking-wider text-[#7e2562]">Total Revenue</td>
                   <td className="px-6 py-3.5 text-right font-bold text-neutral-900 text-sm">{formatCurrency(stats.totalRevenue)}</td>
                   <td colSpan={2} />
                 </tr>
