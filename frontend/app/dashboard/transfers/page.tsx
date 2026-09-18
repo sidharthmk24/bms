@@ -13,7 +13,8 @@ import {
   Search, 
   FileText,
   Loader2,
-  Eye
+  Eye,
+  ShoppingCart
 } from 'lucide-react';
 import CreateTransferModal from '@/components/CreateTransferModal';
 import TransferDetailsModal from '@/components/TransferDetailsModal';
@@ -95,15 +96,14 @@ export default function StockTransfersPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'PENDING':
-        return 'bg-[#fffbeb] text-[#b45309] border-[#fde68a]';
+        return 'bg-amber-50 text-amber-800 border-amber-200';
       case 'DISPATCHED':
-        return 'bg-[#faedf5] text-primary border-primary/20 animate-pulse';
+        return 'bg-[#faedf5] text-[#7e2562] border-[#7e2562]/20 animate-pulse font-bold';
       case 'RECEIVED':
-        return 'bg-[#f0fbf5] text-[#22794d] border-[#bcecd2]';
+        return 'bg-[#f0fbf5] text-[#3cb976] border-[#3cb976]/30 font-bold';
       case 'REJECTED':
-        return 'bg-[#fef5f2] text-danger border-[#fbd5c9]';
       case 'CANCELLED':
-        return 'bg-[#faf6f9] text-muted-foreground border-[#ece3ea]';
+        return 'bg-[#fef5f2] text-[#e45e34] border-[#e45e34]/30 font-bold';
       default:
         return 'bg-[#faf6f9] text-muted-foreground border-[#ece3ea]';
     }
@@ -256,9 +256,21 @@ export default function StockTransfersPage() {
                     <td className="px-6 py-4 whitespace-nowrap">{t.requestedBy?.name || 'BMS Staff'}</td>
                     <td className="px-6 py-4 font-semibold whitespace-nowrap">{t.items?.length || 0} books</td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2.5 py-0.5 border text-xs font-bold rounded-full ${getStatusBadge(t.status)}`}>
-                        {t.status}
-                      </span>
+                      <div className="flex flex-col items-start gap-1">
+                        <span className={`px-2.5 py-0.5 border text-xs font-bold rounded-sm ${getStatusBadge(t.status)}`}>
+                          {t.status}
+                        </span>
+                        {t.purchaseOrder && (
+                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-sm text-[10px] font-bold border ${
+                            t.purchaseOrder.status === 'RECEIVED'
+                              ? 'bg-[#f0fbf5] text-[#3cb976] border-[#3cb976]/30'
+                              : 'bg-[#faedf5] text-[#7e2562] border-[#7e2562]/20'
+                          }`}>
+                            <ShoppingCart className="w-2.5 h-2.5" />
+                            <span>PO: {t.purchaseOrder.orderNumber} ({t.purchaseOrder.status})</span>
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 text-xs text-muted-foreground whitespace-nowrap">
                       <div className="flex items-center space-x-1.5">

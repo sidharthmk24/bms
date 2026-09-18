@@ -328,8 +328,26 @@ export class ProcurementService {
         );
       }
 
+      // If linked to a Stock Transfer, link the transfer to this PO
+      if (createDto.transferId) {
+        try {
+          await queryRunner.manager.query(`
+            ALTER TABLE \`stock_transfer\` ADD COLUMN \`purchase_order_id\` varchar(36) NULL;
+          `);
+        } catch (e) {}
+        await queryRunner.manager.query(
+          `UPDATE stock_transfer 
+           SET purchase_order_id = ?, updated_at = NOW() 
+           WHERE id = ?`,
+          [savedPoId, createDto.transferId],
+        );
+      }
+
       await queryRunner.commitTransaction();
       this.notificationsService.triggerRefresh('procurement_changed');
+      if (createDto.transferId) {
+        this.notificationsService.triggerRefresh('transfers_changed');
+      }
 
       return await this.findOne(savedPoId);
     } catch (error) {
@@ -343,7 +361,7 @@ export class ProcurementService {
   async findAll(): Promise<PurchaseOrder[]> {
     const { purchaseOrderRepo } = await this.getRepos();
     return purchaseOrderRepo.find({
-      relations: ['supplier', 'placedBy', 'items', 'items.book'],
+      relations: ['supplier', 'placedBy', 'items', 'items.book', 'transfers', 'transfers.toBranch'],
       order: { createdAt: 'DESC' },
     });
   }
@@ -352,7 +370,7 @@ export class ProcurementService {
     const { purchaseOrderRepo } = await this.getRepos();
     const po = await purchaseOrderRepo.findOne({
       where: { id },
-      relations: ['supplier', 'placedBy', 'items', 'items.book'],
+      relations: ['supplier', 'placedBy', 'items', 'items.book', 'transfers', 'transfers.toBranch'],
     });
 
     if (!po) {
@@ -382,16 +400,399 @@ export class ProcurementService {
       }
       return this.receiveOrder(po, updateDto.status, updateDto.items, user, ipAddress);
     } else if (updateDto.status === PurchaseOrderStatus.CANCELLED) {
-      if (po.status !== PurchaseOrderStatus.DRAFT) {
-        throw new ConflictException('Can only cancel DRAFT orders');
+      if (po.status !== PurchaseOrderStatus.DRAFT && po.status !== PurchaseOrderStatus.PLACED) {
+        throw new ConflictException('Can only cancel DRAFT or PLACED orders before receiving');
       }
       po.status = PurchaseOrderStatus.CANCELLED;
       const updated = await purchaseOrderRepo.save(po);
+
+      // Revert any linked PO request
+      const { dataSource } = await this.getRepos();
+      await dataSource.query(
+        `UPDATE purchase_order_request SET status = 'APPROVED', purchase_order_id = NULL WHERE purchase_order_id = ?`,
+        [id]
+      );
+
       this.notificationsService.triggerRefresh('procurement_changed');
       return updated;
     }
 
     throw new BadRequestException('Invalid status transition');
+  }
+
+  async updateOrder(
+    id: string,
+    updateDto: CreatePurchaseOrderDto,
+    user: JwtPayload,
+    ipAddress: string,
+  ): Promise<PurchaseOrder> {
+    const po = await this.findOne(id);
+    if (po.status === PurchaseOrderStatus.RECEIVED || po.status === PurchaseOrderStatus.PARTIALLY_RECEIVED) {
+      throw new BadRequestException('Cannot edit a purchase order that has already been partially or fully received');
+    }
+
+    if (!updateDto.items || updateDto.items.length === 0) {
+      throw new BadRequestException('At least one item is required in the purchase order');
+    }
+
+    const { dataSource } = await this.getRepos();
+    const queryRunner = dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const { v4: uuidv4 } = await import('uuid');
+      const userId = user.userId || (user as any).sub || (user as any).id;
+
+      // Calculate total cost
+      let totalCost = 0;
+      for (const item of updateDto.items) {
+        let cost = Number(item.unitCost);
+        if (item.bookId && !item.newBook) {
+          const [dbBook] = await queryRunner.manager.query('SELECT cost_price FROM book WHERE id = ?', [item.bookId]);
+          if (dbBook && dbBook.cost_price !== null && dbBook.cost_price !== undefined) {
+            cost = Number(dbBook.cost_price);
+          }
+        }
+        totalCost += item.quantityOrdered * cost;
+      }
+
+      // Resolve or create Supplier
+      let finalSupplierId = updateDto.supplierId || po.supplierId;
+      if ((!finalSupplierId || finalSupplierId === 'OTHER') && updateDto.supplierName?.trim()) {
+        const sName = updateDto.supplierName.trim();
+        const [existingSupplier] = await queryRunner.manager.query(
+          'SELECT id FROM supplier WHERE name = ?',
+          [sName],
+        );
+        if (existingSupplier) {
+          finalSupplierId = existingSupplier.id;
+        } else {
+          finalSupplierId = uuidv4();
+          await queryRunner.manager.query(
+            'INSERT INTO supplier (id, name, created_at, updated_at) VALUES (?, ?, NOW(), NOW())',
+            [finalSupplierId, sName],
+          );
+        }
+      }
+
+      if (!finalSupplierId || finalSupplierId === 'OTHER') {
+        throw new BadRequestException('A valid supplier selection or supplier name is required');
+      }
+
+      const expectedDate = updateDto.expectedDate ? new Date(updateDto.expectedDate).toISOString().split('T')[0] : null;
+
+      // Update purchase_order record
+      await queryRunner.manager.query(
+        `UPDATE purchase_order 
+         SET supplier_id = ?, expected_date = ?, total_cost = ?, updated_at = NOW() 
+         WHERE id = ?`,
+        [finalSupplierId, expectedDate, totalCost, id],
+      );
+
+      // Delete existing PO items
+      await queryRunner.manager.query(
+        `DELETE FROM purchase_order_item WHERE purchase_order_id = ?`,
+        [id],
+      );
+
+      // Insert new/updated items
+      for (const item of updateDto.items) {
+        let finalBookId = item.bookId;
+
+        // If PMS Title is provided
+        if (!finalBookId && item.pmsTitle) {
+          const pt = item.pmsTitle;
+          const isbn = pt.isbn?.trim() || `PMS-${String(pt.pmsTitleId).substring(0, 8)}`;
+          const title = pt.title?.trim();
+          const barcode = pt.isbn?.trim() || isbn;
+
+          const existingBookRows = await queryRunner.manager.query(
+            'SELECT id FROM book WHERE pms_title_id = ? OR isbn = ? OR barcode = ?',
+            [pt.pmsTitleId, isbn, barcode],
+          );
+
+          if (existingBookRows && existingBookRows.length > 0) {
+            finalBookId = existingBookRows[0].id;
+            await queryRunner.manager.query(
+              'UPDATE book SET publish_type = ?, pms_title_id = ? WHERE id = ?',
+              ['KAIRALI_BOOKS', pt.pmsTitleId, finalBookId],
+            );
+          } else {
+            let authorId = null;
+            if (pt.authorName?.trim()) {
+              const aName = pt.authorName.trim();
+              const existingAuthors = await queryRunner.manager.query('SELECT id FROM author WHERE name = ?', [aName]);
+              if (existingAuthors && existingAuthors.length > 0) {
+                authorId = existingAuthors[0].id;
+              } else {
+                authorId = uuidv4();
+                await queryRunner.manager.query(
+                  'INSERT INTO author (id, name, created_at, updated_at) VALUES (?, ?, NOW(), NOW())',
+                  [authorId, aName],
+                );
+              }
+            }
+
+            let categoryId = null;
+            const cName = pt.category?.trim() || 'General';
+            const existingCategories = await queryRunner.manager.query('SELECT id FROM category WHERE name = ?', [cName]);
+            if (existingCategories && existingCategories.length > 0) {
+              categoryId = existingCategories[0].id;
+            } else {
+              categoryId = uuidv4();
+              await queryRunner.manager.query(
+                'INSERT INTO category (id, name, created_at, updated_at) VALUES (?, ?, NOW(), NOW())',
+                [categoryId, cName],
+              );
+            }
+
+            let publisherId = null;
+            const existingPublishers = await queryRunner.manager.query("SELECT id FROM publisher WHERE name LIKE '%Kairali%'");
+            if (existingPublishers && existingPublishers.length > 0) {
+              publisherId = existingPublishers[0].id;
+            } else {
+              publisherId = uuidv4();
+              await queryRunner.manager.query(
+                'INSERT INTO publisher (id, name, created_at, updated_at) VALUES (?, ?, NOW(), NOW())',
+                [publisherId, 'Kairali Books'],
+              );
+            }
+
+            finalBookId = uuidv4();
+            const sellingPrice = pt.price ? Number(pt.price) : Math.round(Number(item.unitCost) * 1.4);
+
+            await queryRunner.manager.query(
+              `INSERT INTO book (id, title, isbn, barcode, description, price, cost_price, author_id, category_id, publisher_id, publish_type, pms_title_id, is_active, created_at, updated_at)
+               VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, 'KAIRALI_BOOKS', ?, 1, NOW(), NOW())`,
+              [
+                finalBookId,
+                title,
+                isbn,
+                barcode,
+                sellingPrice,
+                Number(item.unitCost),
+                authorId,
+                categoryId,
+                publisherId,
+                pt.pmsTitleId,
+              ],
+            );
+
+            await queryRunner.manager.query(
+              `INSERT INTO central_stock (id, book_id, quantity, reorder_threshold, created_at, updated_at)
+               VALUES (UUID(), ?, 0, 15, NOW(), NOW())
+               ON DUPLICATE KEY UPDATE updated_at = NOW()`,
+              [finalBookId],
+            );
+          }
+        } else if (!finalBookId && item.newBook) {
+          const nb = item.newBook;
+          const isbn = nb.isbn?.trim();
+          const title = nb.title?.trim();
+          const barcode = nb.barcode?.trim() || isbn;
+
+          if (!title || !isbn) {
+            throw new BadRequestException('New book title and ISBN are required');
+          }
+
+          const existingBookRows = await queryRunner.manager.query(
+            'SELECT id FROM book WHERE isbn = ? OR barcode = ?',
+            [isbn, barcode],
+          );
+
+          if (existingBookRows && existingBookRows.length > 0) {
+            finalBookId = existingBookRows[0].id;
+          } else {
+            let authorId = null;
+            if (nb.authorName?.trim()) {
+              const aName = nb.authorName.trim();
+              const existingAuthors = await queryRunner.manager.query('SELECT id FROM author WHERE name = ?', [aName]);
+              if (existingAuthors && existingAuthors.length > 0) {
+                authorId = existingAuthors[0].id;
+              } else {
+                authorId = uuidv4();
+                await queryRunner.manager.query(
+                  'INSERT INTO author (id, name, created_at, updated_at) VALUES (?, ?, NOW(), NOW())',
+                  [authorId, aName],
+                );
+              }
+            }
+
+            let categoryId = null;
+            if (nb.categoryName?.trim()) {
+              const cName = nb.categoryName.trim();
+              const existingCategories = await queryRunner.manager.query('SELECT id FROM category WHERE name = ?', [cName]);
+              if (existingCategories && existingCategories.length > 0) {
+                categoryId = existingCategories[0].id;
+              } else {
+                categoryId = uuidv4();
+                await queryRunner.manager.query(
+                  'INSERT INTO category (id, name, created_at, updated_at) VALUES (?, ?, NOW(), NOW())',
+                  [categoryId, cName],
+                );
+              }
+            }
+
+            let publisherId = null;
+            if (nb.publisherName?.trim()) {
+              const pName = nb.publisherName.trim();
+              const existingPublishers = await queryRunner.manager.query('SELECT id FROM publisher WHERE name = ?', [pName]);
+              if (existingPublishers && existingPublishers.length > 0) {
+                publisherId = existingPublishers[0].id;
+              } else {
+                publisherId = uuidv4();
+                await queryRunner.manager.query(
+                  'INSERT INTO publisher (id, name, created_at, updated_at) VALUES (?, ?, NOW(), NOW())',
+                  [publisherId, pName],
+                );
+              }
+            }
+
+            finalBookId = uuidv4();
+            const sellingPrice = nb.price !== undefined && nb.price !== null && !isNaN(Number(nb.price)) 
+              ? Number(nb.price) 
+              : Math.round(Number(item.unitCost) * 1.4);
+
+            await queryRunner.manager.query(
+              `INSERT INTO book (id, title, isbn, barcode, description, price, cost_price, author_id, category_id, publisher_id, publish_type, is_active, created_at, updated_at)
+               VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, 'OTHER', 1, NOW(), NOW())`,
+              [
+                finalBookId,
+                title,
+                isbn,
+                barcode,
+                sellingPrice,
+                Number(item.unitCost),
+                authorId,
+                categoryId,
+                publisherId,
+              ],
+            );
+
+            await queryRunner.manager.query(
+              `INSERT INTO central_stock (id, book_id, quantity, reorder_threshold, created_at, updated_at)
+               VALUES (UUID(), ?, 0, 15, NOW(), NOW())
+               ON DUPLICATE KEY UPDATE updated_at = NOW()`,
+              [finalBookId],
+            );
+          }
+        }
+
+        let finalUnitCost = Number(item.unitCost);
+        if (item.bookId && !item.newBook) {
+          const [dbBook] = await queryRunner.manager.query('SELECT cost_price, price FROM book WHERE id = ?', [item.bookId]);
+          if (dbBook && dbBook.cost_price !== null && dbBook.cost_price !== undefined) {
+            finalUnitCost = Number(dbBook.cost_price);
+          }
+        }
+
+        await queryRunner.manager.query(
+          `INSERT INTO purchase_order_item (id, purchase_order_id, book_id, quantity_ordered, unit_cost, quantity_received, created_at, updated_at)
+           VALUES (UUID(), ?, ?, ?, ?, 0, NOW(), NOW())`,
+          [id, finalBookId, item.quantityOrdered, finalUnitCost],
+        );
+      }
+
+      // If poRequestId is specified or changed
+      if (updateDto.poRequestId) {
+        await queryRunner.manager.query(
+          `UPDATE purchase_order_request 
+           SET status = 'ORDERED', purchase_order_id = ?, updated_at = NOW() 
+           WHERE id = ?`,
+          [id, updateDto.poRequestId],
+        );
+      }
+
+      // Audit log
+      await queryRunner.manager.query(
+        'INSERT INTO `audit_log`(`id`, `user_id`, `action`, `entity_type`, `entity_id`, `before_json`, `after_json`, `ip_address`, `created_at`) VALUES (UUID(), ?, ?, ?, ?, ?, ?, ?, DEFAULT)',
+        [
+          userId,
+          'PURCHASE_ORDER_UPDATED',
+          'PurchaseOrder',
+          id,
+          JSON.stringify({ orderNumber: po.orderNumber, totalCost: po.totalCost }),
+          JSON.stringify({ orderNumber: po.orderNumber, totalCost }),
+          ipAddress,
+        ],
+      );
+
+      await queryRunner.commitTransaction();
+      this.notificationsService.triggerRefresh('procurement_changed');
+
+      return await this.findOne(id);
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  async deleteOrder(id: string, user: JwtPayload, ipAddress: string): Promise<{ success: boolean; message: string }> {
+    const po = await this.findOne(id);
+    if (po.status === PurchaseOrderStatus.RECEIVED || po.status === PurchaseOrderStatus.PARTIALLY_RECEIVED) {
+      throw new BadRequestException('Cannot delete a purchase order that has already been partially or fully received');
+    }
+
+    const hasReceivedItems = po.items?.some(i => Number(i.quantityReceived) > 0);
+    if (hasReceivedItems) {
+      throw new BadRequestException('Cannot delete a purchase order with received items');
+    }
+
+    const { dataSource } = await this.getRepos();
+    const queryRunner = dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const userId = user.userId || (user as any).sub || (user as any).id;
+
+      // Revert any linked purchase order requests back to APPROVED
+      await queryRunner.manager.query(
+        `UPDATE purchase_order_request 
+         SET status = 'APPROVED', purchase_order_id = NULL, updated_at = NOW() 
+         WHERE purchase_order_id = ?`,
+        [id],
+      );
+
+      // Delete items
+      await queryRunner.manager.query(
+        `DELETE FROM purchase_order_item WHERE purchase_order_id = ?`,
+        [id],
+      );
+
+      // Delete PO
+      await queryRunner.manager.query(
+        `DELETE FROM purchase_order WHERE id = ?`,
+        [id],
+      );
+
+      // Audit log
+      await queryRunner.manager.query(
+        'INSERT INTO `audit_log`(`id`, `user_id`, `action`, `entity_type`, `entity_id`, `before_json`, `after_json`, `ip_address`, `created_at`) VALUES (UUID(), ?, ?, ?, ?, ?, ?, ?, DEFAULT)',
+        [
+          userId,
+          'PURCHASE_ORDER_DELETED',
+          'PurchaseOrder',
+          id,
+          JSON.stringify({ orderNumber: po.orderNumber, totalCost: po.totalCost, status: po.status }),
+          null,
+          ipAddress,
+        ],
+      );
+
+      await queryRunner.commitTransaction();
+      this.notificationsService.triggerRefresh('procurement_changed');
+
+      return { success: true, message: `Purchase Order ${po.orderNumber} deleted successfully` };
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
   }
 
   private async placeOrder(
@@ -521,11 +922,40 @@ export class ProcurementService {
         ],
       );
 
+      // 7. Check for linked stock transfers waiting on this PO
+      let hasLinkedTransfer = false;
+      try {
+        const linkedTransfers = await queryRunner.manager.query(
+          `SELECT st.id, st.transfer_number, st.to_branch_id, b.name as to_branch_name 
+           FROM stock_transfer st 
+           LEFT JOIN branch b ON b.id = st.to_branch_id 
+           WHERE st.purchase_order_id = ? AND st.status = 'PENDING'`,
+          [po.id]
+        );
+        if (linkedTransfers && linkedTransfers.length > 0) {
+          hasLinkedTransfer = true;
+          for (const lt of linkedTransfers) {
+            await this.notificationsService.notifyRoles(
+              [UserRole.CENTRAL_INVENTORY_MANAGER, UserRole.SUPER_ADMIN, UserRole.ADMIN],
+              null,
+              'Stock Received for Transfer',
+              `Stock for PO ${po.orderNumber} has arrived at Central Warehouse. Ready to dispatch Transfer #${lt.transfer_number} to ${lt.to_branch_name || 'branch'}.`,
+              'RESTOCK_REQUEST'
+            );
+          }
+        }
+      } catch (e) {
+        console.error('Error checking linked transfers on PO receive:', e);
+      }
+
       await queryRunner.commitTransaction();
 
       this.notificationsService.triggerRefresh('procurement_changed');
       this.notificationsService.triggerRefresh('stock_changed');
       this.notificationsService.triggerRefresh('finance_changed');
+      if (hasLinkedTransfer) {
+        this.notificationsService.triggerRefresh('transfers_changed');
+      }
 
       return await this.findOne(po.id);
     } catch (error) {

@@ -18,21 +18,25 @@ import {
   Truck,
   ArrowLeftRight,
   MessageSquare,
-  LogOut,
   Receipt,
   BarChart2,
   Menu
 } from 'lucide-react';
 import Image from 'next/image';
 
+import { getHighestPriorityRole } from '@/lib/api-backend/users/enums/user-role.enum';
+
 export default function Sidebar() {
   const pathname = usePathname();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
 
   if (!user) return null;
 
   const getDashboardLink = () => {
-    const role = user.role || user.primaryRole || '';
+    const isImpersonating = !!user.originalRoles;
+    const role = isImpersonating
+      ? (user.role || user.primaryRole || '')
+      : getHighestPriorityRole(user.roles && user.roles.length > 0 ? user.roles : [user.role || user.primaryRole || '']);
     
     // If assigned to a branch but have an admin role, show the branch manager dashboard
     if (user.branchId && ['SUPER_ADMIN', 'ADMIN'].includes(role)) {
@@ -56,11 +60,10 @@ export default function Sidebar() {
     { name: 'Dashboard', href: getDashboardLink(), icon: LayoutDashboard, roles: ['*'] },
     { name: 'Billing', href: '/dashboard/billing', icon: ShoppingCart, roles: ['BRANCH_FRONT_OFFICE', 'BRANCH_MANAGER'] },
     { name: 'All Bills', href: '/dashboard/bills', icon: Receipt, roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE', 'BRANCH_MANAGER', 'BRANCH_FRONT_OFFICE'] },
-    { name: 'EOD Sales', href: '/dashboard/eod-sales', icon: BarChart2, roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE'] },
+    // { name: 'EOD Sales', href: '/dashboard/eod-sales', icon: BarChart2, roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE'] },
     { name: 'Inventory', href: '/dashboard/inventory', icon: Boxes, roles: ['BRANCH_INVENTORY', 'BRANCH_MANAGER', 'SUPER_ADMIN', 'ADMIN', 'BRANCH_FRONT_OFFICE'] },
     { name: 'Warehouse Stock', href: '/dashboard/central-stock', icon: Store, roles: ['CENTRAL_INVENTORY_MANAGER', 'SUPER_ADMIN', 'ADMIN'] },
     { name: 'Purchase Orders', href: '/dashboard/purchase-orders', icon: Truck, roles: ['CENTRAL_INVENTORY_MANAGER', 'SUPER_ADMIN', 'ADMIN'] },
-    { name: 'Restock Requests', href: '/dashboard/restock', icon: TrendingUp, roles: ['CENTRAL_INVENTORY_MANAGER', 'SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'BRANCH_INVENTORY'] },
     { name: 'Stock Transfers', href: '/dashboard/transfers', icon: ArrowLeftRight, roles: ['BRANCH_INVENTORY', 'BRANCH_MANAGER', 'CENTRAL_INVENTORY_MANAGER', 'SUPER_ADMIN', 'ADMIN'] },
     { name: 'Exhibitions', href: '/dashboard/exhibitions', icon: Store, roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE', 'CENTRAL_INVENTORY_MANAGER', 'BRANCH_MANAGER', 'BRANCH_INVENTORY', 'BRANCH_FRONT_OFFICE'] },
     { name: 'Credit Copies', href: '/dashboard/credit-copies', icon: FileText, roles: ['BRANCH_MANAGER', 'SUPER_ADMIN', 'ADMIN'] },
@@ -148,26 +151,22 @@ export default function Sidebar() {
       </div>
 
       {/* Sidebar Footer */}
-      <div className="p-3 border-t border-[#7e2562]/10 bg-[#faf6f9]/40 mt-auto space-y-2">
-        {!isCollapsed && (
-          <div className="flex items-center justify-between px-2 text-[11px] text-muted-foreground">
+      <div className="p-3 border-t border-[#7e2562]/10 bg-[#faf6f9]/40 mt-auto">
+        {!isCollapsed ? (
+          <div className="flex items-center justify-between px-2 py-1 text-[11px] text-muted-foreground font-medium">
             <span>BMS v1.0 · Connected</span>
             <span className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-[#3cb976]" />
             </span>
           </div>
-        )}
-        <button
-          onClick={logout}
-          title={isCollapsed ? 'Sign Out' : undefined}
-          className={`flex items-center py-2 px-3 text-[13px] font-bold text-danger rounded-sm hover:bg-[#fef5f2] border border-transparent hover:border-[#fbd5c9] transition-all duration-200 group cursor-pointer ${isCollapsed ? 'justify-center w-full px-0' : 'w-full'}`}
-        >
-          <div className={`bg-danger/10 p-1 rounded-sm group-hover:bg-danger/20 transition-colors ${isCollapsed ? 'mr-0' : 'mr-2.5'}`}>
-            <LogOut className={`h-3.5 w-3.5 transition-transform duration-200 ${isCollapsed ? '' : 'group-hover:-translate-x-0.5'}`} />
+        ) : (
+          <div className="flex justify-center py-1">
+            <span className="relative flex h-2 w-2" title="Connected">
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-[#3cb976]" />
+            </span>
           </div>
-          {!isCollapsed && "Sign Out"}
-        </button>
+        )}
       </div>
     </div>
   );

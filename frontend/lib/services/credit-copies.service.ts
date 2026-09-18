@@ -4,7 +4,7 @@ import { CreditCopy } from '../api-backend/credit-copies/entities/credit-copy.en
 import { JwtPayload } from '../auth/jwt';
 import { UserRole } from '../api-backend/users/enums/user-role.enum';
 import { hasRole } from '../api-backend/common/helpers/role.helper';
-import { writeStockMovement, decrementBranchStock, decrementCentralStock } from './stock.helper';
+import { writeStockMovement, decrementBranchStock, decrementCentralStock, incrementBranchStock, incrementCentralStock } from './stock.helper';
 import { ForbiddenException, BadRequestException, NotFoundException } from '../errors';
 import { Bill, PaymentStatus, PaymentMode, BillStatus } from '../api-backend/billing/entities/bill.entity';
 import { BillItem } from '../api-backend/billing/entities/bill-item.entity';
@@ -183,6 +183,113 @@ export class CreditCopiesService {
       await queryRunner.manager.query(
         'INSERT INTO `audit_log`(`id`,`user_id`,`action`,`entity_type`,`entity_id`,`before_json`,`after_json`,`ip_address`,`created_at`) VALUES (UUID(),?,?,?,?,NULL,?,?,DEFAULT)',
         [user.userId, 'CREDIT_COPY_ISSUED', 'CreditCopy', saved.id, JSON.stringify(saved), ipAddress]
+      );
+
+      await queryRunner.commitTransaction();
+      return JSON.parse(JSON.stringify(saved));
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  async updateCreditCopy(
+    id: string,
+    dto: {
+      recipientName?: string;
+      note?: string;
+      quantity?: number;
+    },
+    user: JwtPayload,
+    ipAddress: string
+  ): Promise<CreditCopy> {
+    const { dataSource, creditCopyRepo } = await this.getRepos();
+    const creditCopy = await creditCopyRepo.findOne({
+      where: { id },
+      relations: ['book', 'branch', 'issuedBy'],
+    });
+
+    if (!creditCopy) throw new NotFoundException(`Credit copy record with ID ${id} not found`);
+
+    const isAdmin = hasRole(user, UserRole.SUPER_ADMIN) || hasRole(user, UserRole.ADMIN) || hasRole(user, UserRole.CENTRAL_INVENTORY_MANAGER);
+    if (!isAdmin) {
+      if (user.branchId && creditCopy.branchId !== user.branchId) {
+        throw new ForbiddenException('Cannot edit credit copies for another branch');
+      }
+      if (creditCopy.issuedById !== user.userId) {
+        throw new ForbiddenException('Only the issuer or an administrator can edit this credit copy');
+      }
+    }
+
+    const queryRunner = dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const beforeJson = JSON.stringify(creditCopy);
+
+      if (dto.recipientName !== undefined) {
+        creditCopy.recipientName = dto.recipientName.trim();
+      }
+      if (dto.note !== undefined) {
+        creditCopy.note = dto.note ? dto.note.trim() : null;
+      }
+
+      // If quantity is adjusted
+      if (dto.quantity !== undefined && Number(dto.quantity) > 0 && Number(dto.quantity) !== creditCopy.quantity) {
+        const newQty = Number(dto.quantity);
+        const oldQty = creditCopy.quantity;
+        const diff = newQty - oldQty; // e.g. 5 - 3 = +2 (need 2 more), 2 - 5 = -3 (return 3)
+
+        if (diff > 0) {
+          // Decrement additional stock
+          if (!creditCopy.branchId) {
+            await decrementCentralStock(queryRunner, creditCopy.bookId, diff);
+          } else {
+            await decrementBranchStock(queryRunner, creditCopy.branchId, creditCopy.bookId, diff);
+          }
+
+          await writeStockMovement(queryRunner, {
+            bookId: creditCopy.bookId,
+            branchId: creditCopy.branchId || null,
+            type: 'CREDIT_OUT',
+            quantity: -diff,
+            performedById: user.userId,
+            referenceType: 'MANUAL',
+            referenceId: creditCopy.id,
+            note: `Credit Copy Adjustment (+${diff}) to: ${creditCopy.recipientName}`,
+          });
+        } else if (diff < 0) {
+          // Return excess stock
+          const returnQty = Math.abs(diff);
+          if (!creditCopy.branchId) {
+            await incrementCentralStock(queryRunner, creditCopy.bookId, returnQty);
+          } else {
+            await incrementBranchStock(queryRunner, creditCopy.branchId, creditCopy.bookId, returnQty);
+          }
+
+          await writeStockMovement(queryRunner, {
+            bookId: creditCopy.bookId,
+            branchId: creditCopy.branchId || null,
+            type: 'ADJUSTMENT',
+            quantity: returnQty,
+            performedById: user.userId,
+            referenceType: 'MANUAL',
+            referenceId: creditCopy.id,
+            note: `Credit Copy Return (-${returnQty}) from: ${creditCopy.recipientName}`,
+          });
+        }
+
+        creditCopy.quantity = newQty;
+      }
+
+      const saved = await queryRunner.manager.getRepository(CreditCopy).save(creditCopy);
+
+      await queryRunner.manager.query(
+        'INSERT INTO `audit_log`(`id`,`user_id`,`action`,`entity_type`,`entity_id`,`before_json`,`after_json`,`ip_address`,`created_at`) VALUES (UUID(),?,?,?,?,?,?,?,DEFAULT)',
+        [user.userId, 'CREDIT_COPY_UPDATED', 'CreditCopy', saved.id, beforeJson, JSON.stringify(saved), ipAddress]
       );
 
       await queryRunner.commitTransaction();

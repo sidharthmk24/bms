@@ -6,7 +6,7 @@ import { User } from '../api-backend/users/entities/user.entity';
 import { PasswordResetToken } from '../api-backend/users/entities/password-reset-token.entity';
 import { Branch } from '../api-backend/branches/entities/branch.entity';
 import { AuditLog } from '../api-backend/audit/entities/audit-log.entity';
-import { UserRole, BRANCH_SCOPED_ROLES } from '../api-backend/users/enums/user-role.enum';
+import { UserRole, BRANCH_SCOPED_ROLES, getHighestPriorityRole } from '../api-backend/users/enums/user-role.enum';
 import { CreateUserDto } from '../api-backend/users/dto/create-user.dto';
 import { UpdateUserDto } from '../api-backend/users/dto/update-user.dto';
 import { JwtPayload } from '../auth/jwt';
@@ -55,6 +55,7 @@ export class UsersService {
   }
 
   private checkManagementAccess(currentUser: JwtPayload, targetUser: User) {
+    if (currentUser.userId === targetUser.id) return;
     if (hasRole(currentUser, UserRole.SUPER_ADMIN)) return;
 
     if (!this.canManageRole(currentUser.primaryRole, targetUser.primaryRole)) {
@@ -143,8 +144,10 @@ export class UsersService {
     }
 
     // Set initial password status to PENDING_SETUP so user creates their password on first login
+    const calculatedPrimaryRole = getHighestPriorityRole(dto.roles);
     const newUser = userRepo.create({
       ...dto,
+      primaryRole: calculatedPrimaryRole,
       roles: dto.roles.map(r => ({ role: r })),
       branchId: finalBranchId,
       passwordHash: 'PENDING_SETUP',
@@ -196,6 +199,13 @@ export class UsersService {
       isActive: user.isActive,
     };
 
+    if (currentUser.userId === id && !hasRole(currentUser, UserRole.SUPER_ADMIN)) {
+      // Regular user updating their own profile cannot change their assigned roles or branch
+      delete dto.roles;
+      delete dto.primaryRole;
+      delete dto.branchId;
+    }
+
     if (dto.roles) {
       for (const currentRole of user.roles) {
         if (!this.canManageRole(currentUser.primaryRole, currentRole.role)) {
@@ -216,7 +226,7 @@ export class UsersService {
       }
     }
 
-    if (hasRole(currentUser, UserRole.BRANCH_MANAGER)) {
+    if (hasRole(currentUser, UserRole.BRANCH_MANAGER) && currentUser.userId !== id) {
       if (dto.branchId && dto.branchId !== currentUser.branchId) {
         throw new ForbiddenException('You cannot reassign users to other branches');
       }
@@ -245,13 +255,19 @@ export class UsersService {
       await userRepo.manager.query('DELETE FROM user_roles WHERE user_id = ?', [id]);
     }
 
+    const { password, roles, ...otherDto } = dto;
     Object.assign(user, {
-      ...dto,
+      ...otherDto,
       branchId: finalBranchId,
     });
+
+    if (password && password.trim()) {
+      user.passwordHash = bcrypt.hashSync(password.trim(), 10);
+    }
     
     if (dto.roles) {
       user.roles = dto.roles.map(r => ({ role: r, userId: id })) as any[];
+      user.primaryRole = getHighestPriorityRole(dto.roles) as any;
     }
 
     const savedUser = await userRepo.save(user);

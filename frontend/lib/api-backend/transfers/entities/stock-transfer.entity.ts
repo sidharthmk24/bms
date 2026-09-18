@@ -10,6 +10,7 @@ import {
 } from 'typeorm';
 import { Branch } from '../../branches/entities/branch.entity';
 import { User } from '../../users/entities/user.entity';
+import { PurchaseOrder } from '../../procurement/entities/purchase-order.entity';
 import type { StockTransferItem } from './stock-transfer-item.entity';
 
 export enum StockTransferStatus {
@@ -49,6 +50,13 @@ export class StockTransfer {
   @JoinColumn({ name: 'requested_by_id' })
   requestedBy: User;
 
+  @Column({ name: 'purchase_order_id', type: 'varchar', length: 36, nullable: true })
+  purchaseOrderId: string | null;
+
+  @ManyToOne(() => PurchaseOrder, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'purchase_order_id' })
+  purchaseOrder: PurchaseOrder | null;
+
   @Column({ type: 'enum', enum: StockTransferStatus, default: StockTransferStatus.PENDING })
   status: StockTransferStatus;
 
@@ -64,3 +72,4 @@ export class StockTransfer {
   @UpdateDateColumn()
   updatedAt: Date;
 }
+

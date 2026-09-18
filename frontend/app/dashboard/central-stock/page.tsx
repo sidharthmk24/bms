@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { useApiData } from '@/hooks/useApiData';
 import { api } from '@/lib/api';
 import { Loader2, AlertCircle, Search, Settings2, Bell, Check, Plus, ArrowUpDown, ArrowUp, ArrowDown, Sparkles } from 'lucide-react';
@@ -180,8 +181,8 @@ export default function CentralStockPage() {
           onClick={() => { setPublisherFilter('KAIRALI'); setCurrentPage(1); }}
           className={`px-3.5 py-1.5 text-xs font-bold rounded-sm transition-all flex items-center gap-1.5 cursor-pointer ${
             publisherFilter === 'KAIRALI'
-              ? 'bg-[#3cb976] text-white shadow-xs'
-              : 'text-[#22794d] hover:text-[#1b4f35]'
+              ? 'bg-primary text-white shadow-plum-sm'
+              : 'text-muted-foreground hover:text-foreground'
           }`}
         >
           <Sparkles className="w-3.5 h-3.5" />

@@ -20,6 +20,9 @@ export class ExhibitionStockItemDto {
   @IsNumber()
   @IsOptional()
   quantityFromCentral?: number;
+
+  @IsOptional()
+  sourceSplits?: Record<string, number>;
 }
 
 export class CreateExhibitionDto {

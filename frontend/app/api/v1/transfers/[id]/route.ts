@@ -15,4 +15,18 @@ async function getTransferByIdHandler(req: AuthenticatedRequest, { params }: { p
   }
 }
 
+async function routeTransferHandler(req: AuthenticatedRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const id = (await params).id;
+    const body = await req.json();
+    const ip = req.headers.get('x-forwarded-for') || '127.0.0.1';
+    const transfer = await transfersService.routeTransfer(id, body, req.user, ip);
+    return apiSuccess(transfer);
+  } catch (error: any) {
+    console.error('Transfers PATCH Route API Error:', error);
+    return apiError(error);
+  }
+}
+
 export const GET = withAuth(getTransferByIdHandler);
+export const PATCH = withAuth(routeTransferHandler);

@@ -8,7 +8,7 @@ import { RefreshToken } from '../api-backend/users/entities/refresh-token.entity
 import { PasswordResetToken } from '../api-backend/users/entities/password-reset-token.entity';
 import { AuditLog } from '../api-backend/audit/entities/audit-log.entity';
 import { JwtPayload, signJwt } from '../auth/jwt';
-import { UserRole } from '../api-backend/users/enums/user-role.enum';
+import { UserRole, getHighestPriorityRole } from '../api-backend/users/enums/user-role.enum';
 import { 
   UnauthorizedException, 
   BadRequestException, 
@@ -102,11 +102,16 @@ export class AuthService {
   async login(user: any, userAgent: string) {
     const { userRepo, refreshRepo } = await this.getRepos();
     
+    const userRoleStrings = user.roles?.map((r: any) => r.role || r) || [];
+    const resolvedPrimaryRole = getHighestPriorityRole(
+      userRoleStrings.length > 0 ? userRoleStrings : [user.primaryRole || (user as any).role]
+    );
+
     const payload: JwtPayload = {
       userId: user.id,
       email: user.email,
-      roles: user.roles?.map((r: any) => r.role) || [],
-      primaryRole: user.primaryRole,
+      roles: userRoleStrings,
+      primaryRole: resolvedPrimaryRole,
       branchId: user.branchId,
     };
 
@@ -133,8 +138,8 @@ export class AuthService {
         id: user.id,
         name: user.name,
         email: user.email,
-        roles: user.roles?.map((r: any) => r.role) || [],
-        primaryRole: user.primaryRole,
+        roles: userRoleStrings,
+        primaryRole: resolvedPrimaryRole,
         branchId: user.branchId,
       },
     };
@@ -215,11 +220,16 @@ export class AuthService {
 
     await refreshRepo.update(matchedToken.id, { revokedAt: new Date() });
 
+    const userRoleStrings = user.roles?.map((r: any) => r.role || r) || [];
+    const resolvedPrimaryRole = getHighestPriorityRole(
+      userRoleStrings.length > 0 ? userRoleStrings : [user.primaryRole || (user as any).role]
+    );
+
     const payload: JwtPayload = {
       userId: user.id,
       email: user.email,
-      roles: user.roles?.map((r: any) => r.role) || [],
-      primaryRole: user.primaryRole,
+      roles: userRoleStrings,
+      primaryRole: resolvedPrimaryRole,
       branchId: user.branchId,
     };
 

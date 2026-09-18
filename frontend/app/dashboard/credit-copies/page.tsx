@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useApiData } from '@/hooks/useApiData';
 import { api } from '@/lib/api';
-import { Loader2, Plus, Gift } from 'lucide-react';
+import { Loader2, Plus, Gift, Pencil, X, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Dropdown } from '@/components/Dropdown';
 import { Pagination } from '@/components/Pagination';
@@ -23,6 +23,13 @@ export default function CreditCopiesPage() {
 
   const [isCreating, setIsCreating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Edit State
+  const [editingCopy, setEditingCopy] = useState<any | null>(null);
+  const [editRecipientName, setEditRecipientName] = useState('');
+  const [editQuantity, setEditQuantity] = useState(1);
+  const [editNote, setEditNote] = useState('');
+  const [isEditSubmitting, setIsEditSubmitting] = useState(false);
 
   const { data: catalog } = useApiData<any>(isCreating ? '/catalog/books?limit=50' : null, []);
   const { data: branchesResponse } = useApiData<any>('/branches', []);
@@ -82,6 +89,34 @@ export default function CreditCopiesPage() {
     }
   };
 
+  const handleOpenEdit = (copy: any) => {
+    setEditingCopy(copy);
+    setEditRecipientName(copy.recipientName || '');
+    setEditQuantity(Number(copy.quantity) || 1);
+    setEditNote(copy.note || '');
+  };
+
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCopy) return;
+
+    try {
+      setIsEditSubmitting(true);
+      await api.patch(`/credit-copies/${editingCopy.id}`, {
+        recipientName: editRecipientName,
+        quantity: editQuantity,
+        note: editNote,
+      });
+      setEditingCopy(null);
+      refetch();
+    } catch (err: any) {
+      console.error('Credit Copy Update Error:', err);
+      alert(err.response?.data?.message || err.message || 'Failed to update credit copy');
+    } finally {
+      setIsEditSubmitting(false);
+    }
+  };
+
   if (loading) return <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin text-[#7e2562]" /></div>;
   if (error) return <div className="text-[#e45e34] bg-[#fef5f2] border border-[#e45e34]/20 p-4 rounded-sm">Error: {error}</div>;
 
@@ -96,7 +131,7 @@ export default function CreditCopiesPage() {
         </div>
         <button
           onClick={() => setIsCreating(true)}
-          className="inline-flex items-center px-4 py-2.5 text-sm font-semibold text-white bg-[#7e2562] hover:bg-[#681b50] rounded-sm transition-all shadow-sm active:scale-95"
+          className="inline-flex items-center px-4 py-2.5 text-sm font-semibold text-white bg-[#7e2562] hover:bg-[#681b50] rounded-sm transition-all shadow-sm active:scale-95 cursor-pointer"
         >
           <Plus className="w-4 h-4 mr-2" />
           Issue Credit Copy
@@ -113,6 +148,7 @@ export default function CreditCopiesPage() {
                 <th className="px-6 py-3.5 text-center">Qty</th>
                 <th className="px-6 py-3.5">Recipient</th>
                 <th className="px-6 py-3.5">Issued By & Branch</th>
+                <th className="px-6 py-3.5 text-center">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-100">
@@ -138,10 +174,20 @@ export default function CreditCopiesPage() {
                     <div className="font-medium text-neutral-900">{copy.issuedBy?.name}</div>
                     <div className="text-xs text-neutral-400">{copy.branch?.name || 'Central'}</div>
                   </td>
+                  <td className="px-6 py-3.5 whitespace-nowrap text-center">
+                    <button
+                      onClick={() => handleOpenEdit(copy)}
+                      className="p-1.5 text-gray-500 hover:text-[#7e2562] hover:bg-[#faedf5] rounded-sm transition cursor-pointer inline-flex items-center gap-1 text-xs font-semibold border border-gray-200"
+                      title="Edit credit copy details"
+                    >
+                      <Pencil className="w-3.5 h-3.5 text-[#7e2562]" />
+                      <span>Edit</span>
+                    </button>
+                  </td>
                 </tr>
               ))}
               {(!creditCopies || creditCopies.length === 0) && (
-                <tr><td colSpan={5} className="px-6 py-12 text-center text-neutral-400 font-medium">No credit copies found.</td></tr>
+                <tr><td colSpan={6} className="px-6 py-12 text-center text-neutral-400 font-medium">No credit copies found.</td></tr>
               )}
             </tbody>
           </table>
@@ -155,6 +201,7 @@ export default function CreditCopiesPage() {
         />
       </div>
 
+      {/* CREATE MODAL */}
       <AnimatePresence>
         {isCreating && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
@@ -240,16 +287,104 @@ export default function CreditCopiesPage() {
                   <button 
                     type="button" 
                     onClick={() => setIsCreating(false)} 
-                    className="px-4 py-2 text-sm font-semibold text-neutral-700 bg-white border border-neutral-200 rounded-sm hover:bg-neutral-50 transition-colors"
+                    className="px-4 py-2 text-sm font-semibold text-neutral-700 bg-white border border-neutral-200 rounded-sm hover:bg-neutral-50 transition-colors cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button 
                     type="submit" 
                     disabled={isSubmitting || !bookId} 
-                    className="inline-flex items-center px-4 py-2 text-sm font-semibold text-white bg-[#7e2562] hover:bg-[#681b50] rounded-sm transition-colors disabled:opacity-50 shadow-sm"
+                    className="inline-flex items-center px-4 py-2 text-sm font-semibold text-white bg-[#7e2562] hover:bg-[#681b50] rounded-sm transition-colors disabled:opacity-50 shadow-sm cursor-pointer"
                   >
                     {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : 'Issue Copy'}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* EDIT MODAL */}
+      <AnimatePresence>
+        {editingCopy && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-sm border border-neutral-200 shadow-xl w-full max-w-lg p-6">
+              <div className="flex items-center justify-between mb-4 pb-2 border-b border-gray-100">
+                <h3 className="text-base font-bold text-neutral-900 flex items-center gap-2">
+                  <Pencil className="w-4 h-4 text-[#7e2562]"/> Edit Credit Copy
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setEditingCopy(null)}
+                  className="p-1 text-gray-400 hover:text-gray-700 rounded-sm"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Book context banner */}
+              <div className="p-3 bg-[#faf6f9] border border-[#7e2562]/15 rounded-sm mb-4 text-xs space-y-1">
+                <div className="font-bold text-gray-900 text-sm">{editingCopy.book?.title}</div>
+                <div className="text-gray-500 font-mono">ISBN: {editingCopy.book?.isbn || 'N/A'}</div>
+                <div className="text-gray-500">
+                  Issued from: <strong>{editingCopy.branch?.name || 'Central Warehouse'}</strong>
+                </div>
+              </div>
+
+              <form onSubmit={handleUpdate} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-[#7e2562] uppercase tracking-wider mb-1">Quantity</label>
+                    <input 
+                      required 
+                      type="number" 
+                      min="1" 
+                      value={editQuantity} 
+                      onChange={e => setEditQuantity(Number(e.target.value))} 
+                      className="block w-full px-3 py-2 border border-[#7e2562]/20 rounded-sm sm:text-sm focus:ring-2 focus:ring-[#7e2562]/20 focus:border-[#7e2562] outline-none font-bold" 
+                    />
+                    <span className="text-[10px] text-gray-400 mt-0.5 block">Stock delta will be adjusted automatically.</span>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-[#7e2562] uppercase tracking-wider mb-1">Recipient Name</label>
+                    <input 
+                      required 
+                      type="text" 
+                      placeholder="e.g. Guest Speaker" 
+                      value={editRecipientName} 
+                      onChange={e => setEditRecipientName(e.target.value)} 
+                      className="block w-full px-3 py-2 border border-[#7e2562]/20 rounded-sm sm:text-sm focus:ring-2 focus:ring-[#7e2562]/20 focus:border-[#7e2562] outline-none" 
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#7e2562] uppercase tracking-wider mb-1">Note (Optional)</label>
+                  <input 
+                    type="text" 
+                    placeholder="Reason for complimentary copy" 
+                    value={editNote} 
+                    onChange={e => setEditNote(e.target.value)} 
+                    className="block w-full px-3 py-2 border border-[#7e2562]/20 rounded-sm sm:text-sm focus:ring-2 focus:ring-[#7e2562]/20 focus:border-[#7e2562] outline-none" 
+                  />
+                </div>
+
+                <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-neutral-100">
+                  <button 
+                    type="button" 
+                    onClick={() => setEditingCopy(null)} 
+                    className="px-4 py-2 text-sm font-semibold text-neutral-700 bg-white border border-neutral-200 rounded-sm hover:bg-neutral-50 transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit" 
+                    disabled={isEditSubmitting || !editRecipientName.trim() || editQuantity <= 0} 
+                    className="inline-flex items-center px-4 py-2 text-sm font-semibold text-white bg-[#7e2562] hover:bg-[#681b50] rounded-sm transition-colors disabled:opacity-50 shadow-sm cursor-pointer gap-1.5"
+                  >
+                    {isEditSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                    <span>Save Changes</span>
                   </button>
                 </div>
               </form>

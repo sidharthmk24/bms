@@ -8,8 +8,9 @@ async function receiveHandler(req: AuthenticatedRequest, { params }: { params: P
   try {
     const id = (await params).id;
     const ipAddress = req.headers.get('x-forwarded-for') || '127.0.0.1';
+    const body = await req.json().catch(() => ({}));
     
-    const data = await transfersService.receiveTransfer(id, req.user, ipAddress);
+    const data = await transfersService.receiveTransfer(id, body, req.user, ipAddress);
     return apiSuccess(data);
   } catch (error: any) {
     console.error('Transfers RECEIVE API Error:', error);

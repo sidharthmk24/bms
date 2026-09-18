@@ -68,4 +68,7 @@ export class CreatePurchaseOrderDto {
   @IsOptional()
   @IsUUID(4)
   poRequestId?: string;
+
+  @IsOptional()
+  transferId?: string;
 }

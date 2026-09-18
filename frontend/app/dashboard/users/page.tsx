@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useConfirm } from '@/contexts/ConfirmContext';
 import { useApiData } from '@/hooks/useApiData';
@@ -9,9 +10,10 @@ import { Loader2, Plus, Shield, UserX, UserCheck, Settings, Sparkles, X } from '
 import { motion, AnimatePresence } from 'framer-motion';
 import { Dropdown } from '@/components/Dropdown';
 import { Pagination } from '@/components/Pagination';
+import { getHighestPriorityRole } from '@/lib/api-backend/users/enums/user-role.enum';
 
 export default function UsersManagementPage() {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const confirm = useConfirm();
   const canManageUsers = (user?.roles?.some(r => ['SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER'].includes(r)) || false);
   
@@ -27,15 +29,15 @@ export default function UsersManagementPage() {
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editingUser, setEditingUser] = useState<any>(null);
 
   const [formData, setFormData] = useState({
     name: '',
     email: '',
+    password: '',
     roles: ['BRANCH_FRONT_OFFICE'],
     branchId: ''
   });
-
-  const [editingUser, setEditingUser] = useState<any>(null);
 
   if (!canManageUsers) {
     return <div className="p-8 text-center text-red-600 font-bold">Access Denied. You do not have permission to manage users.</div>;
@@ -44,7 +46,7 @@ export default function UsersManagementPage() {
   const availableRoles = (() => {
     if (user?.roles?.includes('SUPER_ADMIN')) {
       return [
-        { value: 'SUPER_ADMIN', label: 'Super Admin (Full Access)' },
+        { value: 'SUPER_ADMIN', label: 'Super Admin (System Owner)' },
         { value: 'ADMIN', label: 'Admin (HQ Operations)' },
         { value: 'CENTRAL_INVENTORY_MANAGER', label: 'Central Inventory Manager' },
         { value: 'FINANCE', label: 'Finance' },
@@ -74,15 +76,17 @@ export default function UsersManagementPage() {
     setEditingUser(userItem || null);
     if (userItem) {
       setFormData({
-        name: userItem.name,
-        email: userItem.email,
+        name: userItem.name || '',
+        email: userItem.email || '',
+        password: '',
         roles: userItem.roles?.length ? userItem.roles.map((r: any) => r.role || r) : [userItem.role || 'BRANCH_FRONT_OFFICE'],
-        branchId: userItem.branch?.id || ''
+        branchId: userItem.branch?.id || '' 
       });
     } else {
       setFormData({ 
         name: '', 
         email: '', 
+        password: '',
         roles: user?.roles?.includes('BRANCH_MANAGER') ? ['BRANCH_FRONT_OFFICE'] : ['BRANCH_FRONT_OFFICE'], 
         branchId: user?.roles?.includes('BRANCH_MANAGER') ? (user.branchId || '') : '' 
       });
@@ -90,14 +94,26 @@ export default function UsersManagementPage() {
     setIsModalOpen(true);
   };
 
+  const handleFillDemoUser = () => {
+    const randomNum = Math.floor(1000 + Math.random() * 9000);
+    const firstBranch = (branches && branches.length > 0) ? branches[0].id : '';
+    setFormData({
+      name: `Staff Member ${randomNum}`,
+      email: `staff.${randomNum}@kairalibooks.com`,
+      password: '',
+      roles: ['BRANCH_FRONT_OFFICE'],
+      branchId: user?.roles?.includes('BRANCH_MANAGER') ? (user.branchId || '') : firstBranch,
+    });
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     const ok = await confirm({
-      title: editingUser ? "Update User Permissions" : "Provision New User",
+      title: editingUser ? "Update User Details" : "Provision New User",
       message: editingUser
-        ? `Are you sure you want to update roles for "${formData.name}"?`
+        ? `Are you sure you want to update details for "${formData.name}"?`
         : `Are you sure you want to provision account for "${formData.name}" (${formData.email})?`,
-      confirmText: editingUser ? "Yes, Save Roles" : "Yes, Provision User",
+      confirmText: editingUser ? "Yes, Save Details" : "Yes, Provision User",
       cancelText: "No, Cancel",
       variant: "primary",
     });
@@ -105,19 +121,32 @@ export default function UsersManagementPage() {
 
     setIsSubmitting(true);
     try {
+      const primaryRole = getHighestPriorityRole(formData.roles);
       const payload = {
         ...formData,
-        primaryRole: formData.roles[0],
+        primaryRole,
         branchId: user?.roles?.includes('BRANCH_MANAGER') 
           ? user.branchId 
           : (formData.roles.some(r => ['BRANCH_MANAGER', 'BRANCH_INVENTORY', 'BRANCH_FRONT_OFFICE'].includes(r)) ? formData.branchId : undefined)
       };
 
       if (editingUser) {
-        await api.patch(`/users/${editingUser.id}`, { roles: payload.roles, branchId: payload.branchId });
-        if (payload.branchId !== editingUser.branch?.id && !user?.roles?.includes('BRANCH_MANAGER')) {
-          alert('Note: Branch reassignment via this UI might require backend support.');
+        const updatePayload: any = {
+          name: payload.name,
+          email: payload.email,
+          roles: payload.roles,
+          primaryRole,
+          branchId: payload.branchId
+        };
+        if (formData.password && formData.password.trim()) {
+          updatePayload.password = formData.password.trim();
         }
+
+        await api.patch(`/users/${editingUser.id}`, updatePayload);
+        if (editingUser.id === user?.id) {
+          await refreshUser();
+        }
+        alert('User details updated successfully!');
       } else {
         await api.post('/users', payload);
         alert(`User provisioned successfully! An email has been sent to ${payload.email} to set up their password.`);
@@ -219,22 +248,25 @@ export default function UsersManagementPage() {
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-xs">
-                      {u.id !== user?.id && (
-                        <div className="flex justify-end items-center gap-3">
+                      <div className="flex justify-end items-center gap-3">
+                        {u.id !== user?.id ? (
                           <button 
                             onClick={() => toggleStatus(u.id, u.isActive, u.name)} 
                             className={`font-semibold text-xs transition-colors ${u.isActive ? "text-[#e45e34] hover:text-[#c7451e]" : "text-[#3cb976] hover:text-[#2fa264]"}`}
                           >
                             {u.isActive ? 'Deactivate' : 'Activate'}
                           </button>
-                          <button 
-                            onClick={() => openModal(u)} 
-                            className="text-neutral-400 hover:text-[#7e2562] p-1 transition-colors"
-                          >
-                            <Settings className="w-4 h-4"/>
-                          </button>
-                        </div>
-                      )}
+                        ) : (
+                          <span className="text-[10px] text-neutral-400 font-semibold uppercase tracking-wider bg-neutral-100 px-1.5 py-0.5 rounded-sm">You</span>
+                        )}
+                        <button 
+                          onClick={() => openModal(u)} 
+                          className="text-neutral-400 hover:text-[#7e2562] p-1 transition-colors cursor-pointer"
+                          title={u.id === user?.id ? "Edit your profile & password" : "Edit user details"}
+                        >
+                          <Settings className="w-4 h-4"/>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -255,85 +287,120 @@ export default function UsersManagementPage() {
         />
       </div>
 
-      <AnimatePresence>
-        {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-sm shadow-xl w-full max-w-md p-6 border border-[#7e2562]/20">
-              <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
-                <h3 className="text-lg font-bold text-neutral-900 flex items-center">
-                  <Shield className="w-5 h-5 mr-2 text-[#7e2562]"/>
-                  {editingUser ? 'Edit Staff Role' : 'Provision New Staff'}
-                </h3>
-                <div className="flex items-center gap-2">
-                  {!editingUser && (
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {isModalOpen && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-sm shadow-xl w-full max-w-md p-6 border border-[#7e2562]/20 max-h-[90vh] overflow-y-auto">
+                <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
+                  <h3 className="text-lg font-bold text-neutral-900 flex items-center">
+                    <Shield className="w-5 h-5 mr-2 text-[#7e2562]"/>
+                    {editingUser ? (editingUser.id === user?.id ? 'Edit My Profile & Security' : 'Edit Staff Member') : 'Provision New Staff'}
+                  </h3>
+                  <div className="flex items-center gap-2">
+                    {!editingUser && (
+                      <button
+                        type="button"
+                        onClick={handleFillDemoUser}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[#7e2562] bg-[#faedf5] hover:bg-[#f3dcee] border border-[#7e2562]/20 rounded-sm shadow-2xs transition-all cursor-pointer"
+                        title="Fill sample staff data for staging"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-[#7e2562]" />
+                        <span>Fill Dummy Data</span>
+                      </button>
+                    )}
                     <button
                       type="button"
-                      onClick={handleFillDemoUser}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[#7e2562] bg-[#faedf5] hover:bg-[#f3dcee] border border-[#7e2562]/20 rounded-sm shadow-2xs transition-all cursor-pointer"
-                      title="Fill sample staff data for staging"
+                      onClick={() => setIsModalOpen(false)}
+                      className="p-1.5 text-neutral-400 hover:text-neutral-700 hover:bg-[#faedf5] rounded-sm transition-colors cursor-pointer"
                     >
-                      <Sparkles className="w-3.5 h-3.5 text-[#7e2562]" />
-                      <span>Fill Dummy Data</span>
+                      <X className="w-5 h-5" />
                     </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setIsModalOpen(false)}
-                    className="p-1.5 text-neutral-400 hover:text-neutral-700 hover:bg-[#faedf5] rounded-sm transition-colors cursor-pointer"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
+                  </div>
                 </div>
-              </div>
-              
-              <form onSubmit={handleSave} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-600 mb-1">Full Name *</label>
-                  <input required disabled={!!editingUser} type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="block w-full px-3 py-2 border border-[#7e2562]/20 rounded-sm text-sm disabled:bg-neutral-100 focus:outline-none focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-600 mb-1">Email Address *</label>
-                  <input required disabled={!!editingUser} type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="block w-full px-3 py-2 border border-[#7e2562]/20 rounded-sm text-sm disabled:bg-neutral-100 focus:outline-none focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-600 mb-1">System Role *</label>
-                  <Dropdown
-                    required
-                    isMulti
-                    value={formData.roles as unknown as string}
-                    onChange={(val) => setFormData({...formData, roles: val as unknown as string[]})}
-                    options={availableRoles}
-                  />
-                </div>
-
-                {formData.roles.some(r => ['BRANCH_MANAGER', 'BRANCH_INVENTORY', 'BRANCH_FRONT_OFFICE'].includes(r)) && (!user?.roles?.includes('BRANCH_MANAGER')) && (
-                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-neutral-600 mb-1">Assigned Branch *</label>
-                    <Dropdown
-                      required
-                      value={formData.branchId}
-                      onChange={(val) => setFormData({...formData, branchId: val})}
-                      placeholder="Select branch..."
-                      options={(branches || []).filter((b: any) => b.isActive !== false).map((b: any) => ({
-                        value: b.id,
-                        label: `${b.name} (${b.location || b.city || 'Store'})`
-                      }))}
+                
+                <form onSubmit={handleSave} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-neutral-600 mb-1">Full Name *</label>
+                    <input 
+                      required 
+                      type="text" 
+                      value={formData.name} 
+                      onChange={e => setFormData({...formData, name: e.target.value})} 
+                      className="block w-full px-3 py-2 border border-[#7e2562]/20 rounded-sm text-sm focus:outline-none focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" 
                     />
-                  </motion.div>
-                )}
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-neutral-600 mb-1">Email Address *</label>
+                    <input 
+                      required 
+                      type="email" 
+                      value={formData.email} 
+                      onChange={e => setFormData({...formData, email: e.target.value})} 
+                      className="block w-full px-3 py-2 border border-[#7e2562]/20 rounded-sm text-sm focus:outline-none focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" 
+                    />
+                  </div>
 
-                <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-neutral-100">
-                  <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-neutral-700 bg-white border border-neutral-300 rounded-sm hover:bg-neutral-50 transition-colors">Cancel</button>
-                  <button type="submit" disabled={isSubmitting} className="flex items-center px-4 py-2 text-xs font-bold uppercase tracking-wider text-white bg-[#7e2562] rounded-sm hover:bg-[#681b50] disabled:opacity-50 transition-colors shadow-sm shadow-plum-sm">
-                    {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                    Save User
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+                  {editingUser && (
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-neutral-600 mb-1">
+                        New Password
+                        <span className="text-[10px] font-normal lowercase text-neutral-400 ml-1.5">(optional — leave blank to keep unchanged)</span>
+                      </label>
+                      <input 
+                        type="password" 
+                        placeholder="Enter new password to update" 
+                        value={formData.password} 
+                        onChange={e => setFormData({...formData, password: e.target.value})} 
+                        className="block w-full px-3 py-2 border border-[#7e2562]/20 rounded-sm text-sm placeholder:text-neutral-400 focus:outline-none focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" 
+                      />
+                    </div>
+                  )}
+
+                  {/* Role selection is visible when provisioning or when an admin is editing */}
+                  {(!editingUser || user?.roles?.includes('SUPER_ADMIN') || user?.roles?.includes('ADMIN') || user?.roles?.includes('BRANCH_MANAGER')) && (
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-neutral-600 mb-1">System Role *</label>
+                      <Dropdown
+                        required
+                        isMulti
+                        value={formData.roles as unknown as string}
+                        onChange={(val) => setFormData({...formData, roles: val as unknown as string[]})}
+                        options={availableRoles}
+                      />
+                    </div>
+                  )}
+
+                  {formData.roles.some(r => ['BRANCH_MANAGER', 'BRANCH_INVENTORY', 'BRANCH_FRONT_OFFICE'].includes(r)) && (!user?.roles?.includes('BRANCH_MANAGER')) && (
+                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-neutral-600 mb-1">Assigned Branch *</label>
+                      <Dropdown
+                        required
+                        value={formData.branchId}
+                        onChange={(val) => setFormData({...formData, branchId: val})}
+                        placeholder="Select branch..."
+                        options={(branches || []).filter((b: any) => b.isActive !== false).map((b: any) => ({
+                          value: b.id,
+                          label: `${b.name} (${b.location || b.city || 'Store'})`
+                        }))}
+                      />
+                    </motion.div>
+                  )}
+
+                  <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-neutral-100">
+                    <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-neutral-700 bg-white border border-neutral-300 rounded-sm hover:bg-neutral-50 transition-colors cursor-pointer">Cancel</button>
+                    <button type="submit" disabled={isSubmitting} className="flex items-center px-4 py-2 text-xs font-bold uppercase tracking-wider text-white bg-[#7e2562] rounded-sm hover:bg-[#681b50] disabled:opacity-50 transition-colors shadow-sm shadow-plum-sm cursor-pointer">
+                      {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                      Save Changes
+                    </button>
+                  </div>
+                </form>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 }

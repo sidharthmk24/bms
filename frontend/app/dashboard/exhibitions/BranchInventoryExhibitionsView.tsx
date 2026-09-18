@@ -224,23 +224,28 @@ export function BranchInventoryExhibitionsView({
       {/* Reject Modal */}
       <AnimatePresence>
         {rejectingId && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-sm shadow-xl w-full max-w-md p-6 border border-[#e45e34]/20">
-              <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center"><XCircle className="w-5 h-5 mr-2 text-[#e45e34]"/> Reject Assignment</h3>
-              <p className="text-sm text-gray-500 mb-4">Please provide a reason for rejecting this exhibition assignment.</p>
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-xs">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }} 
+              animate={{ opacity: 1, scale: 1 }} 
+              exit={{ opacity: 0, scale: 0.95 }} 
+              className="bg-white rounded-sm shadow-xl w-full max-w-md max-h-[92dvh] p-4 sm:p-6 overflow-y-auto border border-[#e45e34]/20"
+            >
+              <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-3 flex items-center"><XCircle className="w-5 h-5 mr-2 text-[#e45e34]"/> Reject Assignment</h3>
+              <p className="text-xs sm:text-sm text-gray-500 mb-4">Please provide a reason for rejecting this exhibition assignment.</p>
               <textarea 
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
-                className="w-full border border-gray-300 rounded-sm p-3 text-sm focus:ring-1 focus:ring-[#e45e34] focus:border-[#e45e34]"
+                className="w-full border border-gray-300 rounded-sm p-3 text-xs sm:text-sm focus:ring-1 focus:ring-[#e45e34] focus:border-[#e45e34]"
                 rows={3}
                 placeholder="E.g., I am unavailable on those dates..."
               />
-              <div className="flex justify-end space-x-3 mt-4">
-                <button onClick={() => setRejectingId(null)} className="px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-sm hover:bg-gray-50">Cancel</button>
+              <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:space-x-3 mt-4">
+                <button onClick={() => setRejectingId(null)} className="w-full sm:w-auto px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-sm hover:bg-gray-50 text-center">Cancel</button>
                 <button 
                   onClick={() => handleAction(rejectingId, 'reject', rejectReason)}
                   disabled={!rejectReason.trim()}
-                  className="px-4 py-2 text-sm font-semibold text-white bg-[#e45e34] hover:bg-[#c74c25] rounded-sm disabled:opacity-50 transition-colors shadow-xs active:scale-[0.98]"
+                  className="w-full sm:w-auto px-4 py-2 text-sm font-semibold text-white bg-[#e45e34] hover:bg-[#c74c25] rounded-sm disabled:opacity-50 transition-colors shadow-xs active:scale-[0.98] text-center"
                 >Submit Rejection</button>
               </div>
             </motion.div>
@@ -251,100 +256,117 @@ export function BranchInventoryExhibitionsView({
       {/* Close & Reconcile Modal */}
       <AnimatePresence>
         {closingExhibition && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-sm shadow-xl w-full max-w-4xl p-6 max-h-[90vh] flex flex-col border border-[#7e2562]/10">
-              <div className="mb-4 shrink-0">
-                <h3 className="text-lg font-bold text-gray-900 flex items-center">
-                  <CheckCircle className="w-5 h-5 mr-2 text-amber-600"/> Reconcile & Close Event
-                </h3>
-                <p className="text-sm text-gray-500 mt-1">
-                  For each book, record how many were sold, not sold, damaged, or lost. The total must equal the quantity taken.
-                </p>
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-xs">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }} 
+              animate={{ opacity: 1, scale: 1 }} 
+              exit={{ opacity: 0, scale: 0.95 }} 
+              className="bg-white rounded-sm shadow-xl w-full max-w-4xl max-h-[92dvh] flex flex-col overflow-hidden border border-[#7e2562]/10"
+            >
+              <div className="p-4 sm:p-6 border-b border-gray-200 shrink-0">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="text-base sm:text-lg font-bold text-gray-900 flex items-center">
+                      <CheckCircle className="w-5 h-5 mr-2 text-amber-600 shrink-0"/> Reconcile & Close Event
+                    </h3>
+                    <p className="text-xs sm:text-sm text-gray-500 mt-1">
+                      For each book, record how many were sold, not sold, damaged, or lost. The total must equal the quantity taken.
+                    </p>
+                  </div>
+                  <button 
+                    onClick={() => setClosingExhibition(null)} 
+                    className="p-1 text-gray-400 hover:text-gray-600 rounded-sm"
+                  >
+                    <XCircle className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
               
-              <div className="flex-1 overflow-y-auto mb-4 border border-[#7e2562]/10 rounded-sm">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-[#faf6f9]/70 sticky top-0 z-10 shadow-xs text-[11px] font-bold text-[#7e2562] uppercase tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
-                    <tr>
-                      <th className="px-4 py-3 text-left">Book Title</th>
-                      <th className="px-3 py-3 text-center">Taken</th>
-                      <th className="px-3 py-3 text-center text-[#3cb976]">Sold</th>
-                      <th className="px-3 py-3 text-center text-[#7e2562]">Not Sold</th>
-                      <th className="px-3 py-3 text-center text-[#e45e34]">Damaged</th>
-                      <th className="px-3 py-3 text-center text-[#e45e34]">Lost</th>
-                      <th className="px-3 py-3 text-center text-purple-600">Credit</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200 text-xs">
-                    {reconciliation.map((rec, idx) => {
-                      const total = (rec.quantitySold || 0) + (rec.quantityReturned || 0) + (rec.quantityDamaged || 0) + (rec.quantityLost || 0) + (rec.quantityCredit || 0);
-                      const isBalanced = total === rec.quantityTaken;
-                      return (
-                        <tr key={rec.stockId} className={!isBalanced ? 'bg-[#fef5f2]' : ''}>
-                          <td className="px-4 py-3 font-medium text-gray-900 max-w-[200px] truncate" title={rec.title}>
-                            {rec.title}
-                            {!isBalanced && <div className="text-[10px] text-[#e45e34] font-bold mt-1">Count mismatch: {total} vs {rec.quantityTaken}</div>}
-                          </td>
-                          <td className="px-3 py-3 text-center font-bold text-gray-700">{rec.quantityTaken}</td>
-                          <td className="px-2 py-2">
-                            <input type="number" min="0" value={rec.quantitySold} onChange={(e) => {
-                              const newRec = [...reconciliation];
-                              newRec[idx].quantitySold = Number(e.target.value);
-                              setReconciliation(newRec);
-                            }} className="w-full px-2 py-1.5 text-xs font-semibold text-[#3cb976] border border-gray-300 rounded-sm text-center focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" />
-                          </td>
-                          <td className="px-2 py-2">
-                            <input type="number" min="0" value={rec.quantityReturned} onChange={(e) => {
-                              const newRec = [...reconciliation];
-                              newRec[idx].quantityReturned = Number(e.target.value);
-                              setReconciliation(newRec);
-                            }} className="w-full px-2 py-1.5 text-xs font-semibold text-[#7e2562] border border-gray-300 rounded-sm text-center focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" />
-                          </td>
-                          <td className="px-2 py-2">
-                            <input type="number" min="0" value={rec.quantityDamaged} onChange={(e) => {
-                              const newRec = [...reconciliation];
-                              newRec[idx].quantityDamaged = Number(e.target.value);
-                              setReconciliation(newRec);
-                            }} className="w-full px-2 py-1.5 text-xs font-semibold text-[#e45e34] border border-[#e45e34]/30 rounded-sm text-center focus:ring-1 focus:ring-[#e45e34] focus:border-[#e45e34]" />
-                          </td>
-                          <td className="px-2 py-2">
-                            <input type="number" min="0" value={rec.quantityLost} onChange={(e) => {
-                              const newRec = [...reconciliation];
-                              newRec[idx].quantityLost = Number(e.target.value);
-                              setReconciliation(newRec);
-                            }} className="w-full px-2 py-1.5 text-xs font-semibold text-[#e45e34] border border-[#e45e34]/30 rounded-sm text-center focus:ring-1 focus:ring-[#e45e34] focus:border-[#e45e34]" />
-                          </td>
-                          <td className="px-2 py-2">
-                            <input type="number" min="0" value={rec.quantityCredit} onChange={(e) => {
-                              const newRec = [...reconciliation];
-                              newRec[idx].quantityCredit = Number(e.target.value);
-                              setReconciliation(newRec);
-                            }} className="w-full px-2 py-1.5 text-xs font-semibold text-purple-700 border border-purple-300 rounded-sm text-center focus:ring-1 focus:ring-purple-600 focus:border-purple-600" />
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              
-              <div className="shrink-0 mb-4">
-                <label className="block text-xs font-semibold text-gray-700 mb-1">Closing Notes (Optional)</label>
-                <textarea 
-                  value={closeNote}
-                  onChange={(e) => setCloseNote(e.target.value)}
-                  className="w-full border border-gray-300 rounded-sm p-2 text-sm focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]"
-                  rows={2}
-                  placeholder="Any final remarks about the exhibition..."
-                />
+              <div className="p-4 sm:p-6 flex-1 overflow-y-auto space-y-4">
+                <div className="border border-[#7e2562]/10 rounded-sm overflow-x-auto shadow-xs">
+                  <table className="min-w-[640px] w-full divide-y divide-gray-200">
+                    <thead className="bg-[#faf6f9]/70 sticky top-0 z-10 shadow-xs text-[11px] font-bold text-[#7e2562] uppercase tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
+                      <tr>
+                        <th className="px-4 py-3 text-left">Book Title</th>
+                        <th className="px-3 py-3 text-center">Taken</th>
+                        <th className="px-3 py-3 text-center text-[#3cb976]">Sold</th>
+                        <th className="px-3 py-3 text-center text-[#7e2562]">Not Sold</th>
+                        <th className="px-3 py-3 text-center text-[#e45e34]">Damaged</th>
+                        <th className="px-3 py-3 text-center text-[#e45e34]">Lost</th>
+                        <th className="px-3 py-3 text-center text-purple-600">Credit</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200 text-xs">
+                      {reconciliation.map((rec, idx) => {
+                        const total = (rec.quantitySold || 0) + (rec.quantityReturned || 0) + (rec.quantityDamaged || 0) + (rec.quantityLost || 0) + (rec.quantityCredit || 0);
+                        const isBalanced = total === rec.quantityTaken;
+                        return (
+                          <tr key={rec.stockId} className={!isBalanced ? 'bg-[#fef5f2]' : ''}>
+                            <td className="px-4 py-3 font-medium text-gray-900 max-w-[200px] truncate" title={rec.title}>
+                              {rec.title}
+                              {!isBalanced && <div className="text-[10px] text-[#e45e34] font-bold mt-1">Count mismatch: {total} vs {rec.quantityTaken}</div>}
+                            </td>
+                            <td className="px-3 py-3 text-center font-bold text-gray-700">{rec.quantityTaken}</td>
+                            <td className="px-2 py-2">
+                              <input type="number" min="0" value={rec.quantitySold} onChange={(e) => {
+                                const newRec = [...reconciliation];
+                                newRec[idx].quantitySold = Number(e.target.value);
+                                setReconciliation(newRec);
+                              }} className="w-full px-2 py-1.5 text-xs font-semibold text-[#3cb976] border border-gray-300 rounded-sm text-center focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" />
+                            </td>
+                            <td className="px-2 py-2">
+                              <input type="number" min="0" value={rec.quantityReturned} onChange={(e) => {
+                                const newRec = [...reconciliation];
+                                newRec[idx].quantityReturned = Number(e.target.value);
+                                setReconciliation(newRec);
+                              }} className="w-full px-2 py-1.5 text-xs font-semibold text-[#7e2562] border border-gray-300 rounded-sm text-center focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" />
+                            </td>
+                            <td className="px-2 py-2">
+                              <input type="number" min="0" value={rec.quantityDamaged} onChange={(e) => {
+                                const newRec = [...reconciliation];
+                                newRec[idx].quantityDamaged = Number(e.target.value);
+                                setReconciliation(newRec);
+                              }} className="w-full px-2 py-1.5 text-xs font-semibold text-[#e45e34] border border-[#e45e34]/30 rounded-sm text-center focus:ring-1 focus:ring-[#e45e34] focus:border-[#e45e34]" />
+                            </td>
+                            <td className="px-2 py-2">
+                              <input type="number" min="0" value={rec.quantityLost} onChange={(e) => {
+                                const newRec = [...reconciliation];
+                                newRec[idx].quantityLost = Number(e.target.value);
+                                setReconciliation(newRec);
+                              }} className="w-full px-2 py-1.5 text-xs font-semibold text-[#e45e34] border border-[#e45e34]/30 rounded-sm text-center focus:ring-1 focus:ring-[#e45e34] focus:border-[#e45e34]" />
+                            </td>
+                            <td className="px-2 py-2">
+                              <input type="number" min="0" value={rec.quantityCredit} onChange={(e) => {
+                                const newRec = [...reconciliation];
+                                newRec[idx].quantityCredit = Number(e.target.value);
+                                setReconciliation(newRec);
+                              }} className="w-full px-2 py-1.5 text-xs font-semibold text-purple-700 border border-purple-300 rounded-sm text-center focus:ring-1 focus:ring-purple-600 focus:border-purple-600" />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Closing Notes (Optional)</label>
+                  <textarea 
+                    value={closeNote}
+                    onChange={(e) => setCloseNote(e.target.value)}
+                    className="w-full border border-gray-300 rounded-sm p-2 text-xs sm:text-sm focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]"
+                    rows={2}
+                    placeholder="Any final remarks about the exhibition..."
+                  />
+                </div>
               </div>
 
-              <div className="flex justify-end space-x-3 shrink-0">
-                <button onClick={() => setClosingExhibition(null)} disabled={isSubmitting} className="px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-sm hover:bg-gray-50">Cancel</button>
+              <div className="p-4 sm:px-6 sm:py-3 border-t border-gray-200 bg-gray-50 flex flex-col-reverse sm:flex-row justify-end gap-2 sm:space-x-3 shrink-0">
+                <button onClick={() => setClosingExhibition(null)} disabled={isSubmitting} className="w-full sm:w-auto px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-sm hover:bg-gray-50 text-center">Cancel</button>
                 <button 
                   onClick={handleClose}
                   disabled={isSubmitting}
-                  className="px-4 py-2 text-sm font-semibold text-white bg-amber-600 rounded-sm hover:bg-amber-700 disabled:opacity-50 transition-colors flex items-center shadow-xs active:scale-[0.98]"
+                  className="w-full sm:w-auto px-4 py-2 text-sm font-semibold text-white bg-amber-600 rounded-sm hover:bg-amber-700 disabled:opacity-50 transition-colors flex items-center justify-center shadow-xs active:scale-[0.98]"
                 >
                   {isSubmitting ? 'Processing...' : 'Submit Reconciliation'}
                 </button>
@@ -357,23 +379,23 @@ export function BranchInventoryExhibitionsView({
       {/* Detailed View Modal */}
       <AnimatePresence>
         {viewingExhibition && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-xs">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }} 
               animate={{ opacity: 1, scale: 1 }} 
               exit={{ opacity: 0, scale: 0.95 }} 
-              className="bg-white rounded-sm shadow-xl w-full max-w-5xl flex flex-col max-h-[90vh] overflow-hidden border border-[#7e2562]/10"
+              className="bg-white rounded-sm shadow-xl w-full max-w-5xl max-h-[92dvh] flex flex-col overflow-hidden border border-[#7e2562]/10"
             >
               {/* Header */}
-              <div className="p-6 border-b border-[#7e2562]/10 bg-gradient-to-r from-[#faedf5]/70 to-[#faf6f9] flex justify-between items-start shrink-0">
+              <div className="p-4 sm:p-6 border-b border-[#7e2562]/10 bg-gradient-to-r from-[#faedf5]/70 to-[#faf6f9] flex flex-col sm:flex-row justify-between items-start gap-3 shrink-0">
                 <div>
-                  <h3 className="text-xl font-bold text-gray-900">{viewingExhibition.name || viewingExhibition.eventName}</h3>
-                  <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
+                  <h3 className="text-lg sm:text-xl font-bold text-gray-900">{viewingExhibition.name || viewingExhibition.eventName}</h3>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-xs sm:text-sm text-gray-500">
                     <span className="flex items-center"><MapPin className="w-4 h-4 mr-1 text-[#7e2562]" /> {viewingExhibition.location}</span>
                     <span className="flex items-center"><Calendar className="w-4 h-4 mr-1 text-[#7e2562]" /> {new Date(viewingExhibition.startDate).toLocaleDateString()}</span>
                   </div>
                 </div>
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-2 self-end sm:self-auto">
                   {viewingExhibition.status !== 'CLOSED' && viewingExhibition.status !== 'REJECTED' && onEditExhibition && (
                     <button 
                       onClick={() => {
@@ -397,17 +419,17 @@ export function BranchInventoryExhibitionsView({
               </div>
 
               {/* Body */}
-              <div className="p-6 overflow-y-auto">
-                <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4 flex items-center">
+              <div className="p-4 sm:p-6 flex-1 overflow-y-auto space-y-4">
+                <h4 className="text-xs sm:text-sm font-bold text-gray-900 uppercase tracking-wider flex items-center">
                   <Book className="w-4 h-4 mr-2 text-[#7e2562]" />
                   Stock Details
                 </h4>
 
-                <div className="border border-[#7e2562]/10 rounded-sm overflow-hidden">
-                  <table className="min-w-full divide-y divide-gray-200">
+                <div className="border border-[#7e2562]/10 rounded-sm overflow-x-auto shadow-xs">
+                  <table className="min-w-[550px] w-full divide-y divide-gray-200">
                     <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562] uppercase tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
                       <tr>
-                        <th className="px-6 py-3 text-left">Book Title</th>
+                        <th className="px-4 sm:px-6 py-3 text-left">Book Title</th>
                         <th className="px-4 py-3 text-right">Taken</th>
                         {viewingExhibition.status === 'CLOSED' && (
                           <>
@@ -422,17 +444,17 @@ export function BranchInventoryExhibitionsView({
                     <tbody className="bg-white divide-y divide-gray-200 text-xs">
                       {(viewingExhibition.stock || []).map((s: any) => (
                         <tr key={s.id} className="hover:bg-[#faf6f9]/30 transition-colors">
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          <td className="px-4 sm:px-6 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
                             {s.book?.title}
                             <div className="text-xs text-gray-400 mt-0.5 font-mono">{s.book?.isbn}</div>
                           </td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm text-right text-gray-600 font-bold">{s.quantityTaken}</td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-600 font-bold">{s.quantityTaken}</td>
                           {viewingExhibition.status === 'CLOSED' && (
                             <>
-                              <td className="px-4 py-4 whitespace-nowrap text-sm text-right font-bold text-[#3cb976]">{s.quantitySold}</td>
-                              <td className="px-4 py-4 whitespace-nowrap text-sm text-right font-semibold text-[#7e2562]">{s.quantityReturned}</td>
-                              <td className="px-4 py-4 whitespace-nowrap text-sm text-right font-semibold text-[#e45e34]">{s.quantityDamaged}</td>
-                              <td className="px-4 py-4 whitespace-nowrap text-sm text-right font-semibold text-[#e45e34]">{s.quantityLost}</td>
+                              <td className="px-4 py-3 whitespace-nowrap text-sm text-right font-bold text-[#3cb976]">{s.quantitySold}</td>
+                              <td className="px-4 py-3 whitespace-nowrap text-sm text-right font-semibold text-[#7e2562]">{s.quantityReturned}</td>
+                              <td className="px-4 py-3 whitespace-nowrap text-sm text-right font-semibold text-[#e45e34]">{s.quantityDamaged}</td>
+                              <td className="px-4 py-3 whitespace-nowrap text-sm text-right font-semibold text-[#e45e34]">{s.quantityLost}</td>
                             </>
                           )}
                         </tr>
@@ -447,6 +469,16 @@ export function BranchInventoryExhibitionsView({
                     </tbody>
                   </table>
                 </div>
+              </div>
+
+              {/* Footer */}
+              <div className="p-4 sm:px-6 sm:py-3 border-t border-gray-200 bg-gray-50 flex justify-end shrink-0">
+                <button 
+                  onClick={() => setViewingExhibition(null)}
+                  className="w-full sm:w-auto px-4 py-2 bg-[#faedf5] hover:bg-[#f6dbe9] text-[#7e2562] border border-[#7e2562]/20 rounded-sm text-sm font-semibold transition text-center"
+                >
+                  Close
+                </button>
               </div>
             </motion.div>
           </div>

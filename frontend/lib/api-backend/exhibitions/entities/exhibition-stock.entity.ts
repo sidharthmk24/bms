@@ -58,6 +58,9 @@ export class ExhibitionStock {
   @Column({ type: 'int', default: 0 })
   quantityCredit: number;
 
+  @Column({ type: 'json', nullable: true })
+  sourceSplits: Record<string, number> | null;
+
   @CreateDateColumn()
   createdAt: Date;
 

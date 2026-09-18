@@ -7,11 +7,27 @@ import { useApiData } from '@/hooks/useApiData';
 import { api } from '@/lib/api';
 import { 
   Loader2, Plus, Tent, CheckCircle, XCircle, Send, ArchiveRestore, 
-  AlertCircle, Eye, Pencil, Trash2, BookOpen 
+  AlertCircle, AlertTriangle, Eye, Pencil, Trash2, BookOpen, Warehouse, Store, Layers, GitFork, Building2,
+  ChevronDown, ChevronUp
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Dropdown } from '@/components/Dropdown';
 import { BranchInventoryExhibitionsView } from './BranchInventoryExhibitionsView';
+
+export interface ExhibitionBookItem {
+  bookId: string;
+  title: string;
+  isbn?: string;
+  quantityRequested: number;
+  sourceMode: 'SINGLE' | 'SPLIT';
+  selectedSource: string; // 'WAREHOUSE' | 'BRANCH_<id>' | 'SPLIT'
+  sourceSplits: Record<string, number>;
+  isSplitExpanded?: boolean;
+  originalQuantity?: number;
+  originalFromBranch?: number;
+  originalFromCentral?: number;
+  quantitySold?: number;
+}
 
 export default function ExhibitionsPage() {
   const { user } = useAuth();
@@ -26,6 +42,7 @@ export default function ExhibitionsPage() {
   const isCentralManager = checkHasRole('CENTRAL_INVENTORY_MANAGER') && !isAdmin;
   const isStaffOnly = (isBranchInventory || isBranchFrontOffice) && !isAdmin;
   const isBranch = (isBranchManager || isBranchInventory || isBranchFrontOffice) && !isAdmin;
+  const canManageStockSources = isAdmin || isCentralManager;
 
   const { data: exhibitions, loading, error } = useApiData<any[]>('/exhibitions', []);
   const { data: usersResponse } = useApiData<any>('/users', []);
@@ -44,8 +61,8 @@ export default function ExhibitionsPage() {
 
   const handleViewHistory = async (ex: any) => {
     setViewingExhibitionHistory(ex);
-    setLoadingHistory(true);
     setHistoryData(null);
+    setLoadingHistory(true);
     try {
       const res = await api.get(`/exhibitions/${ex.id}/history`);
       if (res.success) {
@@ -69,17 +86,7 @@ export default function ExhibitionsPage() {
   const [assignedUserId, setAssignedUserId] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [cart, setCart] = useState<{
-    bookId: string;
-    quantityRequested: number;
-    quantityFromBranch?: number;
-    quantityFromCentral?: number;
-    title?: string;
-  }[]>([]);
-  
-  const [bookInput, setBookInput] = useState('');
-  const [branchQtyInput, setBranchQtyInput] = useState(0);
-  const [warehouseQtyInput, setWarehouseQtyInput] = useState(0);
+  const [cart, setCart] = useState<ExhibitionBookItem[]>([]);
   
   // Close/Reconciliation State
   const [closingExhibition, setClosingExhibition] = useState<any | null>(null);
@@ -91,64 +98,53 @@ export default function ExhibitionsPage() {
 
   // Edit & Assign State
   const [editFormData, setEditFormData] = useState({ name: '', location: '', startDate: '', endDate: '', assignedUserId: '' });
-  const [editCart, setEditCart] = useState<{
-    bookId: string;
-    title: string;
-    isbn?: string;
-    barcode?: string;
-    quantityRequested: number;
-    quantityFromBranch?: number;
-    quantityFromCentral?: number;
-    originalQuantity?: number;
-    originalFromBranch?: number;
-    originalFromCentral?: number;
-    quantitySold?: number;
-  }[]>([]);
-  const [editBookInput, setEditBookInput] = useState('');
-  const [editBranchQtyInput, setEditBranchQtyInput] = useState(0);
-  const [editWarehouseQtyInput, setEditWarehouseQtyInput] = useState(0);
+  const [editCart, setEditCart] = useState<ExhibitionBookItem[]>([]);
+
+  // Approve & Stock Allocation State (Central Inventory Manager / Super Admin / Admin)
+  const [approvingExhibition, setApprovingExhibition] = useState<any | null>(null);
+  const [approveCart, setApproveCart] = useState<ExhibitionBookItem[]>([]);
+  const [approveNote, setApproveNote] = useState('');
 
   const [assigningExhibition, setAssigningExhibition] = useState<any | null>(null);
   const [assignBranchId, setAssignBranchId] = useState('');
   const [assignUserId, setAssignUserId] = useState('');
 
-  const activeSourceBranchId = editingExhibition?.sourceBranchId || (isAdmin ? createBranchId : user?.branchId);
-  const [branchInventory, setBranchInventory] = useState<any[]>([]);
+  const activeSourceBranchId = approvingExhibition?.sourceBranchId || editingExhibition?.sourceBranchId || (isAdmin ? createBranchId : user?.branchId);
   const [centralInventory, setCentralInventory] = useState<any[]>([]);
+  const [allBranchInventories, setAllBranchInventories] = useState<Record<string, any[]>>({});
 
   useEffect(() => {
     // Load central warehouse stock for multi-source availability
     api.get('/inventory/central-stock?limit=10000')
-      .then(res => {
+      .then((res) => {
         if (res.success) {
           setCentralInventory(res.data.items || res.data || []);
         }
       })
-      .catch(err => console.error('Failed to load central inventory:', err));
+      .catch((err) => console.error('Failed to load central inventory:', err));
   }, []);
 
   useEffect(() => {
-    if (!activeSourceBranchId) {
-      setBranchInventory([]);
-      return;
-    }
-    const selectedBranch = branches.find((b: any) => b.id === activeSourceBranchId);
-    const isWarehouse = selectedBranch?.type === 'WAREHOUSE';
-    const endpoint = isWarehouse 
-      ? '/inventory/central-stock?limit=10000' 
-      : `/inventory/branch/${activeSourceBranchId}?limit=10000`;
+    if (!branches || branches.length === 0) return;
+    branches.forEach((br: any) => {
+      if (br.type !== 'WAREHOUSE') {
+        api.get(`/inventory/branch/${br.id}?limit=10000`)
+          .then((res) => {
+            if (res.success) {
+              setAllBranchInventories((prev) => ({
+                ...prev,
+                [br.id]: res.data?.items || res.data || [],
+              }));
+            }
+          })
+          .catch(() => {});
+      }
+    });
+  }, [branches]);
 
-    api.get(endpoint)
-      .then(res => {
-        if (res.success) {
-          setBranchInventory(res.data.items || res.data || []);
-        }
-      })
-      .catch(err => console.error('Failed to load branch inventory:', err));
-  }, [activeSourceBranchId, branches]);
-
-  const getBranchStockQty = (bookId: string) => {
-    const item = branchInventory.find((bi: any) => bi.bookId === bookId || bi.book?.id === bookId);
+  const getBranchStockQty = (branchId: string, bookId: string) => {
+    const list = allBranchInventories[branchId] || [];
+    const item = list.find((bi: any) => bi.bookId === bookId || bi.book?.id === bookId);
     return item ? Number(item.quantity) : 0;
   };
 
@@ -157,129 +153,231 @@ export default function ExhibitionsPage() {
     return item ? Number(item.quantity) : 0;
   };
 
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const handleOpenEdit = (ex: any) => {
-    setEditingExhibition(ex);
-    setEditFormData({
-      name: ex.name || ex.eventName || '',
-      location: ex.location || '',
-      startDate: ex.startDate ? new Date(ex.startDate).toISOString().split('T')[0] : '',
-      endDate: ex.endDate ? new Date(ex.endDate).toISOString().split('T')[0] : '',
-      assignedUserId: ex.assignedUserId || '',
-    });
-    const items = (ex.stock || []).map((s: any) => ({
-      bookId: s.bookId || s.book?.id,
-      title: s.book?.title || 'Book Title',
-      isbn: s.book?.isbn || '',
-      barcode: s.book?.barcode || '',
-      quantityRequested: Number(s.quantityTaken || 0),
-      quantityFromBranch: Number(s.quantityFromBranch ?? 0),
-      quantityFromCentral: Number(s.quantityFromCentral ?? 0),
-      originalQuantity: Number(s.quantityTaken || 0),
-      originalFromBranch: Number(s.quantityFromBranch ?? 0),
-      originalFromCentral: Number(s.quantityFromCentral ?? 0),
-      quantitySold: Number(s.quantitySold || 0),
-    }));
-    setEditCart(items);
-    setEditBookInput('');
-    setEditBranchQtyInput(0);
-    setEditWarehouseQtyInput(0);
+  const getActiveBranchStockQty = (bookId: string) => {
+    if (!activeSourceBranchId) return 0;
+    return getBranchStockQty(activeSourceBranchId, bookId);
   };
 
-  const handleEditQuantityChange = (idx: number, newQty: number) => {
-    if (newQty < 0) return;
-    const item = editCart[idx];
-    if (item.quantitySold && newQty < item.quantitySold) {
-      alert(`Cannot reduce quantity below ${item.quantitySold} because ${item.quantitySold} copies were already sold.`);
-      return;
-    }
-
-    const updated = [...editCart];
-    const isWarehouse = branches.find((b: any) => b.id === (editingExhibition?.sourceBranchId))?.type === 'WAREHOUSE';
-
-    if (isWarehouse) {
-      updated[idx] = {
-        ...item,
-        quantityRequested: newQty,
-        quantityFromBranch: 0,
-        quantityFromCentral: newQty,
-      };
-    } else {
-      const origTotal = item.originalQuantity ?? item.quantityRequested;
-      const origBranch = item.originalFromBranch ?? item.quantityFromBranch ?? 0;
-      const origCentral = item.originalFromCentral ?? item.quantityFromCentral ?? 0;
-
-      let newBranch = origBranch;
-      let newCentral = origCentral;
-
-      const diff = newQty - origTotal;
-      if (diff > 0) {
-        const availableShelf = getBranchStockQty(item.bookId);
-        const addShelf = Math.min(availableShelf, diff);
-        const addCentral = diff - addShelf;
-        newBranch = origBranch + addShelf;
-        newCentral = origCentral + addCentral;
-      } else if (diff < 0) {
-        let toReturn = Math.abs(diff);
-        const returnCentral = Math.min(origCentral, toReturn);
-        newCentral = origCentral - returnCentral;
-        toReturn -= returnCentral;
-        const returnBranch = Math.min(origBranch, toReturn);
-        newBranch = origBranch - returnBranch;
+  const getItemBranchCentralQuantities = (item: ExhibitionBookItem) => {
+    if (item.sourceMode === 'SINGLE') {
+      if (item.selectedSource === 'WAREHOUSE') {
+        return { branch: 0, central: item.quantityRequested };
       } else {
-        newBranch = origBranch;
-        newCentral = origCentral;
+        return { branch: item.quantityRequested, central: 0 };
       }
-
-      updated[idx] = {
-        ...item,
-        quantityRequested: newQty,
-        quantityFromBranch: newBranch,
-        quantityFromCentral: newCentral,
-      };
     }
 
-    setEditCart(updated);
+    const splits = item.sourceSplits || {};
+    const central = splits['WAREHOUSE'] || 0;
+    let branch = 0;
+    Object.keys(splits).forEach((key) => {
+      if (key !== 'WAREHOUSE') {
+        branch += Number(splits[key]) || 0;
+      }
+    });
+
+    return { branch, central };
   };
 
-  const handleAddBookToEditCart = () => {
-    if (!editBookInput) return;
-    const existingIndex = editCart.findIndex(i => i.bookId === editBookInput);
-    if (existingIndex >= 0) {
-      alert('This book is already in the exhibition list. You can adjust its quantity in the table above.');
-      return;
+  const getSourceAvailableQty = (sourceKey: string, bookId: string, item?: ExhibitionBookItem, isEdit?: boolean) => {
+    if (sourceKey === 'WAREHOUSE') {
+      const base = getCentralStockQty(bookId);
+      return isEdit ? base + (item?.originalFromCentral || 0) : base;
     }
-
-    const totalQty = editBranchQtyInput + editWarehouseQtyInput;
-    if (totalQty <= 0) {
-      alert('Please enter a quantity greater than 0.');
-      return;
+    if (sourceKey.startsWith('BRANCH_')) {
+      const bId = sourceKey.replace('BRANCH_', '');
+      const base = getBranchStockQty(bId, bookId);
+      const isOriginalSource = isEdit && bId === editingExhibition?.sourceBranchId;
+      return isOriginalSource ? base + (item?.originalFromBranch || 0) : base;
     }
+    return 0;
+  };
 
-    const catalogList = catalog?.books || catalog?.items || catalog?.data || (Array.isArray(catalog) ? catalog : []);
-    const book = catalogList.find((b: any) => b.id === editBookInput);
-
-    setEditCart([
-      ...editCart,
+  const getRowSourceOptions = (bookId: string, item?: ExhibitionBookItem, isEdit?: boolean) => {
+    const cStock = getCentralStockQty(bookId) + (isEdit ? (item?.originalFromCentral || 0) : 0);
+    const opts: any[] = [
       {
-        bookId: editBookInput,
-        title: book?.title || 'Selected Book',
-        isbn: book?.isbn,
-        barcode: book?.barcode,
-        quantityRequested: totalQty,
-        quantityFromBranch: editBranchQtyInput,
-        quantityFromCentral: editWarehouseQtyInput,
-        originalQuantity: 0,
-        originalFromBranch: 0,
-        originalFromCentral: 0,
-        quantitySold: 0,
-      }
-    ]);
+        value: 'WAREHOUSE',
+        label: `Central Warehouse (${cStock} avail)`,
+        icon: <Warehouse className="w-4 h-4 text-blue-600" />,
+      },
+    ];
 
-    setEditBookInput('');
-    setEditBranchQtyInput(0);
-    setEditWarehouseQtyInput(0);
+    (branches || [])
+      .filter((b: any) => b.type !== 'WAREHOUSE')
+      .forEach((b: any) => {
+        const bQty = getBranchStockQty(b.id, bookId) + (isEdit && b.id === editingExhibition?.sourceBranchId ? (item?.originalFromBranch || 0) : 0);
+        opts.push({
+          value: `BRANCH_${b.id}`,
+          label: `${b.name} (${bQty} avail)`,
+          icon: <Store className="w-4 h-4 text-amber-600" />,
+        });
+      });
+
+    opts.push({
+      value: 'SPLIT',
+      label: 'Custom Multi-Branch Split',
+      icon: <GitFork className="w-4 h-4 text-purple-600" />,
+    });
+
+    return opts;
+  };
+
+  // Quantity stepper
+  const handleCreateQuantityChange = (bookId: string, newQty: number) => {
+    if (newQty < 1) return;
+    setCart((prev) =>
+      prev.map((item) => {
+        if (item.bookId !== bookId) return item;
+        if (item.sourceMode === 'SINGLE') {
+          return {
+            ...item,
+            quantityRequested: newQty,
+            sourceSplits: { [item.selectedSource]: newQty },
+          };
+        } else {
+          return { ...item, quantityRequested: newQty };
+        }
+      })
+    );
+  };
+
+  // Source dropdown change
+  const handleCreateSourceChange = (bookId: string, sourceVal: string) => {
+    setCart((prev) =>
+      prev.map((item) => {
+        if (item.bookId !== bookId) return item;
+        if (sourceVal === 'SPLIT') {
+          const currentSplits = item.sourceSplits && Object.keys(item.sourceSplits).length > 0
+            ? item.sourceSplits
+            : { 'WAREHOUSE': item.quantityRequested };
+          return {
+            ...item,
+            sourceMode: 'SPLIT',
+            selectedSource: 'SPLIT',
+            sourceSplits: currentSplits,
+            isSplitExpanded: true,
+          };
+        } else {
+          return {
+            ...item,
+            sourceMode: 'SINGLE',
+            selectedSource: sourceVal,
+            sourceSplits: { [sourceVal]: item.quantityRequested },
+            isSplitExpanded: false,
+          };
+        }
+      })
+    );
+  };
+
+  // Split individual source input change
+  const handleCreateSplitQtyChange = (bookId: string, sourceKey: string, val: number) => {
+    const safeVal = Math.max(0, isNaN(val) ? 0 : val);
+    setCart((prev) =>
+      prev.map((item) => {
+        if (item.bookId !== bookId) return item;
+        const newSplits = { ...item.sourceSplits, [sourceKey]: safeVal };
+        const newTotal = Object.values(newSplits).reduce((sum, q) => sum + (Number(q) || 0), 0);
+        return {
+          ...item,
+          sourceMode: 'SPLIT',
+          selectedSource: 'SPLIT',
+          sourceSplits: newSplits,
+          quantityRequested: newTotal,
+        };
+      })
+    );
+  };
+
+  const handleToggleCreateSplitExpand = (bookId: string) => {
+    setCart((prev) =>
+      prev.map((item) =>
+        item.bookId === bookId ? { ...item, isSplitExpanded: !item.isSplitExpanded } : item
+      )
+    );
+  };
+
+  // Edit Modal Handlers
+  const handleEditQuantityChange = (bookId: string, newQty: number) => {
+    if (newQty < 1) return;
+    const existing = editCart.find((i) => i.bookId === bookId);
+    if (existing?.quantitySold && newQty < existing.quantitySold) {
+      alert(`Cannot reduce quantity below ${existing.quantitySold} because ${existing.quantitySold} copies were already sold.`);
+      return;
+    }
+    setEditCart((prev) =>
+      prev.map((item) => {
+        if (item.bookId !== bookId) return item;
+        if (item.sourceMode === 'SINGLE') {
+          return {
+            ...item,
+            quantityRequested: newQty,
+            sourceSplits: { [item.selectedSource]: newQty },
+          };
+        } else {
+          return { ...item, quantityRequested: newQty };
+        }
+      })
+    );
+  };
+
+  const handleEditSourceChange = (bookId: string, sourceVal: string) => {
+    setEditCart((prev) =>
+      prev.map((item) => {
+        if (item.bookId !== bookId) return item;
+        if (sourceVal === 'SPLIT') {
+          const currentSplits = item.sourceSplits && Object.keys(item.sourceSplits).length > 0
+            ? item.sourceSplits
+            : { 'WAREHOUSE': item.quantityRequested };
+          return {
+            ...item,
+            sourceMode: 'SPLIT',
+            selectedSource: 'SPLIT',
+            sourceSplits: currentSplits,
+            isSplitExpanded: true,
+          };
+        } else {
+          return {
+            ...item,
+            sourceMode: 'SINGLE',
+            selectedSource: sourceVal,
+            sourceSplits: { [sourceVal]: item.quantityRequested },
+            isSplitExpanded: false,
+          };
+        }
+      })
+    );
+  };
+
+  const handleEditSplitQtyChange = (bookId: string, sourceKey: string, val: number) => {
+    const safeVal = Math.max(0, isNaN(val) ? 0 : val);
+    setEditCart((prev) =>
+      prev.map((item) => {
+        if (item.bookId !== bookId) return item;
+        const newSplits = { ...item.sourceSplits, [sourceKey]: safeVal };
+        const newTotal = Object.values(newSplits).reduce((sum, q) => sum + (Number(q) || 0), 0);
+        if (item.quantitySold && newTotal < item.quantitySold) {
+          alert(`Cannot reduce total quantity below ${item.quantitySold} because ${item.quantitySold} copies were already sold.`);
+          return item;
+        }
+        return {
+          ...item,
+          sourceMode: 'SPLIT',
+          selectedSource: 'SPLIT',
+          sourceSplits: newSplits,
+          quantityRequested: newTotal,
+        };
+      })
+    );
+  };
+
+  const handleToggleEditSplitExpand = (bookId: string) => {
+    setEditCart((prev) =>
+      prev.map((item) =>
+        item.bookId === bookId ? { ...item, isSplitExpanded: !item.isSplitExpanded } : item
+      )
+    );
   };
 
   const handleRemoveFromEditCart = async (idx: number) => {
@@ -299,6 +397,289 @@ export default function ExhibitionsPage() {
     if (!ok) return;
 
     setEditCart(editCart.filter((_, i) => i !== idx));
+  };
+
+  // Approve & Stock Allocation Handlers (Central Inventory Manager / Super Admin / Admin)
+  const handleOpenApproveModal = (ex: any) => {
+    setApprovingExhibition(ex);
+    setApproveNote('');
+    const isWarehouse = branches.find((b: any) => b.id === ex.sourceBranchId)?.type === 'WAREHOUSE';
+
+    const items: ExhibitionBookItem[] = (ex.stock || []).map((s: any) => {
+      const bookId = s.bookId || s.book?.id;
+      const title = s.book?.title || 'Book Title';
+      const isbn = s.book?.isbn || '';
+      const totalQty = Number(s.quantityTaken || 0);
+      const fromBranch = Number(s.quantityFromBranch ?? 0);
+      const fromCentral = Number(s.quantityFromCentral ?? 0);
+      const sold = Number(s.quantitySold || 0);
+
+      let splits: Record<string, number> = {};
+      let selectedSource = 'WAREHOUSE';
+      let sourceMode: 'SINGLE' | 'SPLIT' = 'SINGLE';
+
+      if (s.sourceSplits && typeof s.sourceSplits === 'object' && Object.keys(s.sourceSplits).length > 0) {
+        splits = { ...s.sourceSplits };
+        const activeKeys = Object.keys(splits).filter((k) => (splits[k] || 0) > 0);
+        if (activeKeys.length > 1) {
+          sourceMode = 'SPLIT';
+          selectedSource = 'SPLIT';
+        } else if (activeKeys.length === 1) {
+          sourceMode = 'SINGLE';
+          selectedSource = activeKeys[0];
+        } else {
+          sourceMode = 'SINGLE';
+          selectedSource = isWarehouse ? 'WAREHOUSE' : (ex.sourceBranchId ? `BRANCH_${ex.sourceBranchId}` : 'WAREHOUSE');
+          splits[selectedSource] = totalQty;
+        }
+      } else {
+        const isSplit = fromBranch > 0 && fromCentral > 0;
+        if (isSplit) {
+          sourceMode = 'SPLIT';
+          selectedSource = 'SPLIT';
+          splits['WAREHOUSE'] = fromCentral;
+          if (ex.sourceBranchId) {
+            splits[`BRANCH_${ex.sourceBranchId}`] = fromBranch;
+          }
+        } else if (fromCentral > 0 || isWarehouse) {
+          sourceMode = 'SINGLE';
+          selectedSource = 'WAREHOUSE';
+          splits['WAREHOUSE'] = totalQty;
+        } else {
+          sourceMode = 'SINGLE';
+          selectedSource = ex.sourceBranchId ? `BRANCH_${ex.sourceBranchId}` : 'WAREHOUSE';
+          splits[selectedSource] = totalQty;
+        }
+      }
+
+      return {
+        bookId,
+        title,
+        isbn,
+        quantityRequested: totalQty,
+        sourceMode,
+        selectedSource,
+        sourceSplits: splits,
+        isSplitExpanded: false,
+        originalQuantity: totalQty,
+        originalFromBranch: fromBranch,
+        originalFromCentral: fromCentral,
+        quantitySold: sold,
+      };
+    });
+
+    setApproveCart(items);
+  };
+
+  const handleApproveQuantityChange = (bookId: string, newQty: number) => {
+    if (newQty < 1) return;
+    setApproveCart((prev) =>
+      prev.map((item) => {
+        if (item.bookId !== bookId) return item;
+        if (item.sourceMode === 'SINGLE') {
+          return {
+            ...item,
+            quantityRequested: newQty,
+            sourceSplits: { [item.selectedSource]: newQty },
+          };
+        } else {
+          return { ...item, quantityRequested: newQty };
+        }
+      })
+    );
+  };
+
+  const handleApproveSourceChange = (bookId: string, sourceVal: string) => {
+    setApproveCart((prev) =>
+      prev.map((item) => {
+        if (item.bookId !== bookId) return item;
+        if (sourceVal === 'SPLIT') {
+          const currentSplits = item.sourceSplits && Object.keys(item.sourceSplits).length > 0
+            ? item.sourceSplits
+            : { 'WAREHOUSE': item.quantityRequested };
+          return {
+            ...item,
+            sourceMode: 'SPLIT',
+            selectedSource: 'SPLIT',
+            sourceSplits: currentSplits,
+            isSplitExpanded: true,
+          };
+        } else {
+          return {
+            ...item,
+            sourceMode: 'SINGLE',
+            selectedSource: sourceVal,
+            sourceSplits: { [sourceVal]: item.quantityRequested },
+            isSplitExpanded: false,
+          };
+        }
+      })
+    );
+  };
+
+  const handleApproveSplitQtyChange = (bookId: string, sourceKey: string, val: number) => {
+    const safeVal = Math.max(0, isNaN(val) ? 0 : val);
+    setApproveCart((prev) =>
+      prev.map((item) => {
+        if (item.bookId !== bookId) return item;
+        const newSplits = { ...item.sourceSplits, [sourceKey]: safeVal };
+        const newTotal = Object.values(newSplits).reduce((sum, q) => sum + (Number(q) || 0), 0);
+        return {
+          ...item,
+          sourceMode: 'SPLIT',
+          selectedSource: 'SPLIT',
+          sourceSplits: newSplits,
+          quantityRequested: newTotal,
+        };
+      })
+    );
+  };
+
+  const handleToggleApproveSplitExpand = (bookId: string) => {
+    setApproveCart((prev) =>
+      prev.map((item) =>
+        item.bookId === bookId ? { ...item, isSplitExpanded: !item.isSplitExpanded } : item
+      )
+    );
+  };
+
+  const handleConfirmApproveAndAllocate = async () => {
+    if (!approvingExhibition) return;
+    
+    // Validate split sums if in SPLIT mode
+    for (const item of approveCart) {
+      if (item.sourceMode === 'SPLIT') {
+        const splits = item.sourceSplits || {};
+        const sum = Object.values(splits).reduce((a, b) => a + (Number(b) || 0), 0);
+        if (sum !== item.quantityRequested) {
+          alert(`For "${item.title}", the branch and warehouse split copies (${sum}) do not match the total quantity (${item.quantityRequested}).`);
+          return;
+        }
+      }
+    }
+
+    const ok = await confirm({
+      title: "Approve Exhibition & Allocate Stock",
+      message: `Approve exhibition "${approvingExhibition.name || approvingExhibition.eventName}" with the selected stock source allocations?`,
+      confirmText: "Yes, Approve & Allocate",
+      cancelText: "No, Go Back",
+      variant: "success",
+    });
+    if (!ok) return;
+
+    try {
+      setIsSubmitting(true);
+      // 1. Update exhibition stock allocation items
+      await api.patch(`/exhibitions/${approvingExhibition.id}`, {
+        items: approveCart.map((i) => {
+          const { branch, central } = getItemBranchCentralQuantities(i);
+          const splits = i.sourceMode === 'SPLIT' 
+            ? (i.sourceSplits || {}) 
+            : { [i.selectedSource]: i.quantityRequested };
+          return {
+            bookId: i.bookId,
+            quantityTaken: i.quantityRequested,
+            quantityFromBranch: branch,
+            quantityFromCentral: central,
+            sourceSplits: splits,
+          };
+        }),
+      });
+
+      // 2. Approve exhibition
+      await api.post(`/exhibitions/${approvingExhibition.id}/review`, {
+        status: 'APPROVED',
+        note: approveNote || undefined,
+      });
+
+      setApprovingExhibition(null);
+      window.location.reload();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to approve exhibition');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleOpenEdit = (ex: any) => {
+    setEditingExhibition(ex);
+    setEditFormData({
+      name: ex.name || ex.eventName || '',
+      location: ex.location || '',
+      startDate: ex.startDate ? new Date(ex.startDate).toISOString().split('T')[0] : '',
+      endDate: ex.endDate ? new Date(ex.endDate).toISOString().split('T')[0] : '',
+      assignedUserId: ex.assignedUserId || '',
+    });
+
+    const isWarehouse = branches.find((b: any) => b.id === ex.sourceBranchId)?.type === 'WAREHOUSE';
+
+    const items: ExhibitionBookItem[] = (ex.stock || []).map((s: any) => {
+      const bookId = s.bookId || s.book?.id;
+      const title = s.book?.title || 'Book Title';
+      const isbn = s.book?.isbn || '';
+      const totalQty = Number(s.quantityTaken || 0);
+      const fromBranch = Number(s.quantityFromBranch ?? 0);
+      const fromCentral = Number(s.quantityFromCentral ?? 0);
+      const sold = Number(s.quantitySold || 0);
+
+      const isSplit = fromBranch > 0 && fromCentral > 0;
+      let splits: Record<string, number> = {};
+      let selectedSource = 'WAREHOUSE';
+      let sourceMode: 'SINGLE' | 'SPLIT' = 'SINGLE';
+
+      if (s.sourceSplits && typeof s.sourceSplits === 'object' && Object.keys(s.sourceSplits).length > 0) {
+        splits = { ...s.sourceSplits };
+        const activeKeys = Object.keys(splits).filter((k) => (splits[k] || 0) > 0);
+        if (activeKeys.length > 1) {
+          sourceMode = 'SPLIT';
+          selectedSource = 'SPLIT';
+        } else if (activeKeys.length === 1) {
+          sourceMode = 'SINGLE';
+          selectedSource = activeKeys[0];
+        } else {
+          sourceMode = 'SINGLE';
+          selectedSource = isWarehouse ? 'WAREHOUSE' : (ex.sourceBranchId ? `BRANCH_${ex.sourceBranchId}` : 'WAREHOUSE');
+          splits[selectedSource] = totalQty;
+        }
+      } else {
+        const isSplit = fromBranch > 0 && fromCentral > 0;
+        if (isSplit) {
+          sourceMode = 'SPLIT';
+          selectedSource = 'SPLIT';
+          splits['WAREHOUSE'] = fromCentral;
+          if (ex.sourceBranchId) {
+            splits[`BRANCH_${ex.sourceBranchId}`] = fromBranch;
+          }
+        } else if (fromCentral > 0 || isWarehouse) {
+          sourceMode = 'SINGLE';
+          selectedSource = 'WAREHOUSE';
+          splits['WAREHOUSE'] = totalQty;
+        } else {
+          sourceMode = 'SINGLE';
+          selectedSource = ex.sourceBranchId ? `BRANCH_${ex.sourceBranchId}` : 'WAREHOUSE';
+          splits[selectedSource] = totalQty;
+        }
+      }
+
+      return {
+        bookId,
+        title,
+        isbn,
+        quantityRequested: totalQty,
+        sourceMode,
+        selectedSource,
+        sourceSplits: splits,
+        isSplitExpanded: false,
+        originalQuantity: totalQty,
+        originalFromBranch: fromBranch,
+        originalFromCentral: fromCentral,
+        quantitySold: sold,
+      };
+    });
+
+    setEditCart(items);
   };
 
   const handleEdit = async (e: React.FormEvent) => {
@@ -326,12 +707,19 @@ export default function ExhibitionsPage() {
         startDate: new Date(editFormData.startDate).toISOString(),
         endDate: new Date(editFormData.endDate).toISOString(),
         assignedUserId: isAdmin ? (editFormData.assignedUserId || null) : undefined,
-        items: editCart.map(i => ({
-          bookId: i.bookId,
-          quantityTaken: i.quantityRequested,
-          quantityFromBranch: i.quantityFromBranch,
-          quantityFromCentral: i.quantityFromCentral,
-        })),
+        items: editCart.map((i) => {
+          const { branch, central } = getItemBranchCentralQuantities(i);
+          const splits = i.sourceMode === 'SPLIT' 
+            ? (i.sourceSplits || {}) 
+            : { [i.selectedSource]: i.quantityRequested };
+          return {
+            bookId: i.bookId,
+            quantityTaken: i.quantityRequested,
+            quantityFromBranch: branch,
+            quantityFromCentral: central,
+            sourceSplits: splits,
+          };
+        }),
       });
 
       if (res.success) {
@@ -361,7 +749,7 @@ export default function ExhibitionsPage() {
   };
 
   const handleCreate = async () => {
-    const totalItems = cart.reduce((acc, i) => acc + i.quantityRequested, 0);
+    const totalItems = cart.reduce((acc, i) => acc + (Number(i.quantityRequested) || 0), 0);
     const ok = await confirm({
       title: "Create Exhibition Request",
       message: `Submit request for new exhibition "${eventName}" with ${cart.length} book titles (${totalItems} total copies)?`,
@@ -380,12 +768,19 @@ export default function ExhibitionsPage() {
         startDate: new Date(startDate).toISOString(),
         endDate: new Date(endDate).toISOString(),
         assignedUserId: assignedUserId || undefined,
-        items: cart.map(i => ({ 
-          bookId: i.bookId, 
-          quantityTaken: i.quantityRequested,
-          quantityFromBranch: i.quantityFromBranch,
-          quantityFromCentral: i.quantityFromCentral,
-        }))
+        items: cart.map((i) => {
+          const { branch, central } = getItemBranchCentralQuantities(i);
+          const splits = i.sourceMode === 'SPLIT' 
+            ? (i.sourceSplits || {}) 
+            : { [i.selectedSource]: i.quantityRequested };
+          return {
+            bookId: i.bookId,
+            quantityTaken: i.quantityRequested,
+            quantityFromBranch: branch,
+            quantityFromCentral: central,
+            sourceSplits: splits,
+          };
+        }),
       });
       setIsCreating(false);
       setCart([]);
@@ -524,13 +919,13 @@ export default function ExhibitionsPage() {
               <h2 className="text-2xl font-bold tracking-tight text-gray-900">Exhibitions & Events</h2>
               <p className="text-sm text-gray-500">Manage off-site book sales events.</p>
             </div>
-            {(isBranch || isAdmin) && (
+            {(isBranch || isAdmin || isCentralManager) && (
               <button
                 onClick={() => setIsCreating(true)}
                 className="flex items-center px-4 py-2 text-sm font-semibold text-white bg-[#7e2562] hover:bg-[#681b50] rounded-sm shadow-xs transition-all active:scale-[0.98]"
               >
                 <Plus className="w-4 h-4 mr-2" />
-                {isAdmin ? 'Create Exhibition' : 'Request Exhibition'}
+                {canManageStockSources ? 'Create Exhibition' : 'Request Exhibition'}
               </button>
             )}
           </div>
@@ -576,17 +971,19 @@ export default function ExhibitionsPage() {
                         View Details
                       </button>
 
-                      {isAdmin && ex.status === 'REQUESTED' && (
+                      {canManageStockSources && (ex.status === 'REQUESTED' || ex.status === 'EXPIRED') && (
                         <button 
-                          onClick={() => handleApproveReject(ex.id, 'approve')} 
+                          onClick={() => handleOpenApproveModal(ex)} 
                           className="inline-flex items-center px-2.5 py-1.5 text-xs font-semibold text-white bg-[#3cb976] hover:bg-[#329e64] rounded-sm shadow-xs transition-colors"
                         >
-                          Approve
+                          <CheckCircle className="w-3.5 h-3.5 mr-1" />
+                          Approve & Allocate Stock
                         </button>
                       )}
 
                       {ex.status !== 'CLOSED' && ex.status !== 'REJECTED' && (
                         isAdmin ||
+                        isCentralManager ||
                         ex.requestedById === user?.id ||
                         ex.assignedUserId === user?.id ||
                         (isBranchManager && ex.sourceBranchId === user?.branchId)
@@ -595,7 +992,7 @@ export default function ExhibitionsPage() {
                           onClick={() => handleOpenEdit(ex)} 
                           className="inline-flex items-center px-2.5 py-1.5 text-xs font-semibold text-[#7e2562] bg-[#faedf5] hover:bg-[#f6dbe9] border border-[#7e2562]/20 rounded-sm transition-colors shadow-xs"
                         >
-                          <Pencil className="w-3.5 h-3.5 mr-1" /> Edit / Manage Stock
+                          <Pencil className="w-3.5 h-3.5 mr-1" /> {canManageStockSources ? 'Edit / Manage Stock' : 'Edit Book Request'}
                         </button>
                       )}
 
@@ -612,7 +1009,7 @@ export default function ExhibitionsPage() {
                         </button>
                       )}
 
-                      {(isAdmin || isBranch) && (ex.status === 'ONGOING' || ex.status === 'OVERDUE') && (
+                      {(isAdmin || isBranch || isCentralManager) && (ex.status === 'ONGOING' || ex.status === 'OVERDUE') && (
                         <button 
                           onClick={() => {
                             setClosingExhibition(ex);
@@ -635,7 +1032,7 @@ export default function ExhibitionsPage() {
                     </div>
 
                     {/* Line 2: Assign and Reject */}
-                    {((isAdmin && ex.status === 'REQUESTED') || (isAdmin && ex.status !== 'CLOSED')) && (
+                    {((canManageStockSources && (ex.status === 'REQUESTED' || ex.status === 'EXPIRED')) || (isAdmin && ex.status !== 'CLOSED')) && (
                       <div className="flex items-center justify-end gap-2">
                         {isAdmin && ex.status !== 'CLOSED' && (
                           <button 
@@ -650,11 +1047,12 @@ export default function ExhibitionsPage() {
                           </button>
                         )}
 
-                        {isAdmin && ex.status === 'REQUESTED' && (
+                        {canManageStockSources && (ex.status === 'REQUESTED' || ex.status === 'EXPIRED') && (
                           <button 
                             onClick={() => handleApproveReject(ex.id, 'reject')} 
                             className="inline-flex items-center px-2.5 py-1.5 text-xs font-semibold text-[#e45e34] bg-[#fef5f2] hover:bg-[#fdeae3] border border-[#e45e34]/30 rounded-sm transition-colors"
                           >
+                            <XCircle className="w-3.5 h-3.5 mr-1" />
                             Reject
                           </button>
                         )}
@@ -676,280 +1074,379 @@ export default function ExhibitionsPage() {
       {/* Creation Modal */}
       <AnimatePresence>
         {isCreating && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-sm shadow-xl w-full max-w-2xl p-6 border border-[#7e2562]/10">
-              <h3 className="text-lg font-bold text-gray-900 mb-2 flex items-center"><Tent className="w-5 h-5 mr-2 text-[#7e2562]"/> {isAdmin ? 'Create Exhibition' : 'Request Exhibition'}</h3>
-              
-              <div className="mb-4 bg-[#faedf5] border border-[#7e2562]/20 rounded-sm p-3 text-xs text-[#7e2562] flex items-start">
-                <AlertCircle className="w-4 h-4 mr-2 text-[#7e2562] shrink-0 mt-0.5" />
-                <span>
-                  <strong>Immediate Inventory Check-Out:</strong> Selecting books for this event will immediately deduct them from the branch shelf inventory so they cannot be sold to walk-in customers while away at the exhibition.
-                </span>
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-xs">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }} 
+              animate={{ opacity: 1, scale: 1 }} 
+              exit={{ opacity: 0, scale: 0.95 }} 
+              className="bg-white rounded-sm shadow-xl w-full max-w-2xl max-h-[92dvh] flex flex-col overflow-hidden border border-[#7e2562]/10"
+            >
+              {/* Header */}
+              <div className="px-4 py-3 sm:px-6 sm:py-4 border-b border-[#7e2562]/10 bg-gradient-to-r from-[#faedf5]/70 to-[#faf6f9] flex justify-between items-center shrink-0">
+                <h3 className="text-base sm:text-lg font-bold text-gray-900 flex items-center">
+                  <Tent className="w-5 h-5 mr-2 text-[#7e2562]"/> 
+                  {canManageStockSources ? 'Create Exhibition' : 'Request Exhibition'}
+                </h3>
+                <button 
+                  onClick={() => setIsCreating(false)} 
+                  className="p-1 text-gray-400 hover:text-gray-600 rounded-sm hover:bg-gray-100 transition-colors"
+                >
+                  <XCircle className="w-5 h-5" />
+                </button>
               </div>
               
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <div className="col-span-2">
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Event Name</label>
-                  <input type="text" value={eventName} onChange={e => setEventName(e.target.value)} className="block w-full px-3 py-2 border border-gray-300 rounded-sm text-sm focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" />
+              {/* Scrollable Body */}
+              <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-4">
+                <div className="bg-[#faedf5] border border-[#7e2562]/20 rounded-sm p-3 text-xs text-[#7e2562] flex items-start">
+                  <AlertCircle className="w-4 h-4 mr-2 text-[#7e2562] shrink-0 mt-0.5" />
+                  <span>
+                    {canManageStockSources ? (
+                      <>
+                        <strong>Immediate Inventory Allocation:</strong> As an administrator / central inventory manager, you can directly designate stock sources (Central Warehouse or Branches) for this exhibition.
+                      </>
+                    ) : (
+                      <>
+                        <strong>Exhibition Book Request:</strong> Select the book titles and requested quantities for your exhibition. The Central Inventory Manager or Administrator will allocate stock sources upon approving your request.
+                      </>
+                    )}
+                  </span>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Location</label>
-                  <input type="text" value={location} onChange={e => setLocation(e.target.value)} className="block w-full px-3 py-2 border border-gray-300 rounded-sm text-sm focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" />
-                </div>
-                {isAdmin && (
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">Select Branch</label>
-                    <Dropdown
-                      value={createBranchId}
-                      onChange={(val) => {
-                        setCreateBranchId(val);
-                        setAssignedUserId('');
-                      }}
-                      placeholder="Select a branch..."
-                      options={branches.map((b: any) => ({ value: b.id, label: b.name }))}
-                    />
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-4">
+                  <div className="col-span-1 sm:col-span-2">
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Event Name</label>
+                    <input type="text" value={eventName} onChange={e => setEventName(e.target.value)} className="block w-full px-3 py-2 border border-gray-300 rounded-sm text-sm focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" />
                   </div>
-                )}
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Assigned Staff</label>
-                  <Dropdown
-                    value={assignedUserId}
-                    onChange={(val) => setAssignedUserId(val)}
-                    placeholder={isAdmin && !createBranchId ? "Select branch first..." : "Select staff member..."}
-                    options={(usersResponse?.data || usersResponse || [])
-                      .filter((u: any) => {
-                        const targetBranchId = isAdmin ? createBranchId : user?.branchId;
-                        if (!targetBranchId) return false;
-                        const selectedBranch = branches.find((b: any) => b.id === targetBranchId);
-                        if (selectedBranch?.type === 'WAREHOUSE') {
-                          return !u.branchId && !u.branch?.id;
-                        }
-                        return u.branchId === targetBranchId || u.branch?.id === targetBranchId;
-                      })
-                      .map((u: any) => ({
-                        value: u.id,
-                        label: `${u.name} (${u.roles?.map((r: any) => r.role).join(', ') || u.primaryRole})`
-                      }))}
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Start Date</label>
-                  <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="block w-full px-3 py-2 border border-gray-300 rounded-sm text-sm focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">End Date</label>
-                  <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="block w-full px-3 py-2 border border-gray-300 rounded-sm text-sm focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" />
-                </div>
-              </div>
-
-              <div className="border-t border-gray-200 pt-4 mb-4">
-                <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Requested Stock</h4>
-                <div className="space-y-3">
                   <div>
-                    <Dropdown
-                      searchable={true}
-                      value={bookInput}
-                      onChange={(val) => {
-                        setBookInput(val);
-                        if (val) {
-                          const bStock = getBranchStockQty(val);
-                          const cStock = getCentralStockQty(val);
-                          const selectedBranch = branches.find((br: any) => br.id === activeSourceBranchId);
-                          const isWarehouse = selectedBranch?.type === 'WAREHOUSE';
-                          if (isWarehouse) {
-                            setBranchQtyInput(0);
-                            setWarehouseQtyInput(Math.min(5, cStock));
-                          } else {
-                            const defaultTotal = 5;
-                            const defaultBranch = Math.min(defaultTotal, bStock);
-                            const defaultWarehouse = Math.min(Math.max(0, defaultTotal - defaultBranch), cStock);
-                            setBranchQtyInput(defaultBranch);
-                            setWarehouseQtyInput(defaultWarehouse);
-                          }
-                        } else {
-                          setBranchQtyInput(0);
-                          setWarehouseQtyInput(0);
-                        }
-                      }}
-                      placeholder="Search by title, ISBN, or barcode..."
-                      options={(catalog?.books || catalog?.items || catalog?.data || (Array.isArray(catalog) ? catalog : [])).map((b: any) => {
-                        const bStock = getBranchStockQty(b.id);
-                        const cStock = getCentralStockQty(b.id);
-                        const selectedBranch = branches.find((br: any) => br.id === activeSourceBranchId);
-                        const isWarehouse = selectedBranch?.type === 'WAREHOUSE';
-                        const totalStock = isWarehouse ? cStock : (bStock + cStock);
-                        const badgeText = isWarehouse 
-                          ? `Wh: ${cStock}` 
-                          : `Branch: ${bStock} | Wh: ${cStock} (Total: ${totalStock})`;
-
-                        return {
-                          value: b.id,
-                          label: b.title,
-                          isbn: b.isbn,
-                          barcode: b.barcode,
-                          sublabel: `ISBN: ${b.isbn || 'N/A'}${b.barcode ? ` • Barcode: ${b.barcode}` : ''}`,
-                          badge: badgeText,
-                          badgeClassName: totalStock > 0 ? 'bg-[#faedf5] text-[#7e2562] border border-[#7e2562]/30' : 'bg-neutral-100 text-neutral-500 border border-neutral-200'
-                        };
-                      })}
-                    />
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Location</label>
+                    <input type="text" value={location} onChange={e => setLocation(e.target.value)} className="block w-full px-3 py-2 border border-gray-300 rounded-sm text-sm focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" />
                   </div>
-
-                  {bookInput && (
-                    <div className="p-3 bg-[#faf6f9]/60 border border-[#7e2562]/15 rounded-sm space-y-3">
-                      <div className="flex flex-wrap items-center justify-between text-xs text-neutral-600 gap-2">
-                        <span className="font-semibold text-gray-800">Customize Source Split:</span>
-                        <div className="flex items-center gap-3 font-semibold">
-                          <span className="text-[#7e2562]">🏪 Branch Shelf: {getBranchStockQty(bookInput)}</span>
-                          <span className="text-[#9b3179]">🏭 Warehouse: {getCentralStockQty(bookInput)}</span>
-                          <span className="text-gray-900 font-bold">Total Available: {getBranchStockQty(bookInput) + getCentralStockQty(bookInput)}</span>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
-                        <div>
-                          <label className="block text-[11px] font-semibold text-neutral-700 mb-1">
-                            From Branch Shelf (Max: {getBranchStockQty(bookInput)})
-                          </label>
-                          <input 
-                            type="number" 
-                            min="0" 
-                            max={getBranchStockQty(bookInput)}
-                            value={branchQtyInput} 
-                            onChange={e => setBranchQtyInput(Math.max(0, Number(e.target.value)))} 
-                            className="block w-full px-3 py-1.5 border border-gray-300 rounded-sm text-sm font-semibold focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562] bg-white" 
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-[11px] font-semibold text-neutral-700 mb-1">
-                            From Warehouse (Max: {getCentralStockQty(bookInput)})
-                          </label>
-                          <input 
-                            type="number" 
-                            min="0" 
-                            max={getCentralStockQty(bookInput)}
-                            value={warehouseQtyInput} 
-                            onChange={e => setWarehouseQtyInput(Math.max(0, Number(e.target.value)))} 
-                            className="block w-full px-3 py-1.5 border border-gray-300 rounded-sm text-sm font-semibold focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562] bg-white" 
-                          />
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 bg-white border border-[#7e2562]/20 rounded-sm px-3 py-1 text-center shadow-xs">
-                            <div className="text-[10px] uppercase font-bold text-neutral-400">Total</div>
-                            <div className="text-base font-bold text-gray-900">{branchQtyInput + warehouseQtyInput}</div>
-                          </div>
-                          <button 
-                            type="button"
-                            onClick={() => {
-                              const bStock = getBranchStockQty(bookInput);
-                              const cStock = getCentralStockQty(bookInput);
-                              const totalToTake = branchQtyInput + warehouseQtyInput;
-
-                              if (totalToTake <= 0) {
-                                alert('Please enter at least 1 book to take.');
-                                return;
-                              }
-                              if (branchQtyInput > bStock) {
-                                alert(`Cannot take ${branchQtyInput} from branch. Branch only has ${bStock} available.`);
-                                return;
-                              }
-                              if (warehouseQtyInput > cStock) {
-                                alert(`Cannot take ${warehouseQtyInput} from warehouse. Warehouse only has ${cStock} available.`);
-                                return;
-                              }
-
-                              const bookList = catalog?.books || catalog?.items || catalog?.data || (Array.isArray(catalog) ? catalog : []);
-                              const book = bookList.find((b: any) => b.id === bookInput);
-
-                              const existingItemIndex = cart.findIndex(i => i.bookId === bookInput);
-                              if (existingItemIndex >= 0) {
-                                const newCart = [...cart];
-                                const newB = (newCart[existingItemIndex].quantityFromBranch || 0) + branchQtyInput;
-                                const newC = (newCart[existingItemIndex].quantityFromCentral || 0) + warehouseQtyInput;
-                                if (newB > bStock) {
-                                  alert(`Total from branch would be ${newB}, exceeding branch stock of ${bStock}.`);
-                                  return;
-                                }
-                                if (newC > cStock) {
-                                  alert(`Total from warehouse would be ${newC}, exceeding warehouse stock of ${cStock}.`);
-                                  return;
-                                }
-                                newCart[existingItemIndex].quantityFromBranch = newB;
-                                newCart[existingItemIndex].quantityFromCentral = newC;
-                                newCart[existingItemIndex].quantityRequested = newB + newC;
-                                setCart(newCart);
-                              } else {
-                                setCart([...cart, { 
-                                  bookId: bookInput, 
-                                  quantityRequested: totalToTake, 
-                                  quantityFromBranch: branchQtyInput,
-                                  quantityFromCentral: warehouseQtyInput,
-                                  title: book?.title 
-                                }]);
-                              }
-                              setBookInput('');
-                              setBranchQtyInput(0);
-                              setWarehouseQtyInput(0);
-                            }}
-                            disabled={(branchQtyInput + warehouseQtyInput) <= 0}
-                            className="px-4 py-2 bg-[#7e2562] hover:bg-[#681b50] disabled:opacity-40 text-white rounded-sm text-xs font-bold transition-all shrink-0 shadow-xs active:scale-95"
-                          >
-                            Add to Event
-                          </button>
-                        </div>
-                      </div>
+                  {isAdmin && (
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">Select Branch</label>
+                      <Dropdown
+                        value={createBranchId}
+                        onChange={(val) => {
+                          setCreateBranchId(val);
+                          setAssignedUserId('');
+                        }}
+                        placeholder="Select a branch..."
+                        options={branches.map((b: any) => ({ value: b.id, label: b.name }))}
+                      />
                     </div>
                   )}
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Assigned Staff</label>
+                    <Dropdown
+                      value={assignedUserId}
+                      onChange={(val) => setAssignedUserId(val)}
+                      placeholder={isAdmin && !createBranchId ? "Select branch first..." : "Select staff member..."}
+                      options={(usersResponse?.data || usersResponse || [])
+                        .filter((u: any) => {
+                          const targetBranchId = isAdmin ? createBranchId : user?.branchId;
+                          if (!targetBranchId) return false;
+                          const selectedBranch = branches.find((b: any) => b.id === targetBranchId);
+                          if (selectedBranch?.type === 'WAREHOUSE') {
+                            return !u.branchId && !u.branch?.id;
+                          }
+                          return u.branchId === targetBranchId || u.branch?.id === targetBranchId;
+                        })
+                        .map((u: any) => ({
+                          value: u.id,
+                          label: `${u.name} (${u.roles?.map((r: any) => r.role).join(', ') || u.primaryRole})`
+                        }))}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Start Date</label>
+                    <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="block w-full px-3 py-2 border border-gray-300 rounded-sm text-sm focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">End Date</label>
+                    <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="block w-full px-3 py-2 border border-gray-300 rounded-sm text-sm focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" />
+                  </div>
+                </div>
+
+                <div className="border-t border-gray-200 pt-4 mb-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                    <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                      {canManageStockSources ? 'Select & Allocate Books' : 'Select Books & Quantities'}
+                    </h4>
+                    <span className="text-[11px] text-gray-500">
+                      Click <strong className="text-[#7e2562]">+ Add</strong> on books to include them in the exhibition.
+                    </span>
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Search & Select Books</label>
+                    <MultiSelectBookDropdown
+                      books={catalogBooks}
+                      onSelectBook={handleSelectBookForCreate}
+                      placeholder="Type book title or ISBN to add..."
+                      options={catalogBooks.map((b: any) => ({
+                        value: b.id,
+                        label: b.title,
+                        isbn: b.isbn,
+                        isSelected: cart.some((i) => i.bookId === b.id),
+                      }))}
+                    />
+                  </div>
+                </div>
+
+                <div className="border border-[#7e2562]/10 rounded-sm max-h-80 overflow-y-auto overflow-x-auto mb-2 shadow-xs">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562] uppercase tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap sticky top-0 z-10">
+                      <tr>
+                        <th className={`px-4 py-2.5 text-left ${canManageStockSources ? 'w-1/4 min-w-[160px]' : 'w-1/2 min-w-[200px]'}`}>Book Title & ISBN</th>
+                        {canManageStockSources && (
+                          <th className="px-4 py-2.5 text-left w-1/2 min-w-[260px]">Stock Source & Allocation</th>
+                        )}
+                        <th className={`px-4 py-2.5 text-center ${canManageStockSources ? 'w-1/6 min-w-[120px]' : 'w-1/4 min-w-[120px]'}`}>
+                          {canManageStockSources ? 'Total Quantity' : 'Requested Quantity'}
+                        </th>
+                        <th className="px-4 py-2.5 text-right min-w-[80px]">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200 text-xs">
+                      {cart.map((item) => {
+                        const isSplit = item.sourceMode === 'SPLIT';
+                        const selectedAvail = canManageStockSources 
+                          ? getSourceAvailableQty(item.selectedSource, item.bookId) 
+                          : getActiveBranchStockQty(item.bookId);
+                        const isSingleOver = !isSplit && (item.quantityRequested || 0) > selectedAvail;
+
+                        return (
+                          <tr key={item.bookId} className="hover:bg-gray-50/75 transition-colors">
+                            <td className="px-4 py-3 align-top">
+                              <div className="font-semibold text-gray-900">{item.title}</div>
+                              {/* {item.isbn && (
+                                <div className="text-[11px] text-gray-400 font-mono mt-0.5">{item.isbn}</div>
+                              )} */}
+                              {!canManageStockSources && (
+                                <div className="text-[11px] text-gray-500 mt-1">
+                                  Your branch stock: <strong className="text-gray-800">{getActiveBranchStockQty(item.bookId)}</strong>
+                                </div>
+                              )}
+                            </td>
+
+                            {canManageStockSources && (
+                              <td className="px-4 py-3 align-top">
+                                <div className="space-y-2">
+                                  <Dropdown
+                                    value={item.selectedSource}
+                                    onChange={(val) => handleCreateSourceChange(item.bookId, val)}
+                                    options={getRowSourceOptions(item.bookId, item, false)}
+                                    selectClassName="text-xs py-1.5 px-2.5 bg-white border border-[#7e2562]/20"
+                                    menuClassName="w-72"
+                                  />
+
+                                  {isSplit && (
+                                    <div className="space-y-1.5">
+                                      <div className="flex flex-wrap items-center gap-1.5">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleToggleCreateSplitExpand(item.bookId)}
+                                          className="inline-flex items-center text-[11px] font-semibold text-[#7e2562] bg-[#faedf5] hover:bg-[#f6dfef] px-2 py-0.5 rounded-sm border border-[#7e2562]/20 transition-colors"
+                                        >
+                                          <Layers className="w-3 h-3 mr-1 text-[#7e2562]" />
+                                          {item.isSplitExpanded ? 'Hide Branch Inputs' : 'Configure Branch Quantities'}
+                                          {item.isSplitExpanded ? <ChevronUp className="w-3 h-3 ml-1" /> : <ChevronDown className="w-3 h-3 ml-1" />}
+                                        </button>
+
+                                        {!item.isSplitExpanded && (
+                                          <div className="flex flex-wrap gap-1 text-[10px]">
+                                            {(item.sourceSplits?.['WAREHOUSE'] || 0) > 0 && (() => {
+                                              const wAvail = getCentralStockQty(item.bookId);
+                                              const wQty = item.sourceSplits?.['WAREHOUSE'] || 0;
+                                              const isOver = wQty > wAvail;
+                                              return (
+                                                <span className={`font-medium px-1.5 py-0.5 rounded border ${
+                                                  isOver 
+                                                    ? 'bg-red-50 text-red-700 border-red-300 font-bold' 
+                                                    : 'bg-blue-50 text-blue-700 border-blue-200'
+                                                }`}>
+                                                  Warehouse: {wQty}
+                                                  {isOver && <span className="ml-1 text-[9px] text-red-500 font-normal">({wAvail} avail)</span>}
+                                                </span>
+                                              );
+                                            })()}
+                                            {branches.filter((b: any) => b.type !== 'WAREHOUSE').map((b: any) => {
+                                              const qty = item.sourceSplits?.[`BRANCH_${b.id}`] || 0;
+                                              if (qty <= 0) return null;
+                                              const bAvail = getBranchStockQty(b.id, item.bookId);
+                                              const isOver = qty > bAvail;
+                                              return (
+                                                <span key={b.id} className={`font-medium px-1.5 py-0.5 rounded border ${
+                                                  isOver 
+                                                    ? 'bg-red-50 text-red-700 border-red-300 font-bold' 
+                                                    : 'bg-amber-50 text-amber-800 border-amber-200'
+                                                }`}>
+                                                  {b.name}: {qty}
+                                                  {isOver && <span className="ml-1 text-[9px] text-red-500 font-normal">({bAvail} avail)</span>}
+                                                </span>
+                                              );
+                                            })}
+                                          </div>
+                                        )}
+                                      </div>
+
+                                      {item.isSplitExpanded && (
+                                        <div className="p-2.5 bg-[#faf6f9] border border-[#7e2562]/20 rounded-sm space-y-2 mt-2">
+                                          <div className="text-[11px] font-bold text-[#7e2562] flex items-center justify-between">
+                                            <span>Enter copies from each source:</span>
+                                            <span className="text-gray-700 font-normal">Sum: <strong className="text-[#7e2562]">{item.quantityRequested}</strong> copies</span>
+                                          </div>
+
+                                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                            {/* Warehouse */}
+                                            {(() => {
+                                              const wAvail = getCentralStockQty(item.bookId);
+                                              const wVal = item.sourceSplits?.['WAREHOUSE'] ?? 0;
+                                              const isOver = wVal > wAvail;
+                                              return (
+                                                <div className={`flex items-center justify-between bg-white px-2.5 py-1.5 rounded-sm border ${
+                                                  isOver ? 'border-red-300 bg-red-50/30' : 'border-gray-200'
+                                                }`}>
+                                                  <div className="flex items-center gap-1.5 min-w-0 pr-2">
+                                                    <Warehouse className={`w-3.5 h-3.5 shrink-0 ${isOver ? 'text-red-600' : 'text-blue-600'}`} />
+                                                    <div className="text-xs text-gray-800 font-medium truncate">
+                                                      Central Warehouse
+                                                      <span className={`text-[10px] block ${isOver ? 'text-red-600 font-bold' : 'text-gray-400'}`}>
+                                                        ({wAvail} avail)
+                                                      </span>
+                                                    </div>
+                                                  </div>
+                                                  <input
+                                                    type="number"
+                                                    min="0"
+                                                    value={item.sourceSplits?.['WAREHOUSE'] ?? 0}
+                                                    onChange={(e) => handleCreateSplitQtyChange(item.bookId, 'WAREHOUSE', Number(e.target.value))}
+                                                    className={`w-16 px-1.5 py-1 text-center font-bold text-xs border rounded transition-colors ${
+                                                      isOver 
+                                                        ? 'text-red-600 bg-red-50 border-red-400 focus:ring-1 focus:ring-red-500 focus:border-red-500' 
+                                                        : 'text-gray-900 border-gray-300 focus:ring-1 focus:ring-[#7e2562]'
+                                                    }`}
+                                                  />
+                                                </div>
+                                              );
+                                            })()}
+
+                                            {/* Branches */}
+                                            {branches.filter((b: any) => b.type !== 'WAREHOUSE').map((b: any) => {
+                                              const bAvail = getBranchStockQty(b.id, item.bookId);
+                                              const bVal = item.sourceSplits?.[`BRANCH_${b.id}`] ?? 0;
+                                              const isOver = bVal > bAvail;
+                                              return (
+                                                <div key={b.id} className={`flex items-center justify-between bg-white px-2.5 py-1.5 rounded-sm border ${
+                                                  isOver ? 'border-red-300 bg-red-50/30' : 'border-gray-200'
+                                                }`}>
+                                                  <div className="flex items-center gap-1.5 min-w-0 pr-2">
+                                                    <Store className={`w-3.5 h-3.5 shrink-0 ${isOver ? 'text-red-600' : 'text-amber-600'}`} />
+                                                    <div className="text-xs text-gray-800 font-medium truncate">
+                                                      {b.name}
+                                                      <span className={`text-[10px] block ${isOver ? 'text-red-600 font-bold' : 'text-gray-400'}`}>
+                                                        ({bAvail} avail)
+                                                      </span>
+                                                    </div>
+                                                  </div>
+                                                  <input
+                                                    type="number"
+                                                    min="0"
+                                                    value={item.sourceSplits?.[`BRANCH_${b.id}`] ?? 0}
+                                                    onChange={(e) => handleCreateSplitQtyChange(item.bookId, `BRANCH_${b.id}`, Number(e.target.value))}
+                                                    className={`w-16 px-1.5 py-1 text-center font-bold text-xs border rounded transition-colors ${
+                                                      isOver 
+                                                        ? 'text-red-600 bg-red-50 border-red-400 focus:ring-1 focus:ring-red-500 focus:border-red-500' 
+                                                        : 'text-gray-900 border-gray-300 focus:ring-1 focus:ring-[#7e2562]'
+                                                    }`}
+                                                  />
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                            )}
+
+                            <td className="px-4 py-3 align-top text-center">
+                              {isSplit ? (
+                                <div className="inline-flex items-center justify-center font-bold text-sm text-[#7e2562] bg-[#faedf5] px-2.5 py-1 rounded-sm border border-[#7e2562]/20">
+                                  {item.quantityRequested} copies
+                                </div>
+                              ) : (
+                                <div className="inline-flex flex-col items-center">
+                                  <div className="inline-flex items-center border border-gray-300 rounded-sm">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const current = item.quantityRequested || 1;
+                                        if (current > 1) {
+                                          handleCreateSingleQtyChange(item.bookId, current - 1);
+                                        }
+                                      }}
+                                      className="w-7 h-7 rounded-sm border border-gray-300 bg-gray-50 hover:bg-gray-100 flex items-center justify-center font-bold text-gray-700"
+                                    >
+                                      -
+                                    </button>
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      value={item.quantityRequested}
+                                      onChange={(e) => handleCreateSingleQtyChange(item.bookId, Number(e.target.value))}
+                                      className="w-12 text-center text-xs font-bold border-0 focus:ring-0 py-1"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const current = item.quantityRequested || 1;
+                                        handleCreateSingleQtyChange(item.bookId, current + 1);
+                                      }}
+                                      className="w-7 h-7 rounded-sm border border-gray-300 bg-gray-50 hover:bg-gray-100 flex items-center justify-center font-bold text-gray-700"
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+                                  {isSingleOver && (
+                                    <span className="text-[10px] text-red-600 font-bold mt-1 block whitespace-nowrap">
+                                      Exceeds stock ({selectedAvail} avail)
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </td>
+
+                            <td className="px-4 py-3 text-right align-top">
+                              <button
+                                type="button"
+                                onClick={() => setCart(cart.filter((i) => i.bookId !== item.bookId))}
+                                className="text-[#e45e34] hover:text-[#c74c25] font-semibold text-xs p-1 hover:bg-[#fef5f2] rounded-sm transition-colors"
+                                title="Remove book"
+                              >
+                                Remove
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {cart.length === 0 && (
+                        <tr>
+                          <td colSpan={canManageStockSources ? 4 : 3} className="px-4 py-8 text-center text-gray-400 italic">No books added yet. Search and select books above.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </div>
-
-              <div className="border border-[#7e2562]/10 rounded-sm max-h-48 overflow-y-auto mb-6">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562] uppercase tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
-                    <tr>
-                      <th className="px-4 py-2 text-left">Book</th>
-                      <th className="px-4 py-2 text-right">Total Qty</th>
-                      <th className="px-4 py-2 text-left">Stock Allocation</th>
-                      <th className="px-4 py-2 text-right">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200 text-xs">
-                    {cart.map((item, idx) => (
-                      <tr key={idx}>
-                        <td className="px-4 py-2 font-medium text-gray-900">{item.title}</td>
-                        <td className="px-4 py-2 text-right font-bold text-gray-900">{item.quantityRequested}</td>
-                        <td className="px-4 py-2 text-gray-600">
-                          {(item.quantityFromBranch ?? 0) > 0 && (item.quantityFromCentral ?? 0) > 0 ? (
-                            <span className="inline-flex items-center gap-1.5">
-                              <span className="px-2 py-0.5 rounded-sm bg-[#faedf5] text-[#7e2562] font-semibold border border-[#7e2562]/20">Branch: {item.quantityFromBranch}</span>
-                              <span className="px-2 py-0.5 rounded-sm bg-purple-50 text-purple-700 font-semibold border border-purple-200">Warehouse: {item.quantityFromCentral}</span>
-                            </span>
-                          ) : (item.quantityFromCentral ?? 0) > 0 ? (
-                            <span className="px-2 py-0.5 rounded-sm bg-purple-50 text-purple-700 font-semibold border border-purple-200">Warehouse: {item.quantityFromCentral}</span>
-                          ) : (
-                            <span className="px-2 py-0.5 rounded-sm bg-[#faedf5] text-[#7e2562] font-semibold border border-[#7e2562]/20">Branch: {item.quantityFromBranch ?? item.quantityRequested}</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-2 text-right">
-                          <button onClick={() => setCart(cart.filter((_, i) => i !== idx))} className="text-[#e45e34] hover:text-[#c74c25] font-semibold text-xs">Remove</button>
-                        </td>
-                      </tr>
-                    ))}
-                    {cart.length === 0 && (
-                      <tr>
-                        <td colSpan={4} className="px-4 py-6 text-center text-gray-400 italic">No books added yet.</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
               
-              <div className="flex justify-end space-x-3">
+              {/* Footer */}
+              <div className="px-4 py-3 sm:px-6 sm:py-4 border-t border-gray-200 bg-gray-50/60 flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 shrink-0">
                 <button onClick={() => setIsCreating(false)} className="px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-sm hover:bg-gray-50">Cancel</button>
                 <button onClick={handleCreate} disabled={cart.length === 0 || !eventName || isSubmitting} className="px-4 py-2 text-sm font-semibold text-white bg-[#7e2562] hover:bg-[#681b50] rounded-sm disabled:opacity-50 shadow-xs transition-all active:scale-[0.98]">
-                  {isSubmitting ? 'Submitting...' : 'Submit Request'}
+                  {isSubmitting ? 'Submitting...' : canManageStockSources ? 'Create Exhibition' : 'Submit Request'}
                 </button>
               </div>
             </motion.div>
@@ -960,81 +1457,101 @@ export default function ExhibitionsPage() {
       {/* Reconciliation Modal */}
       <AnimatePresence>
         {closingExhibition && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-sm shadow-xl w-full max-w-4xl p-6 border border-[#7e2562]/10">
-              <h3 className="text-lg font-bold text-gray-900 mb-2">Close & Reconcile Exhibition</h3>
-              <p className="text-sm text-gray-500 mb-4">{closingExhibition.eventName}</p>
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-xs">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }} 
+              animate={{ opacity: 1, scale: 1 }} 
+              exit={{ opacity: 0, scale: 0.95 }} 
+              className="bg-white rounded-sm shadow-xl w-full max-w-4xl max-h-[92dvh] flex flex-col overflow-hidden border border-[#7e2562]/10"
+            >
+              {/* Header */}
+              <div className="px-4 py-3 sm:px-6 sm:py-4 border-b border-[#7e2562]/10 bg-gradient-to-r from-[#faedf5]/70 to-[#faf6f9] flex justify-between items-center shrink-0">
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold text-gray-900">Close & Reconcile Exhibition</h3>
+                  <p className="text-xs text-gray-500">{closingExhibition.eventName}</p>
+                </div>
+                <button 
+                  onClick={() => setClosingExhibition(null)} 
+                  className="p-1 text-gray-400 hover:text-gray-600 rounded-sm hover:bg-gray-100 transition-colors"
+                >
+                  <XCircle className="w-5 h-5" />
+                </button>
+              </div>
               
-              <div className="bg-[#faedf5] text-[#7e2562] border border-[#7e2562]/20 p-3 rounded-sm mb-4 text-sm flex items-start">
-                <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0 text-[#7e2562]" />
-                <p>You must account for every book taken. For each row: <strong>Sold + Not Sold + Damaged + Lost + Credit = Taken</strong>.</p>
+              {/* Scrollable Body */}
+              <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-4">
+                <div className="bg-[#faedf5] text-[#7e2562] border border-[#7e2562]/20 p-3 rounded-sm text-xs flex items-start">
+                  <AlertCircle className="w-4 h-4 mr-2 flex-shrink-0 text-[#7e2562] mt-0.5" />
+                  <p>You must account for every book taken. For each row: <strong>Sold + Not Sold + Damaged + Lost + Credit = Taken</strong>.</p>
+                </div>
+
+                <div className="overflow-x-auto border border-[#7e2562]/10 rounded-sm">
+                  <table className="min-w-[640px] w-full divide-y divide-gray-200">
+                    <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562] uppercase tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
+                      <tr>
+                        <th className="px-4 py-2.5 text-left">Book</th>
+                        <th className="px-3 py-2.5 text-center">Taken</th>
+                        <th className="px-3 py-2.5 text-center text-[#3cb976]">Sold</th>
+                        <th className="px-3 py-2.5 text-center text-[#7e2562]">Not Sold</th>
+                        <th className="px-3 py-2.5 text-center text-[#e45e34]">Damaged</th>
+                        <th className="px-3 py-2.5 text-center text-[#e45e34]">Lost</th>
+                        <th className="px-3 py-2.5 text-center text-purple-700">Credit</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200 text-xs">
+                      {reconciliation.map((rec: any, idx) => {
+                        const total = (rec.quantitySold || 0) + (rec.quantityReturned || 0) + (rec.quantityDamaged || 0) + (rec.quantityLost || 0) + (rec.quantityCredit || 0);
+                        const isBalanced = total === rec.quantityTaken;
+                        
+                        return (
+                          <tr key={rec.stockId} className={!isBalanced ? 'bg-[#fef5f2]' : ''}>
+                            <td className="px-4 py-3 font-semibold text-gray-900">{rec.title}</td>
+                            <td className="px-3 py-3 text-center font-bold">{rec.quantityTaken}</td>
+                            <td className="px-2 py-3 text-center">
+                              <input type="number" min="0" value={rec.quantitySold} onChange={(e) => {
+                                const newRec = [...reconciliation];
+                                newRec[idx].quantitySold = Number(e.target.value);
+                                setReconciliation(newRec);
+                              }} className="w-14 sm:w-16 text-center border border-gray-300 rounded-sm py-1 font-semibold text-[#3cb976]" />
+                            </td>
+                            <td className="px-2 py-3 text-center">
+                              <input type="number" min="0" value={rec.quantityReturned} onChange={(e) => {
+                                const newRec = [...reconciliation];
+                                newRec[idx].quantityReturned = Number(e.target.value);
+                                setReconciliation(newRec);
+                              }} className="w-14 sm:w-16 text-center border border-gray-300 rounded-sm py-1 font-semibold text-[#7e2562]" />
+                            </td>
+                            <td className="px-2 py-3 text-center">
+                              <input type="number" min="0" value={rec.quantityDamaged} onChange={(e) => {
+                                const newRec = [...reconciliation];
+                                newRec[idx].quantityDamaged = Number(e.target.value);
+                                setReconciliation(newRec);
+                              }} className="w-14 sm:w-16 text-center border border-[#e45e34]/40 rounded-sm py-1 font-semibold text-[#e45e34]" />
+                            </td>
+                            <td className="px-2 py-3 text-center">
+                              <input type="number" min="0" value={rec.quantityLost} onChange={(e) => {
+                                const newRec = [...reconciliation];
+                                newRec[idx].quantityLost = Number(e.target.value);
+                                setReconciliation(newRec);
+                              }} className="w-14 sm:w-16 text-center border border-[#e45e34]/40 rounded-sm py-1 font-semibold text-[#e45e34]" />
+                            </td>
+                            <td className="px-2 py-3 text-center">
+                              <input type="number" min="0" value={rec.quantityCredit} onChange={(e) => {
+                                const newRec = [...reconciliation];
+                                newRec[idx].quantityCredit = Number(e.target.value);
+                                setReconciliation(newRec);
+                              }} className="w-14 sm:w-16 text-center border border-purple-300 rounded-sm py-1 font-semibold text-purple-700" />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
-              <div className="max-h-96 overflow-y-auto mb-6 border border-[#7e2562]/10 rounded-sm">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562] uppercase tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
-                    <tr>
-                      <th className="px-4 py-2 text-left">Book</th>
-                      <th className="px-4 py-2 text-center">Taken</th>
-                      <th className="px-4 py-2 text-center text-[#3cb976]">Sold</th>
-                      <th className="px-4 py-2 text-center text-[#7e2562]">Not Sold</th>
-                      <th className="px-4 py-2 text-center text-[#e45e34]">Damaged</th>
-                      <th className="px-4 py-2 text-center text-[#e45e34]">Lost</th>
-                      <th className="px-4 py-2 text-center text-purple-700">Credit</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {reconciliation.map((rec: any, idx) => {
-                      const total = (rec.quantitySold || 0) + (rec.quantityReturned || 0) + (rec.quantityDamaged || 0) + (rec.quantityLost || 0) + (rec.quantityCredit || 0);
-                      const isBalanced = total === rec.quantityTaken;
-                      
-                      return (
-                        <tr key={rec.stockId} className={!isBalanced ? 'bg-[#fef5f2]' : ''}>
-                          <td className="px-4 py-3 text-sm text-gray-900">{rec.title}</td>
-                          <td className="px-4 py-3 text-sm text-center font-bold">{rec.quantityTaken}</td>
-                          <td className="px-2 py-3 text-center">
-                            <input type="number" min="0" value={rec.quantitySold} onChange={(e) => {
-                              const newRec = [...reconciliation];
-                              newRec[idx].quantitySold = Number(e.target.value);
-                              setReconciliation(newRec);
-                            }} className="w-16 text-center border border-gray-300 rounded-sm py-1 font-semibold text-[#3cb976]" />
-                          </td>
-                          <td className="px-2 py-3 text-center">
-                            <input type="number" min="0" value={rec.quantityReturned} onChange={(e) => {
-                              const newRec = [...reconciliation];
-                              newRec[idx].quantityReturned = Number(e.target.value);
-                              setReconciliation(newRec);
-                            }} className="w-16 text-center border border-gray-300 rounded-sm py-1 font-semibold text-[#7e2562]" />
-                          </td>
-                          <td className="px-2 py-3 text-center">
-                            <input type="number" min="0" value={rec.quantityDamaged} onChange={(e) => {
-                              const newRec = [...reconciliation];
-                              newRec[idx].quantityDamaged = Number(e.target.value);
-                              setReconciliation(newRec);
-                            }} className="w-16 text-center border border-[#e45e34]/40 rounded-sm py-1 font-semibold text-[#e45e34]" />
-                          </td>
-                          <td className="px-2 py-3 text-center">
-                            <input type="number" min="0" value={rec.quantityLost} onChange={(e) => {
-                              const newRec = [...reconciliation];
-                              newRec[idx].quantityLost = Number(e.target.value);
-                              setReconciliation(newRec);
-                            }} className="w-16 text-center border border-[#e45e34]/40 rounded-sm py-1 font-semibold text-[#e45e34]" />
-                          </td>
-                          <td className="px-2 py-3 text-center">
-                            <input type="number" min="0" value={rec.quantityCredit} onChange={(e) => {
-                              const newRec = [...reconciliation];
-                              newRec[idx].quantityCredit = Number(e.target.value);
-                              setReconciliation(newRec);
-                            }} className="w-16 text-center border border-purple-300 rounded-sm py-1 font-semibold text-purple-700" />
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="flex justify-end space-x-3">
+              {/* Footer */}
+              <div className="px-4 py-3 sm:px-6 sm:py-4 border-t border-gray-200 bg-gray-50/60 flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 shrink-0">
                 <button onClick={() => setClosingExhibition(null)} className="px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-sm hover:bg-gray-50">Cancel</button>
                 <button onClick={handleClose} disabled={isSubmitting} className="px-4 py-2 text-sm font-semibold text-white bg-amber-600 rounded-sm hover:bg-amber-700 disabled:opacity-50 shadow-xs transition-all active:scale-95">
                   {isSubmitting ? 'Processing...' : 'Confirm Reconciliation'}
@@ -1048,13 +1565,13 @@ export default function ExhibitionsPage() {
       {/* Rejection Reason Modal */}
       <AnimatePresence>
         {viewingRejectionReason && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-sm shadow-xl w-full max-w-md p-6 border border-[#e45e34]/20">
-              <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center text-[#e45e34]">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-xs">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-sm shadow-xl w-full max-w-md p-4 sm:p-6 max-h-[92dvh] overflow-y-auto border border-[#e45e34]/20">
+              <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-4 flex items-center text-[#e45e34]">
                 <XCircle className="w-5 h-5 mr-2" />
                 Exhibition Rejected
               </h3>
-              <div className="bg-[#fef5f2] p-4 rounded-sm border border-[#e45e34]/20 text-sm text-[#e45e34] whitespace-pre-wrap font-medium">
+              <div className="bg-[#fef5f2] p-4 rounded-sm border border-[#e45e34]/20 text-xs sm:text-sm text-[#e45e34] whitespace-pre-wrap font-medium">
                 {viewingRejectionReason}
               </div>
               <div className="flex justify-end mt-6">
@@ -1073,42 +1590,42 @@ export default function ExhibitionsPage() {
       {/* Edit Exhibition & Manage Stock Modal */}
       <AnimatePresence>
         {editingExhibition && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-xs">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }} 
               animate={{ opacity: 1, scale: 1 }} 
               exit={{ opacity: 0, scale: 0.95 }} 
-              className="bg-white rounded-sm shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden border border-[#7e2562]/10"
+              className="bg-white rounded-sm shadow-2xl w-full max-w-4xl max-h-[92dvh] flex flex-col overflow-hidden border border-[#7e2562]/10"
             >
               {/* Header */}
-              <div className="px-6 py-4 border-b border-[#7e2562]/10 bg-gradient-to-r from-[#faedf5]/70 to-[#faf6f9] flex justify-between items-center shrink-0">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2 bg-[#7e2562] text-white rounded-sm shadow-xs">
-                    <Tent className="w-5 h-5" />
+              <div className="px-4 py-3 sm:px-6 sm:py-4 border-b border-[#7e2562]/10 bg-gradient-to-r from-[#faedf5]/70 to-[#faf6f9] flex justify-between items-center shrink-0">
+                <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 pr-2">
+                  <div className="p-1.5 sm:p-2 bg-[#7e2562] text-white rounded-sm shadow-xs shrink-0">
+                    <Tent className="w-4 h-4 sm:w-5 sm:h-5" />
                   </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                  <div className="min-w-0">
+                    <h3 className="text-sm sm:text-lg font-bold text-gray-900 truncate">
                       Edit Exhibition & Manage Stock
                     </h3>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-[11px] sm:text-xs text-gray-500 truncate">
                       Adjust event details, reduce or increase book quantities, or allocate new titles.
                     </p>
                   </div>
                 </div>
                 <button 
                   onClick={() => setEditingExhibition(null)} 
-                  className="p-1.5 text-gray-400 hover:text-gray-600 rounded-sm hover:bg-gray-100 transition-colors"
+                  className="p-1 text-gray-400 hover:text-gray-600 rounded-sm hover:bg-gray-100 transition-colors shrink-0"
                 >
-                  <XCircle className="w-6 h-6" />
+                  <XCircle className="w-5 h-5 sm:w-6 sm:h-6" />
                 </button>
               </div>
 
               {/* Scrollable Form Body */}
-              <form id="edit-exhibition-form" onSubmit={handleEdit} className="flex-1 overflow-y-auto p-6 space-y-6">
+              <form id="edit-exhibition-form" onSubmit={handleEdit} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 sm:space-y-6">
                 {/* 1. Basic Details Card */}
-                <div className="bg-[#faf6f9]/50 border border-[#7e2562]/10 rounded-sm p-4 space-y-4">
+                <div className="bg-[#faf6f9]/50 border border-[#7e2562]/10 rounded-sm p-3.5 sm:p-4 space-y-3 sm:space-y-4">
                   <h4 className="text-xs font-bold text-[#7e2562] uppercase tracking-wider">Event Details</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                     <div>
                       <label className="block text-xs font-semibold text-gray-700 mb-1">Event Name</label>
                       <input 
@@ -1177,233 +1694,355 @@ export default function ExhibitionsPage() {
                         Allocated Books & Quantities
                       </h4>
                       <p className="text-xs text-gray-500">
-                        Total {editCart.length} titles • {editCart.reduce((acc, curr) => acc + (curr.quantityRequested || 0), 0)} copies allocated
+                        Total {editCart.length} titles • {editCart.reduce((acc, curr) => acc + (Number(curr.quantityRequested) || 0), 0)} copies allocated
                       </p>
-                    </div>
-
-                    <div className="text-xs text-[#7e2562] bg-[#faedf5] px-3 py-1 rounded-sm border border-[#7e2562]/20 font-medium">
-                      💡 Lowering a quantity returns excess books to shelf/warehouse automatically.
                     </div>
                   </div>
 
-                  <div className="border border-[#7e2562]/10 rounded-sm overflow-hidden shadow-xs">
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562] uppercase tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
+                  <div className="border border-[#7e2562]/10 rounded-sm overflow-hidden shadow-xs max-h-80 overflow-y-auto overflow-x-auto">
+                    <table className="min-w-[640px] w-full divide-y divide-gray-200">
+                      <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562] uppercase tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap sticky top-0 z-10">
                         <tr>
-                          <th className="px-4 py-3 text-left">Book Title & ISBN</th>
-                          <th className="px-3 py-3 text-center">Current Qty</th>
-                          <th className="px-4 py-3 text-center">New Quantity</th>
-                          <th className="px-4 py-3 text-left">Stock Adjustment Status</th>
-                          <th className="px-3 py-3 text-right">Action</th>
+                          <th className={`px-4 py-3 text-left ${canManageStockSources ? 'w-1/4 min-w-[160px]' : 'w-1/2 min-w-[200px]'}`}>Book Title & ISBN</th>
+                          {canManageStockSources && (
+                            <th className="px-4 py-3 text-left w-1/2 min-w-[260px]">Stock Source & Allocation</th>
+                          )}
+                          <th className={`px-4 py-3 text-center ${canManageStockSources ? 'w-1/6 min-w-[120px]' : 'w-1/4 min-w-[120px]'}`}>
+                            {canManageStockSources ? 'Total Quantity' : 'Requested Quantity'}
+                          </th>
+                          <th className="px-3 py-3 text-right min-w-[80px]">Action</th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200 text-xs">
                         {editCart.map((item, idx) => {
                           const orig = item.originalQuantity ?? item.quantityRequested;
-                          const delta = item.quantityRequested - orig;
                           const isSold = (item.quantitySold || 0) > 0;
+                          const isSplit = item.sourceMode === 'SPLIT';
+                          const selectedAvail = canManageStockSources
+                            ? getSourceAvailableQty(item.selectedSource, item.bookId, item, true)
+                            : (getBranchStockQty(editingExhibition?.sourceBranchId || '', item.bookId) + (item.originalFromBranch || 0));
+                          const isSingleOver = !isSplit && (item.quantityRequested || 0) > selectedAvail;
 
                           return (
-                            <tr key={idx} className="hover:bg-[#faf6f9]/40 transition-colors">
-                              <td className="px-4 py-3">
+                            <tr key={item.bookId} className="hover:bg-[#faf6f9]/40 transition-colors">
+                              <td className="px-4 py-3 align-top">
                                 <div className="font-semibold text-gray-900">{item.title}</div>
-                                <div className="text-[11px] text-gray-500">
-                                  {item.isbn && <span>ISBN: {item.isbn}</span>}
-                                  {item.barcode && <span className="ml-2">• Barcode: {item.barcode}</span>}
-                                </div>
+                                {/* {item.isbn && (
+                                  <div className="text-[11px] text-gray-500 font-mono mt-0.5">
+                                    ISBN: {item.isbn}
+                                  </div>
+                                )} */}
+                                {orig > 0 && (
+                                  <div className="text-[11px] text-gray-500 font-medium mt-1">
+                                    Requested: <strong className="text-gray-900 font-bold">{orig}</strong> copies
+                                  </div>
+                                )}
                                 {isSold && (
-                                  <div className="text-[11px] text-amber-600 font-medium mt-0.5">
-                                    ★ {item.quantitySold} copies already sold (minimum required: {item.quantitySold})
+                                  <div className="text-[11px] text-amber-700 font-medium mt-1">
+                                    • {item.quantitySold} copies already sold (min required: {item.quantitySold})
                                   </div>
                                 )}
                               </td>
 
-                              <td className="px-3 py-3 text-center font-bold text-gray-700 text-sm">
-                                {orig}
-                              </td>
+                              {canManageStockSources && (
+                                <td className="px-4 py-3 align-top">
+                                  <div className="space-y-2">
+                                    <Dropdown
+                                      value={item.selectedSource}
+                                      onChange={(val) => handleEditSourceChange(item.bookId, val)}
+                                      options={getRowSourceOptions(item.bookId, item, true)}
+                                      selectClassName="text-xs py-1.5 px-2.5 bg-white border border-[#7e2562]/20"
+                                      menuClassName="w-72"
+                                    />
 
-                              <td className="px-4 py-3">
-                                <div className="flex items-center justify-center gap-1">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleEditQuantityChange(idx, Math.max((item.quantitySold || 0), item.quantityRequested - 1))}
-                                    disabled={item.quantityRequested <= (item.quantitySold || 0)}
-                                    className="w-7 h-7 rounded-sm border border-gray-300 bg-gray-50 hover:bg-gray-100 flex items-center justify-center font-bold text-gray-700 disabled:opacity-40"
-                                  >
-                                    -
-                                  </button>
-                                  <input
-                                    type="number"
-                                    min={item.quantitySold || 0}
-                                    value={item.quantityRequested}
-                                    onChange={(e) => handleEditQuantityChange(idx, Number(e.target.value))}
-                                    className="w-16 px-2 py-1 text-center font-bold text-sm border border-gray-300 rounded-sm focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]"
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => handleEditQuantityChange(idx, item.quantityRequested + 1)}
-                                    className="w-7 h-7 rounded-sm border border-gray-300 bg-gray-50 hover:bg-gray-100 flex items-center justify-center font-bold text-gray-700"
-                                  >
-                                    +
-                                  </button>
-                                </div>
-                              </td>
+                                    {!isSplit && (orig > selectedAvail || isSingleOver) && (
+                                      <div className="text-[11px] text-red-600 font-semibold bg-red-50/80 border border-red-200 px-2 py-1 rounded-sm flex items-center gap-1.5">
+                                        <AlertTriangle className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                                        <span>Selected source has only <strong>{selectedAvail}</strong> in stock (Requested: <strong>{orig}</strong>)</span>
+                                      </div>
+                                    )}
 
-                              <td className="px-4 py-3">
-                                {delta < 0 ? (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-[11px] font-bold bg-[#fef5f2] text-[#e45e34] border border-[#e45e34]/30">
-                                    ↓ Returning {Math.abs(delta)} to stock
-                                  </span>
-                                ) : delta > 0 ? (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-[11px] font-bold bg-[#f0fbf5] text-[#3cb976] border border-[#3cb976]/30">
-                                    ↑ Taking +{delta} from stock
-                                  </span>
+                                    {isSplit && (
+                                      <div className="space-y-1.5">
+                                        <div className="flex flex-wrap items-center gap-1.5">
+                                          <button
+                                            type="button"
+                                            onClick={() => handleToggleEditSplitExpand(item.bookId)}
+                                            className="inline-flex items-center text-[11px] font-semibold text-[#7e2562] bg-[#faedf5] hover:bg-[#f6dfef] px-2 py-0.5 rounded-sm border border-[#7e2562]/20 transition-colors"
+                                          >
+                                            <Layers className="w-3 h-3 mr-1 text-[#7e2562]" />
+                                            {item.isSplitExpanded ? 'Hide Branch Inputs' : 'Configure Branch Quantities'}
+                                            {item.isSplitExpanded ? <ChevronUp className="w-3 h-3 ml-1" /> : <ChevronDown className="w-3 h-3 ml-1" />}
+                                          </button>
+
+                                          {!item.isSplitExpanded && (
+                                            <div className="flex flex-wrap gap-1 text-[10px]">
+                                              {(item.sourceSplits?.['WAREHOUSE'] || 0) > 0 && (() => {
+                                                const wAvail = getCentralStockQty(item.bookId) + (item.originalFromCentral || 0);
+                                                const wQty = item.sourceSplits?.['WAREHOUSE'] || 0;
+                                                const isOver = wQty > wAvail;
+                                                return (
+                                                  <span className={`font-medium px-1.5 py-0.5 rounded border ${
+                                                    isOver 
+                                                      ? 'bg-red-50 text-red-700 border-red-300 font-bold' 
+                                                      : 'bg-blue-50 text-blue-700 border-blue-200'
+                                                  }`}>
+                                                    Warehouse: {wQty}
+                                                    {isOver && <span className="ml-1 text-[9px] text-red-500 font-normal">({wAvail} avail)</span>}
+                                                  </span>
+                                                );
+                                              })()}
+                                              {branches.filter((b: any) => b.type !== 'WAREHOUSE').map((b: any) => {
+                                                const qty = item.sourceSplits?.[`BRANCH_${b.id}`] || 0;
+                                                if (qty <= 0) return null;
+                                                const bAvail = getBranchStockQty(b.id, item.bookId) + (b.id === editingExhibition?.sourceBranchId ? (item.originalFromBranch || 0) : 0);
+                                                const isOver = qty > bAvail;
+                                                return (
+                                                  <span key={b.id} className={`font-medium px-1.5 py-0.5 rounded border ${
+                                                    isOver 
+                                                      ? 'bg-red-50 text-red-700 border-red-300 font-bold' 
+                                                      : 'bg-amber-50 text-amber-800 border-amber-200'
+                                                  }`}>
+                                                    {b.name}: {qty}
+                                                    {isOver && <span className="ml-1 text-[9px] text-red-500 font-normal">({bAvail} avail)</span>}
+                                                  </span>
+                                                );
+                                              })}
+                                            </div>
+                                          )}
+                                        </div>
+
+                                        {item.isSplitExpanded && (
+                                          <div className="p-2.5 bg-[#faf6f9] border border-[#7e2562]/20 rounded-sm space-y-2 mt-2">
+                                            <div className="text-[11px] font-bold text-[#7e2562] flex items-center justify-between">
+                                              <span>Enter copies from each source:</span>
+                                              <span className="text-gray-700 font-normal">Sum: <strong className="text-[#7e2562]">{item.quantityRequested}</strong> copies</span>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                              {/* Warehouse */}
+                                              {(() => {
+                                                const wAvail = getCentralStockQty(item.bookId) + (item.originalFromCentral || 0);
+                                                const wVal = item.sourceSplits?.['WAREHOUSE'] ?? 0;
+                                                const isOver = wVal > wAvail;
+                                                return (
+                                                  <div className={`flex items-center justify-between bg-white px-2.5 py-1.5 rounded-sm border ${
+                                                    isOver ? 'border-red-300 bg-red-50/30' : 'border-gray-200'
+                                                  }`}>
+                                                    <div className="flex items-center gap-1.5 min-w-0 pr-2">
+                                                      <Warehouse className={`w-3.5 h-3.5 shrink-0 ${isOver ? 'text-red-600' : 'text-blue-600'}`} />
+                                                      <div className="text-xs text-gray-800 font-medium truncate">
+                                                        Central Warehouse
+                                                        <span className={`text-[10px] block ${isOver ? 'text-red-600 font-bold' : 'text-gray-400'}`}>
+                                                          ({wAvail} avail)
+                                                        </span>
+                                                      </div>
+                                                    </div>
+                                                    <input
+                                                      type="number"
+                                                      min="0"
+                                                      value={item.sourceSplits?.['WAREHOUSE'] ?? 0}
+                                                      onChange={(e) => handleEditSplitQtyChange(item.bookId, 'WAREHOUSE', Number(e.target.value))}
+                                                      className={`w-16 px-1.5 py-1 text-center font-bold text-xs border rounded transition-colors ${
+                                                        isOver 
+                                                          ? 'text-red-600 bg-red-50 border-red-400 focus:ring-1 focus:ring-red-500 focus:border-red-500' 
+                                                          : 'text-gray-900 border-gray-300 focus:ring-1 focus:ring-[#7e2562]'
+                                                      }`}
+                                                    />
+                                                  </div>
+                                                );
+                                              })()}
+
+                                              {/* Branches */}
+                                              {branches.filter((b: any) => b.type !== 'WAREHOUSE').map((b: any) => {
+                                                const bAvail = getBranchStockQty(b.id, item.bookId) + (b.id === editingExhibition?.sourceBranchId ? (item.originalFromBranch || 0) : 0);
+                                                const bVal = item.sourceSplits?.[`BRANCH_${b.id}`] ?? 0;
+                                                const isOver = bVal > bAvail;
+                                                return (
+                                                  <div key={b.id} className={`flex items-center justify-between bg-white px-2.5 py-1.5 rounded-sm border ${
+                                                    isOver ? 'border-red-300 bg-red-50/30' : 'border-gray-200'
+                                                  }`}>
+                                                    <div className="flex items-center gap-1.5 min-w-0 pr-2">
+                                                      <Store className={`w-3.5 h-3.5 shrink-0 ${isOver ? 'text-red-600' : 'text-amber-600'}`} />
+                                                      <div className="text-xs text-gray-800 font-medium truncate">
+                                                        {b.name}
+                                                        <span className={`text-[10px] block ${isOver ? 'text-red-600 font-bold' : 'text-gray-400'}`}>
+                                                          ({bAvail} avail)
+                                                        </span>
+                                                      </div>
+                                                    </div>
+                                                    <input
+                                                      type="number"
+                                                      min="0"
+                                                      value={item.sourceSplits?.[`BRANCH_${b.id}`] ?? 0}
+                                                      onChange={(e) => handleEditSplitQtyChange(item.bookId, `BRANCH_${b.id}`, Number(e.target.value))}
+                                                      className={`w-16 px-1.5 py-1 text-center font-bold text-xs border rounded transition-colors ${
+                                                        isOver 
+                                                          ? 'text-red-600 bg-red-50 border-red-400 focus:ring-1 focus:ring-red-500 focus:border-red-500' 
+                                                          : 'text-gray-900 border-gray-300 focus:ring-1 focus:ring-[#7e2562]'
+                                                      }`}
+                                                    />
+                                                  </div>
+                                                );
+                                              })}
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                </td>
+                              )}
+
+                              <td className="px-4 py-3 align-top text-center">
+                                {isSplit ? (
+                                  <div className="inline-flex items-center justify-center font-bold text-sm text-[#7e2562] bg-[#faedf5] px-2.5 py-1 rounded-sm border border-[#7e2562]/20">
+                                    {item.quantityRequested} copies
+                                  </div>
                                 ) : (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-[11px] font-medium bg-gray-100 text-gray-600">
-                                    No change
-                                  </span>
+                                  <div className="inline-flex flex-col items-center">
+                                    <div className="inline-flex items-center border border-gray-300 rounded-sm">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const min = item.quantitySold || 1;
+                                          const current = item.quantityRequested || 1;
+                                          if (current > min) {
+                                            handleEditSingleQtyChange(item.bookId, current - 1);
+                                          }
+                                        }}
+                                        className="w-7 h-7 rounded-sm border border-gray-300 bg-gray-50 hover:bg-gray-100 flex items-center justify-center font-bold text-gray-700"
+                                      >
+                                        -
+                                      </button>
+                                      <input
+                                        type="number"
+                                        min={item.quantitySold || 1}
+                                        value={item.quantityRequested}
+                                        onChange={(e) => handleEditSingleQtyChange(item.bookId, Number(e.target.value))}
+                                        className="w-12 text-center text-xs font-bold border-0 focus:ring-0 py-1"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const current = item.quantityRequested || 1;
+                                          handleEditSingleQtyChange(item.bookId, current + 1);
+                                        }}
+                                        className="w-7 h-7 rounded-sm border border-gray-300 bg-gray-50 hover:bg-gray-100 flex items-center justify-center font-bold text-gray-700"
+                                      >
+                                        +
+                                      </button>
+                                    </div>
+                                    {isSingleOver && (
+                                      <span className="text-[10px] text-red-600 font-bold mt-1 block whitespace-nowrap">
+                                        Exceeds stock ({selectedAvail} avail)
+                                      </span>
+                                    )}
+                                  </div>
                                 )}
                               </td>
 
-                              <td className="px-3 py-3 text-right">
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveFromEditCart(idx)}
-                                  disabled={isSold}
-                                  title={isSold ? "Cannot remove book with recorded sales" : "Remove book from exhibition"}
-                                  className="text-[#e45e34] hover:text-[#c74c25] p-1.5 hover:bg-[#fef5f2] rounded-sm transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
+                              <td className="px-3 py-3 text-right align-top">
+                                {isSold ? (
+                                  <span className="text-[11px] text-gray-400 italic">Sold copies lock</span>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditCart(editCart.filter((i) => i.bookId !== item.bookId))}
+                                    className="text-[#e45e34] hover:text-[#c74c25] font-semibold text-xs p-1 hover:bg-[#fef5f2] rounded-sm transition-colors"
+                                    title="Remove book"
+                                  >
+                                    Remove
+                                  </button>
+                                )}
                               </td>
                             </tr>
                           );
                         })}
-
                         {editCart.length === 0 && (
                           <tr>
-                            <td colSpan={5} className="px-4 py-8 text-center text-gray-400 italic">
-                              No books currently added. Please add at least one book below.
+                            <td colSpan={canManageStockSources ? 4 : 3} className="px-4 py-8 text-center text-gray-400 italic">
+                              No books allocated. Search and add books below.
                             </td>
                           </tr>
                         )}
                       </tbody>
                     </table>
                   </div>
-                </div>
 
-                {/* 3. Add Books Section */}
-                <div className="bg-[#faf6f9]/50 border border-[#7e2562]/10 rounded-sm p-4 space-y-3">
-                  <h4 className="text-xs font-bold text-[#7e2562] uppercase tracking-wider flex items-center">
-                    <Plus className="w-4 h-4 mr-1.5 text-[#7e2562]" />
-                    Add More Books to Exhibition
-                  </h4>
+                  {/* Add New Book Row */}
+                  <div className="pt-2">
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Add More Books to Exhibition</label>
+                    <Dropdown
+                      searchable={true}
+                      isMulti={true}
+                      closeOnSelect={false}
+                      actionType="plus"
+                      value={editCart.map((i) => i.bookId)}
+                      onChange={() => {}}
+                      onItemToggle={(opt, willSelect) => {
+                        if (willSelect) {
+                          const bookList = catalog?.books || catalog?.items || catalog?.data || (Array.isArray(catalog) ? catalog : []);
+                          const book = bookList.find((b: any) => b.id === opt.value);
+                          const title = book?.title || opt.label || 'Selected Book';
+                          const isbn = book?.isbn || opt.isbn;
 
-                  <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
-                    <div className="md:col-span-6">
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">Select Book from Catalog</label>
-                      <Dropdown
-                        searchable={true}
-                        value={editBookInput}
-                        onChange={(val) => {
-                          setEditBookInput(val);
-                          if (val) {
-                            const bStock = getBranchStockQty(val);
-                            const cStock = getCentralStockQty(val);
-                            const selectedBranch = branches.find((br: any) => br.id === (editingExhibition?.sourceBranchId));
-                            const isWarehouse = selectedBranch?.type === 'WAREHOUSE';
-                            if (isWarehouse) {
-                              setEditBranchQtyInput(0);
-                              setEditWarehouseQtyInput(Math.min(5, cStock));
-                            } else {
-                              const defaultTotal = 5;
-                              const defaultBranch = Math.min(defaultTotal, bStock);
-                              const defaultWarehouse = Math.min(Math.max(0, defaultTotal - defaultBranch), cStock);
-                              setEditBranchQtyInput(defaultBranch);
-                              setEditWarehouseQtyInput(defaultWarehouse);
-                            }
-                          } else {
-                            setEditBranchQtyInput(0);
-                            setEditWarehouseQtyInput(0);
+                          const defaultSource = editingExhibition?.sourceBranchId ? `BRANCH_${editingExhibition.sourceBranchId}` : 'WAREHOUSE';
+                          const defaultQty = 5;
+
+                          setEditCart((prev) => {
+                            if (prev.some((i) => i.bookId === opt.value)) return prev;
+                            return [
+                              ...prev,
+                              {
+                                bookId: opt.value,
+                                title,
+                                isbn,
+                                quantityRequested: defaultQty,
+                                sourceMode: 'SINGLE',
+                                selectedSource: defaultSource,
+                                sourceSplits: { [defaultSource]: defaultQty },
+                                isSplitExpanded: false,
+                                isNew: true,
+                                originalQuantity: 0,
+                                originalFromBranch: 0,
+                                originalFromCentral: 0,
+                                quantitySold: 0,
+                              }
+                            ];
+                          });
+                        } else {
+                          const existing = editCart.find((i) => i.bookId === opt.value);
+                          if (existing && (existing.quantitySold || 0) > 0) {
+                            alert(`Cannot remove "${existing.title}" because ${existing.quantitySold} copies have already been sold.`);
+                            return;
                           }
-                        }}
-                        placeholder="Search title, ISBN, or barcode..."
-                        options={(catalog?.books || catalog?.items || catalog?.data || (Array.isArray(catalog) ? catalog : [])).map((b: any) => {
-                          const bStock = getBranchStockQty(b.id);
-                          const cStock = getCentralStockQty(b.id);
-                          const selectedBranch = branches.find((br: any) => br.id === (editingExhibition?.sourceBranchId));
-                          const isWarehouse = selectedBranch?.type === 'WAREHOUSE';
-                          const totalStock = isWarehouse ? cStock : (bStock + cStock);
-                          const badgeText = isWarehouse 
-                            ? `Wh: ${cStock}` 
-                            : `Branch: ${bStock} | Wh: ${cStock} (Total: ${totalStock})`;
-
-                          return {
-                            value: b.id,
-                            label: b.title,
-                            isbn: b.isbn,
-                            barcode: b.barcode,
-                            sublabel: `ISBN: ${b.isbn || 'N/A'}${b.barcode ? ` • Barcode: ${b.barcode}` : ''}`,
-                            badge: badgeText,
-                            badgeClassName: totalStock > 0 ? 'bg-[#faedf5] text-[#7e2562] border border-[#7e2562]/30' : 'bg-neutral-100 text-neutral-500 border border-neutral-200'
-                          };
-                        })}
-                      />
-                    </div>
-
-                    <div className="md:col-span-2">
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">
-                        Branch Shelf ({getBranchStockQty(editBookInput)})
-                      </label>
-                      <input 
-                        type="number" 
-                        min="0" 
-                        value={editBranchQtyInput} 
-                        onChange={e => setEditBranchQtyInput(Math.max(0, Number(e.target.value)))}
-                        disabled={!editBookInput || branches.find((b: any) => b.id === editingExhibition?.sourceBranchId)?.type === 'WAREHOUSE'}
-                        className="block w-full px-3 py-2 border border-gray-300 rounded-sm text-sm bg-white disabled:bg-gray-100 focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" 
-                      />
-                    </div>
-
-                    <div className="md:col-span-2">
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">
-                        Warehouse ({getCentralStockQty(editBookInput)})
-                      </label>
-                      <input 
-                        type="number" 
-                        min="0" 
-                        value={editWarehouseQtyInput} 
-                        onChange={e => setEditWarehouseQtyInput(Math.max(0, Number(e.target.value)))}
-                        disabled={!editBookInput}
-                        className="block w-full px-3 py-2 border border-gray-300 rounded-sm text-sm bg-white disabled:bg-gray-100 focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" 
-                      />
-                    </div>
-
-                    <div className="md:col-span-2">
-                      <button
-                        type="button"
-                        onClick={handleAddBookToEditCart}
-                        disabled={!editBookInput || (editBranchQtyInput + editWarehouseQtyInput <= 0)}
-                        className="w-full inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-white bg-[#7e2562] hover:bg-[#681b50] disabled:opacity-50 rounded-sm shadow-xs transition-colors active:scale-95"
-                      >
-                        <Plus className="w-4 h-4 mr-1" /> Add
-                      </button>
-                    </div>
+                          setEditCart((prev) => prev.filter((i) => i.bookId !== opt.value));
+                        }
+                      }}
+                      placeholder="Search title or ISBN to add books..."
+                      options={(catalog?.books || catalog?.items || catalog?.data || (Array.isArray(catalog) ? catalog : [])).map((b: any) => ({
+                        value: b.id,
+                        label: b.title,
+                        isbn: b.isbn,
+                        isSelected: editCart.some((i) => i.bookId === b.id),
+                      }))}
+                    />
                   </div>
                 </div>
               </form>
 
               {/* Footer */}
-              <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between shrink-0">
-                <div className="text-xs text-gray-500">
-                  Total Titles: <strong className="text-gray-900">{editCart.length}</strong> • Total Copies: <strong className="text-gray-900">{editCart.reduce((acc, curr) => acc + (curr.quantityRequested || 0), 0)}</strong>
+              <div className="px-4 py-3 sm:px-6 sm:py-4 border-t border-gray-200 bg-gray-50 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+                <div className="text-xs text-gray-500 text-center sm:text-left">
+                  Total Titles: <strong className="text-gray-900">{editCart.length}</strong> • Total Copies: <strong className="text-gray-900">{editCart.reduce((acc, curr) => acc + (Number(curr.quantityRequested) || 0), 0)}</strong>
                 </div>
 
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-2 sm:space-x-3 w-full sm:w-auto justify-end">
                   <button 
                     type="button" 
                     onClick={() => setEditingExhibition(null)} 
-                    className="px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-sm hover:bg-gray-50"
+                    className="flex-1 sm:flex-initial px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-sm hover:bg-gray-50"
                   >
                     Cancel
                   </button>
@@ -1411,14 +2050,403 @@ export default function ExhibitionsPage() {
                     type="submit" 
                     form="edit-exhibition-form"
                     disabled={isSubmitting || editCart.length === 0} 
-                    className="inline-flex items-center px-5 py-2 text-sm font-semibold text-white bg-[#7e2562] hover:bg-[#681b50] disabled:opacity-50 rounded-sm shadow-xs transition-colors active:scale-[0.98]"
+                    className="flex-1 sm:flex-initial inline-flex items-center justify-center px-4 sm:px-5 py-2 text-sm font-semibold text-white bg-[#7e2562] hover:bg-[#681b50] disabled:opacity-50 rounded-sm shadow-xs transition-colors active:scale-[0.98]"
                   >
                     {isSubmitting ? (
                       <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving Changes...
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...
                       </>
                     ) : (
-                      'Save Changes & Adjust Stock'
+                      canManageStockSources ? 'Save Changes' : 'Save Request'
+                    )}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Approve & Allocate Stock Modal for Central Inventory Manager, Super Admin & Admin */}
+      <AnimatePresence>
+        {approvingExhibition && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-xs">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }} 
+              animate={{ opacity: 1, scale: 1 }} 
+              exit={{ opacity: 0, scale: 0.95 }} 
+              className="bg-white rounded-sm shadow-2xl w-full max-w-4xl max-h-[92dvh] flex flex-col overflow-hidden border border-[#3cb976]/20"
+            >
+              {/* Header */}
+              <div className="p-4 sm:px-6 sm:py-4 border-b border-[#3cb976]/20 bg-gradient-to-r from-[#f0fbf5] to-[#faf6f9] flex justify-between items-center shrink-0">
+                <div className="flex items-center space-x-3 min-w-0 pr-2">
+                  <div className="p-2 bg-[#3cb976] text-white rounded-sm shadow-xs shrink-0">
+                    <CheckCircle className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-base sm:text-lg font-bold text-gray-900 truncate">
+                      Review & Allocate Stock for Exhibition
+                    </h3>
+                    <p className="text-xs text-gray-500 hidden sm:block">
+                      Decide and configure which branches or warehouse fulfill the requested books before approval.
+                    </p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setApprovingExhibition(null)} 
+                  className="p-1.5 text-gray-400 hover:text-gray-600 rounded-sm hover:bg-gray-100 transition-colors shrink-0"
+                >
+                  <XCircle className="w-6 h-6" />
+                </button>
+              </div>
+
+              {/* Scrollable Modal Body */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-5">
+                {/* Event Summary Banner */}
+                <div className="bg-[#faf6f9]/80 border border-[#7e2562]/10 rounded-sm p-3 sm:p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                  <div>
+                    <span className="text-gray-400 block font-semibold uppercase tracking-wider">Event Name</span>
+                    <strong className="text-sm text-gray-800 block mt-0.5">{approvingExhibition.name || approvingExhibition.eventName}</strong>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 block font-semibold uppercase tracking-wider">Requested By / Branch</span>
+                    <strong className="text-sm text-gray-800 block mt-0.5">{approvingExhibition.branch?.name || 'Central'}</strong>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 block font-semibold uppercase tracking-wider">Location</span>
+                    <strong className="text-sm text-gray-800 block mt-0.5">{approvingExhibition.location}</strong>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 block font-semibold uppercase tracking-wider">Event Duration</span>
+                    <strong className="text-sm text-gray-800 block mt-0.5">
+                      {new Date(approvingExhibition.startDate).toLocaleDateString()} - {new Date(approvingExhibition.endDate).toLocaleDateString()}
+                    </strong>
+                  </div>
+                </div>
+
+                {/* Stock Allocation Instructions */}
+                <div className="bg-[#f0fbf5] border border-[#3cb976]/30 rounded-sm p-3 sm:p-3.5 text-xs text-emerald-900 flex items-start gap-2.5">
+                  <AlertCircle className="w-4 h-4 text-[#3cb976] shrink-0 mt-0.5" />
+                  <div>
+                    <strong>Stock Fulfillment Decision:</strong> For each requested title below, select whether copies are supplied from the <strong>Central Warehouse</strong>, a <strong>Branch Shelf</strong>, or a <strong>Custom Multi-Branch Split</strong>.
+                  </div>
+                </div>
+
+                {/* Stock Allocation Table */}
+                <div className="border border-[#7e2562]/10 rounded-sm overflow-x-auto shadow-xs">
+                  <table className="min-w-[650px] w-full divide-y divide-gray-200">
+                    <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562] uppercase tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap sticky top-0 z-10">
+                      <tr>
+                        <th className="px-4 py-3 text-left w-1/4">Book Title & ISBN</th>
+                        <th className="px-4 py-3 text-left w-1/2">Stock Source & Allocation</th>
+                        <th className="px-4 py-3 text-center w-1/6">Allocated Copies</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200 text-xs">
+                      {approveCart.map((item) => {
+                        const isSplit = item.sourceMode === 'SPLIT';
+                        const reqQty = item.originalQuantity ?? item.quantityRequested;
+                        const selectedAvail = !isSplit ? getSourceAvailableQty(item.selectedSource, item.bookId, item) : 0;
+                        const isSingleOverStock = !isSplit && (item.quantityRequested || 0) > selectedAvail;
+                        const isSingleStockShortForReq = !isSplit && reqQty > selectedAvail;
+                        const isFulfilledOrExceeded = item.quantityRequested >= reqQty;
+                        const isExceeded = item.quantityRequested > reqQty;
+
+                        const warehouseAvail = getCentralStockQty(item.bookId);
+                        const isWarehouseOver = (item.sourceSplits?.['WAREHOUSE'] || 0) > warehouseAvail;
+                        const isAnyBranchOver = branches.some((b: any) => (item.sourceSplits?.[`BRANCH_${b.id}`] || 0) > getBranchStockQty(b.id, item.bookId));
+                        const hasSplitOverStock = isWarehouseOver || isAnyBranchOver;
+
+                        return (
+                          <tr key={item.bookId} className="hover:bg-[#faf6f9]/40 transition-colors">
+                            <td className="px-4 py-3 align-top">
+                              <div className="font-semibold text-gray-900">{item.title}</div>
+                              {item.isbn && (
+                                <div className="text-[11px] text-gray-500 font-mono mt-0.5">
+                                  ISBN: {item.isbn}
+                                </div>
+                              )}
+                              <div className="text-[11px] text-gray-500 font-medium mt-1">
+                                Requested: <strong className="text-gray-900 font-bold">{reqQty}</strong> copies
+                              </div>
+                            </td>
+
+                            <td className="px-4 py-3 align-top">
+                              <div className="space-y-2">
+                                <Dropdown
+                                  value={item.selectedSource}
+                                  onChange={(val) => handleApproveSourceChange(item.bookId, val)}
+                                  options={getRowSourceOptions(item.bookId, item)}
+                                  selectClassName="text-xs py-1.5 px-2.5 bg-white border border-[#7e2562]/20"
+                                  menuClassName="w-72"
+                                />
+
+                                {!isSplit && isSingleStockShortForReq && (
+                                  <div className="text-[11px] text-red-600 font-semibold bg-red-50/80 border border-red-200 px-2 py-1 rounded-sm flex items-center gap-1.5">
+                                    <AlertTriangle className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                                    <span>Selected branch has only <strong>{selectedAvail}</strong> in stock (Requested: <strong>{reqQty}</strong>)</span>
+                                  </div>
+                                )}
+
+                                {isSplit && (
+                                  <div className="space-y-1.5">
+                                    <div className="flex flex-wrap items-center gap-1.5">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleToggleApproveSplitExpand(item.bookId)}
+                                        className="inline-flex items-center text-[11px] font-semibold text-[#7e2562] bg-[#faedf5] hover:bg-[#f6dfef] px-2 py-0.5 rounded-sm border border-[#7e2562]/20 transition-colors"
+                                      >
+                                        <Layers className="w-3 h-3 mr-1 text-[#7e2562]" />
+                                        {item.isSplitExpanded ? 'Hide Branch Inputs' : 'Configure Branch Quantities'}
+                                        {item.isSplitExpanded ? <ChevronUp className="w-3 h-3 ml-1" /> : <ChevronDown className="w-3 h-3 ml-1" />}
+                                      </button>
+
+                                      {!item.isSplitExpanded && (
+                                        <div className="flex flex-wrap gap-1 text-[10px]">
+                                          {(item.sourceSplits?.['WAREHOUSE'] || 0) > 0 && (() => {
+                                            const wQty = item.sourceSplits?.['WAREHOUSE'] || 0;
+                                            const isOver = wQty > warehouseAvail;
+                                            return (
+                                              <span className={`font-medium px-1.5 py-0.5 rounded border ${
+                                                isOver 
+                                                  ? 'bg-red-50 text-red-700 border-red-300 font-bold' 
+                                                  : 'bg-blue-50 text-blue-700 border-blue-200'
+                                              }`}>
+                                                Warehouse: {wQty}
+                                                {isOver && <span className="ml-1 text-[9px] text-red-500 font-normal">({warehouseAvail} avail)</span>}
+                                              </span>
+                                            );
+                                          })()}
+                                          {branches.filter((b: any) => b.type !== 'WAREHOUSE').map((b: any) => {
+                                            const qty = item.sourceSplits?.[`BRANCH_${b.id}`] || 0;
+                                            if (qty <= 0) return null;
+                                            const bAvail = getBranchStockQty(b.id, item.bookId);
+                                            const isOver = qty > bAvail;
+                                            return (
+                                              <span key={b.id} className={`font-medium px-1.5 py-0.5 rounded border ${
+                                                isOver 
+                                                  ? 'bg-red-50 text-red-700 border-red-300 font-bold' 
+                                                  : 'bg-amber-50 text-amber-800 border-amber-200'
+                                              }`}>
+                                                {b.name}: {qty}
+                                                {isOver && <span className="ml-1 text-[9px] text-red-500 font-normal">({bAvail} avail)</span>}
+                                              </span>
+                                            );
+                                          })}
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {item.isSplitExpanded && (
+                                      <div className="p-2.5 bg-[#faf6f9] border border-[#7e2562]/20 rounded-sm space-y-2 mt-2">
+                                        <div className="text-[11px] font-bold text-[#7e2562] flex items-center justify-between">
+                                          <span>Enter copies from each source:</span>
+                                          <span className="text-gray-700 font-normal">
+                                            Sum: <strong className={isFulfilledOrExceeded ? "text-emerald-600 font-bold" : "text-[#7e2562] font-bold"}>{item.quantityRequested}</strong> / {reqQty} requested
+                                          </span>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                          {/* Warehouse */}
+                                          {(() => {
+                                            const wVal = item.sourceSplits?.['WAREHOUSE'] ?? 0;
+                                            const isOver = wVal > warehouseAvail;
+                                            return (
+                                              <div className={`flex items-center justify-between bg-white px-2.5 py-1.5 rounded-sm border ${
+                                                isOver ? 'border-red-300 bg-red-50/30' : 'border-gray-200'
+                                              }`}>
+                                                <div className="flex items-center gap-1.5 min-w-0 pr-2">
+                                                  <Warehouse className={`w-3.5 h-3.5 shrink-0 ${isOver ? 'text-red-600' : 'text-blue-600'}`} />
+                                                  <div className="text-xs text-gray-800 font-medium truncate">
+                                                    Central Warehouse
+                                                    <span className={`text-[10px] block ${isOver ? 'text-red-600 font-bold' : 'text-gray-400'}`}>
+                                                      ({warehouseAvail} avail)
+                                                    </span>
+                                                  </div>
+                                                </div>
+                                                <input
+                                                  type="number"
+                                                  min="0"
+                                                  value={item.sourceSplits?.['WAREHOUSE'] ?? 0}
+                                                  onChange={(e) => handleApproveSplitQtyChange(item.bookId, 'WAREHOUSE', Number(e.target.value))}
+                                                  className={`w-16 px-1.5 py-1 text-center font-bold text-xs border rounded transition-colors ${
+                                                    isOver 
+                                                      ? 'text-red-600 bg-red-50 border-red-400 focus:ring-1 focus:ring-red-500 focus:border-red-500' 
+                                                      : 'text-gray-900 border-gray-300 focus:ring-1 focus:ring-[#7e2562]'
+                                                  }`}
+                                                />
+                                              </div>
+                                            );
+                                          })()}
+
+                                          {/* Branches */}
+                                          {branches.filter((b: any) => b.type !== 'WAREHOUSE').map((b: any) => {
+                                            const bAvail = getBranchStockQty(b.id, item.bookId);
+                                            const bVal = item.sourceSplits?.[`BRANCH_${b.id}`] ?? 0;
+                                            const isOver = bVal > bAvail;
+                                            return (
+                                              <div key={b.id} className={`flex items-center justify-between bg-white px-2.5 py-1.5 rounded-sm border ${
+                                                isOver ? 'border-red-300 bg-red-50/30' : 'border-gray-200'
+                                              }`}>
+                                                <div className="flex items-center gap-1.5 min-w-0 pr-2">
+                                                  <Store className={`w-3.5 h-3.5 shrink-0 ${isOver ? 'text-red-600' : 'text-amber-600'}`} />
+                                                  <div className="text-xs text-gray-800 font-medium truncate">
+                                                    {b.name}
+                                                    <span className={`text-[10px] block ${isOver ? 'text-red-600 font-bold' : 'text-gray-400'}`}>
+                                                      ({bAvail} avail)
+                                                    </span>
+                                                  </div>
+                                                </div>
+                                                <input
+                                                  type="number"
+                                                  min="0"
+                                                  value={item.sourceSplits?.[`BRANCH_${b.id}`] ?? 0}
+                                                  onChange={(e) => handleApproveSplitQtyChange(item.bookId, `BRANCH_${b.id}`, Number(e.target.value))}
+                                                  className={`w-16 px-1.5 py-1 text-center font-bold text-xs border rounded transition-colors ${
+                                                    isOver 
+                                                      ? 'text-red-600 bg-red-50 border-red-400 focus:ring-1 focus:ring-red-500 focus:border-red-500' 
+                                                      : 'text-gray-900 border-gray-300 focus:ring-1 focus:ring-[#7e2562]'
+                                                  }`}
+                                                />
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+
+                            <td className="px-4 py-3 align-top text-center">
+                              {isSplit ? (
+                                <div className="flex flex-col items-center justify-center">
+                                  <span className={`inline-flex items-center px-2.5 py-1 rounded-sm text-sm font-bold border transition-colors ${
+                                    hasSplitOverStock
+                                      ? 'bg-red-50 text-red-700 border-red-300'
+                                      : isFulfilledOrExceeded 
+                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-300' 
+                                        : 'bg-[#faedf5] text-[#7e2562] border-[#7e2562]/20'
+                                  }`}>
+                                    {item.quantityRequested}
+                                  </span>
+                                  <span className="text-[10px] text-gray-400 mt-0.5">Sum of splits</span>
+                                  {hasSplitOverStock ? (
+                                    <span className="text-[10px] text-red-600 font-bold mt-1 inline-flex items-center gap-0.5 whitespace-nowrap">
+                                      <AlertTriangle className="w-3 h-3 text-red-500 shrink-0" /> Exceeds stock in split
+                                    </span>
+                                  ) : isFulfilledOrExceeded ? (
+                                    <span className="text-[10px] text-emerald-600 font-bold mt-1 inline-flex items-center gap-0.5 whitespace-nowrap">
+                                      ✓ {isExceeded ? `Exceeds req (${reqQty})` : `Fulfills req (${reqQty})`}
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] text-amber-600 font-semibold mt-1 whitespace-nowrap">
+                                      Req: {reqQty}
+                                    </span>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="flex flex-col items-center justify-center">
+                                  <div className="flex items-center justify-center gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleApproveQuantityChange(item.bookId, Math.max(1, item.quantityRequested - 1))}
+                                      className="w-7 h-7 rounded-sm border border-gray-300 bg-gray-50 hover:bg-gray-100 flex items-center justify-center font-bold text-gray-700"
+                                    >
+                                      -
+                                    </button>
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      value={item.quantityRequested}
+                                      onChange={(e) => handleApproveQuantityChange(item.bookId, Number(e.target.value))}
+                                      className={`w-16 px-2 py-1 text-center font-bold text-sm border rounded-sm transition-colors ${
+                                        isSingleOverStock
+                                          ? 'text-red-600 bg-red-50 border-red-400 focus:ring-1 focus:ring-red-500 focus:border-red-500'
+                                          : isFulfilledOrExceeded 
+                                            ? 'text-emerald-700 bg-emerald-50 border-emerald-400 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500' 
+                                            : 'text-gray-900 border-gray-300 focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]'
+                                      }`}
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => handleApproveQuantityChange(item.bookId, item.quantityRequested + 1)}
+                                      className="w-7 h-7 rounded-sm border border-gray-300 bg-gray-50 hover:bg-gray-100 flex items-center justify-center font-bold text-gray-700"
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+                                  {isSingleOverStock ? (
+                                    <span className="text-[10px] text-red-600 font-bold mt-1 inline-flex items-center gap-0.5 whitespace-nowrap">
+                                      <AlertTriangle className="w-3 h-3 text-red-500 shrink-0" /> Exceeds stock ({selectedAvail} avail)
+                                    </span>
+                                  ) : isFulfilledOrExceeded ? (
+                                    <span className="text-[10px] text-emerald-600 font-bold mt-1 inline-flex items-center gap-0.5 whitespace-nowrap">
+                                      ✓ {isExceeded ? `Exceeds req (${reqQty})` : `Fulfills req (${reqQty})`}
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] text-amber-600 font-semibold mt-1 whitespace-nowrap">
+                                      Requested: {reqQty}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Optional Approval Note */}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Approval Note (Optional)</label>
+                  <input
+                    type="text"
+                    value={approveNote}
+                    onChange={(e) => setApproveNote(e.target.value)}
+                    placeholder="E.g., Approved with central warehouse allocation..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-sm text-xs focus:ring-1 focus:ring-[#3cb976] focus:border-[#3cb976]"
+                  />
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="p-4 sm:px-6 sm:py-4 border-t border-gray-200 bg-gray-50 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const exId = approvingExhibition.id;
+                    setApprovingExhibition(null);
+                    handleApproveReject(exId, 'reject');
+                  }}
+                  className="w-full sm:w-auto px-4 py-2 text-xs font-semibold text-[#e45e34] bg-[#fef5f2] hover:bg-[#fdeae3] border border-[#e45e34]/30 rounded-sm transition-colors text-center"
+                >
+                  Reject Request
+                </button>
+
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:space-x-3">
+                  <button 
+                    type="button" 
+                    onClick={() => setApprovingExhibition(null)} 
+                    className="w-full sm:w-auto px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-sm hover:bg-gray-50 text-center"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={handleConfirmApproveAndAllocate}
+                    disabled={isSubmitting || approveCart.length === 0} 
+                    className="w-full sm:w-auto inline-flex items-center justify-center px-5 py-2 text-sm font-semibold text-white bg-[#3cb976] hover:bg-[#329e64] disabled:opacity-50 rounded-sm shadow-xs transition-colors active:scale-[0.98]"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Approving & Allocating...
+                      </>
+                    ) : (
+                      'Confirm & Approve Exhibition'
                     )}
                   </button>
                 </div>
@@ -1431,51 +2459,66 @@ export default function ExhibitionsPage() {
       {/* Assign User Modal */}
       <AnimatePresence>
         {assigningExhibition && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-sm shadow-xl w-full max-w-lg p-6 border border-[#7e2562]/10">
-              <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">Assign Staff to Exhibition</h3>
-              <form onSubmit={handleAssign} className="space-y-4">
-                <p className="text-sm text-gray-500 mb-4">Assign a staff member to oversee the <strong>{assigningExhibition.name}</strong> event.</p>
-                
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Select Branch</label>
-                  <Dropdown
-                    value={assignBranchId}
-                    onChange={(val) => {
-                      setAssignBranchId(val);
-                      setAssignUserId('');
-                    }}
-                    placeholder="Select a branch..."
-                    options={branches.map((b: any) => ({ value: b.id, label: b.name }))}
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 mb-1">Select Staff Member</label>
-                  <Dropdown
-                    value={assignUserId}
-                    onChange={(val) => setAssignUserId(val)}
-                    placeholder={assignBranchId ? "Select staff..." : "Select a branch first"}
-                    options={(usersResponse?.data || usersResponse || [])
-                      .filter((u: any) => {
-                        if (!assignBranchId) return false;
-                        const selectedBranch = branches.find((b: any) => b.id === assignBranchId);
-                        if (selectedBranch?.type === 'WAREHOUSE') {
-                          return !u.branchId && !u.branch?.id;
-                        }
-                        return u.branchId === assignBranchId || u.branch?.id === assignBranchId;
-                      })
-                      .map((u: any) => ({ value: u.id, label: `${u.name} (${u.roles?.map((r: any) => r.role).join(', ') || u.primaryRole})` }))}
-                  />
-                </div>
-
-                <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-gray-200">
-                  <button type="button" onClick={() => setAssigningExhibition(null)} className="px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-sm hover:bg-gray-50">Cancel</button>
-                  <button type="submit" disabled={isSubmitting} className="inline-flex items-center px-4 py-2 text-sm font-semibold text-white bg-[#3cb976] hover:bg-[#329e64] rounded-sm disabled:opacity-50 shadow-xs transition-colors active:scale-[0.98]">
-                    {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : 'Assign'}
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-xs">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }} 
+              animate={{ opacity: 1, scale: 1 }} 
+              exit={{ opacity: 0, scale: 0.95 }} 
+              className="bg-white rounded-sm shadow-xl w-full max-w-lg max-h-[92dvh] flex flex-col overflow-hidden border border-[#7e2562]/10"
+            >
+              <div className="p-4 sm:p-6 overflow-y-auto flex-1">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-base sm:text-lg font-bold text-gray-900 flex items-center">Assign Staff to Exhibition</h3>
+                  <button 
+                    onClick={() => setAssigningExhibition(null)}
+                    className="text-gray-400 hover:text-gray-600 p-1"
+                  >
+                    <XCircle className="w-5 h-5" />
                   </button>
                 </div>
-              </form>
+                <form id="assign-staff-form" onSubmit={handleAssign} className="space-y-4">
+                  <p className="text-sm text-gray-500 mb-4">Assign a staff member to oversee the <strong>{assigningExhibition.name || assigningExhibition.eventName}</strong> event.</p>
+                  
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Select Branch</label>
+                    <Dropdown
+                      value={assignBranchId}
+                      onChange={(val) => {
+                        setAssignBranchId(val);
+                        setAssignUserId('');
+                      }}
+                      placeholder="Select a branch..."
+                      options={branches.map((b: any) => ({ value: b.id, label: b.name }))}
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">Select Staff Member</label>
+                    <Dropdown
+                      value={assignUserId}
+                      onChange={(val) => setAssignUserId(val)}
+                      placeholder={assignBranchId ? "Select staff..." : "Select a branch first"}
+                      options={(usersResponse?.data || usersResponse || [])
+                        .filter((u: any) => {
+                          if (!assignBranchId) return false;
+                          const selectedBranch = branches.find((b: any) => b.id === assignBranchId);
+                          if (selectedBranch?.type === 'WAREHOUSE') {
+                            return !u.branchId && !u.branch?.id;
+                          }
+                          return u.branchId === assignBranchId || u.branch?.id === assignBranchId;
+                        })
+                        .map((u: any) => ({ value: u.id, label: `${u.name} (${u.roles?.map((r: any) => r.role).join(', ') || u.primaryRole})` }))}
+                    />
+                  </div>
+                </form>
+              </div>
+
+              <div className="p-4 sm:px-6 sm:py-3 border-t border-gray-200 bg-gray-50 flex flex-col-reverse sm:flex-row justify-end gap-2 sm:space-x-3 shrink-0">
+                <button type="button" onClick={() => setAssigningExhibition(null)} className="w-full sm:w-auto px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-sm hover:bg-gray-50 text-center">Cancel</button>
+                <button form="assign-staff-form" type="submit" disabled={isSubmitting} className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-white bg-[#3cb976] hover:bg-[#329e64] rounded-sm disabled:opacity-50 shadow-xs transition-colors active:scale-[0.98]">
+                  {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : 'Assign'}
+                </button>
+              </div>
             </motion.div>
           </div>
         )}
@@ -1484,17 +2527,17 @@ export default function ExhibitionsPage() {
       {/* Exhibition Details & History Modal */}
       <AnimatePresence>
         {viewingExhibitionHistory && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-xs">
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }} 
               animate={{ opacity: 1, scale: 1 }} 
               exit={{ opacity: 0, scale: 0.95 }} 
-              className="bg-white rounded-sm shadow-xl w-full max-w-4xl p-6 overflow-hidden flex flex-col max-h-[90vh] border border-[#7e2562]/10"
+              className="bg-white rounded-sm shadow-xl w-full max-w-4xl max-h-[92dvh] flex flex-col overflow-hidden border border-[#7e2562]/10"
             >
               {/* Header */}
-              <div className="flex justify-between items-start border-b border-gray-200 pb-4 mb-4">
+              <div className="p-4 sm:p-6 border-b border-gray-200 shrink-0 flex flex-col sm:flex-row justify-between items-start gap-3">
                 <div>
-                  <h3 className="text-xl font-bold text-gray-900 flex items-center">
+                  <h3 className="text-lg sm:text-xl font-bold text-gray-900 flex items-center">
                     <Tent className="w-5 h-5 mr-2 text-[#7e2562]" />
                     {viewingExhibitionHistory.name || viewingExhibitionHistory.eventName}
                   </h3>
@@ -1503,7 +2546,7 @@ export default function ExhibitionsPage() {
                     Source: <strong className="text-gray-700">{viewingExhibitionHistory.branch?.name || viewingExhibitionHistory.sourceBranchName}</strong>
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 self-end sm:self-auto">
                   {viewingExhibitionHistory.status !== 'CLOSED' && viewingExhibitionHistory.status !== 'REJECTED' && (
                     <button
                       onClick={() => handleOpenEdit(viewingExhibitionHistory)}
@@ -1527,9 +2570,9 @@ export default function ExhibitionsPage() {
                   <p className="text-sm font-semibold text-slate-400">Loading exhibition report...</p>
                 </div>
               ) : historyData ? (
-                <div className="flex-1 overflow-y-auto pr-1 space-y-6">
+                <div className="p-4 sm:p-6 flex-1 overflow-y-auto space-y-5 sm:space-y-6">
                   {/* Basic Details card for everyone */}
-                  <div className="bg-[#faf6f9]/60 border border-[#7e2562]/10 rounded-sm p-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+                  <div className="bg-[#faf6f9]/60 border border-[#7e2562]/10 rounded-sm p-3 sm:p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
                     <div>
                       <span className="text-slate-400 block font-semibold uppercase tracking-wider">Start Date</span>
                       <strong className="text-sm text-slate-700 block mt-0.5">{new Date(historyData.exhibition.startDate).toLocaleDateString()}</strong>
@@ -1550,26 +2593,26 @@ export default function ExhibitionsPage() {
 
                   {/* Financial Report Section */}
                   {showFullHistory ? (
-                    <div className="space-y-6">
+                    <div className="space-y-5 sm:space-y-6">
                       <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider border-l-4 border-[#7e2562] pl-2">Financial Summary</h4>
                       
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="bg-[#f0fbf5] border border-[#3cb976]/20 rounded-sm p-4 flex flex-col">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+                        <div className="bg-[#f0fbf5] border border-[#3cb976]/20 rounded-sm p-3 sm:p-4 flex flex-col">
                           <span className="text-[10px] font-bold text-[#3cb976] uppercase tracking-wider">Total Cash/UPI Revenue</span>
-                          <strong className="text-xl text-emerald-800 mt-1">₹{Number(historyData.metrics.totalRevenue).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
+                          <strong className="text-lg sm:text-xl text-emerald-800 mt-1">₹{Number(historyData.metrics.totalRevenue).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
                         </div>
-                        <div className="bg-amber-50/70 border border-amber-200 rounded-sm p-4 flex flex-col">
+                        <div className="bg-amber-50/70 border border-amber-200 rounded-sm p-3 sm:p-4 flex flex-col">
                           <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">Total Credit Sales Amount</span>
-                          <strong className="text-xl text-amber-900 mt-1">₹{Number(historyData.metrics.totalCreditAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
+                          <strong className="text-lg sm:text-xl text-amber-900 mt-1">₹{Number(historyData.metrics.totalCreditAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
                         </div>
-                        <div className="bg-[#faedf5] border border-[#7e2562]/20 rounded-sm p-4 flex flex-col">
+                        <div className="bg-[#faedf5] border border-[#7e2562]/20 rounded-sm p-3 sm:p-4 flex flex-col">
                           <span className="text-[10px] font-bold text-[#7e2562] uppercase tracking-wider">Books Sold (From Invoices)</span>
-                          <strong className="text-xl text-[#7e2562] mt-1">{historyData.metrics.totalBooksSoldFromBills} books</strong>
+                          <strong className="text-lg sm:text-xl text-[#7e2562] mt-1">{historyData.metrics.totalBooksSoldFromBills} books</strong>
                         </div>
                       </div>
 
                       {/* Stock Reconciliation Summary Metrics */}
-                      <div className="bg-[#faf6f9]/60 border border-[#7e2562]/10 rounded-sm p-4 grid grid-cols-3 md:grid-cols-6 gap-3 text-center text-xs">
+                      <div className="bg-[#faf6f9]/60 border border-[#7e2562]/10 rounded-sm p-3 sm:p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3 text-center text-xs">
                         <div>
                           <span className="text-slate-400 font-semibold block">Taken</span>
                           <strong className="text-sm text-slate-700 block mt-0.5">{historyData.metrics.totalTaken}</strong>
@@ -1602,8 +2645,8 @@ export default function ExhibitionsPage() {
                         {historyData.bills.length === 0 ? (
                           <p className="text-xs text-slate-400 italic">No invoices recorded for this exhibition.</p>
                         ) : (
-                          <div className="border border-[#7e2562]/10 rounded-sm overflow-hidden shadow-xs">
-                            <table className="min-w-full divide-y divide-slate-100 text-left text-xs text-slate-600">
+                          <div className="border border-[#7e2562]/10 rounded-sm overflow-x-auto shadow-xs">
+                            <table className="min-w-[550px] w-full divide-y divide-slate-100 text-left text-xs text-slate-600">
                               <thead className="bg-[#faf6f9]/70 font-bold uppercase text-[10px] text-[#7e2562] tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
                                 <tr>
                                   <th className="px-4 py-2.5">Invoice No</th>
@@ -1664,8 +2707,8 @@ export default function ExhibitionsPage() {
                     {historyData.stock.length === 0 ? (
                       <p className="text-xs text-slate-400 italic">No stock registered for this exhibition.</p>
                     ) : (
-                      <div className="border border-[#7e2562]/10 rounded-sm overflow-hidden shadow-xs">
-                        <table className="min-w-full divide-y divide-slate-100 text-left text-xs text-slate-600">
+                      <div className="border border-[#7e2562]/10 rounded-sm overflow-x-auto shadow-xs">
+                        <table className="min-w-[550px] w-full divide-y divide-slate-100 text-left text-xs text-slate-600">
                           <thead className="bg-[#faf6f9]/70 font-bold uppercase text-[10px] text-[#7e2562] tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
                             <tr>
                               <th className="px-4 py-2.5">Book Title</th>
@@ -1710,10 +2753,10 @@ export default function ExhibitionsPage() {
                 <div className="py-12 text-center text-sm text-slate-400">Failed to load history metrics.</div>
               )}
 
-              <div className="flex justify-end pt-4 border-t border-gray-200 mt-4">
+              <div className="p-4 sm:px-6 sm:py-3 border-t border-gray-200 bg-gray-50 flex justify-end shrink-0">
                 <button 
                   onClick={() => setViewingExhibitionHistory(null)}
-                  className="px-4 py-2 bg-[#faedf5] hover:bg-[#f6dbe9] text-[#7e2562] border border-[#7e2562]/20 rounded-sm text-sm font-semibold transition"
+                  className="w-full sm:w-auto px-4 py-2 bg-[#faedf5] hover:bg-[#f6dbe9] text-[#7e2562] border border-[#7e2562]/20 rounded-sm text-sm font-semibold transition text-center"
                 >
                   Close Report
                 </button>

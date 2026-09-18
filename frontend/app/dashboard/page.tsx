@@ -3,6 +3,7 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
+import { getHighestPriorityRole } from '@/lib/api-backend/users/enums/user-role.enum';
 
 export default function DashboardPage() {
   const { user, isLoading } = useAuth();
@@ -11,7 +12,12 @@ export default function DashboardPage() {
   useEffect(() => {
     if (isLoading || !user) return;
 
-    switch (user.primaryRole || (user.roles && user.roles[0])) {
+    const allRoles = (user.roles && user.roles.length > 0)
+      ? user.roles
+      : [user.primaryRole || user.role];
+    const activeRole = getHighestPriorityRole(allRoles);
+
+    switch (activeRole) {
       case 'SUPER_ADMIN':
         router.replace('/dashboard/super-admin');
         break;

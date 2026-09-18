@@ -30,6 +30,7 @@ interface AuthContextType {
   login: (token: string) => Promise<void>;
   logout: () => void;
   impersonate: (role: string, branchId?: string) => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -39,6 +40,7 @@ const AuthContext = createContext<AuthContextType>({
   login: async () => {},
   logout: () => {},
   impersonate: async () => {},
+  refreshUser: async () => {},
 });
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
@@ -47,6 +49,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
+
+  const refreshUser = async () => {
+    try {
+      const res = await api.get('/auth/me');
+      if (res.success && res.data) {
+        setUser(res.data);
+      }
+    } catch (e) {
+      console.error('Failed to refresh user profile', e);
+    }
+  };
 
   // Run ONCE on mount only — pathname must NOT be a dependency here.
   // Including pathname causes initializeAuth to re-run on every navigation,
@@ -142,7 +155,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, login, logout, impersonate }}>
+    <AuthContext.Provider value={{ user, token, isLoading, login, logout, impersonate, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

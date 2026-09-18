@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Dropdown } from '@/components/Dropdown';
 import { Pagination } from '@/components/Pagination';
 import { matchKeywords } from '@/lib/searchUtils';
+import { generatePurchaseOrderPDF } from '@/lib/pdfUtils';
 import { 
   Loader2, 
   Plus, 
@@ -28,6 +29,10 @@ import {
   Package,
   ShoppingCart,
   Sparkles,
+  Pencil,
+  Trash2,
+  FileDown,
+  ArrowLeftRight,
 } from 'lucide-react';
 
 const COMMON_CATEGORIES = [
@@ -61,6 +66,7 @@ export default function PurchaseOrdersPage() {
 
   const [activeTab, setActiveTab] = useState<'orders' | 'requests'>('orders');
   const [linkedPoRequestId, setLinkedPoRequestId] = useState<string | null>(null);
+  const [linkedTransferId, setLinkedTransferId] = useState<string | null>(null);
 
   // Approval Requests filters & states
   const [requestStatusFilter, setRequestStatusFilter] = useState('');
@@ -71,8 +77,9 @@ export default function PurchaseOrdersPage() {
 
   const pendingRequestsCount = poRequests.filter((r: any) => r.status === 'PENDING').length;
 
-  // Create PO State
+  // Create / Edit PO State
   const [isCreating, setIsCreating] = useState(false);
+  const [editingPO, setEditingPO] = useState<any | null>(null);
   const [selectedSupplier, setSelectedSupplier] = useState('');
   const [customSupplier, setCustomSupplier] = useState('');
   const [expectedDate, setExpectedDate] = useState('');
@@ -155,9 +162,28 @@ export default function PurchaseOrdersPage() {
       setActiveTab('requests');
     }
     const poRequestId = params.get('poRequestId');
+    const transferId = params.get('transferId');
     const bookId = params.get('bookId');
     const qty = params.get('qty');
-    if (poRequestId && bookId) {
+    
+    if (transferId && bookId) {
+      api.get(`/catalog/books/${bookId}`).then((res: any) => {
+        const foundBook = res?.data || res;
+        if (foundBook && foundBook.title) {
+          setCart([
+            {
+              bookId,
+              isNewBook: false,
+              title: foundBook.title,
+              quantity: qty ? Number(qty) : 10,
+              unitCost: Number(foundBook.costPrice || 0) > 0 ? Number(foundBook.costPrice) : 100,
+            }
+          ]);
+          setLinkedTransferId(transferId);
+          setIsCreating(true);
+        }
+      }).catch((err) => console.error('Failed to load book for Transfer PO', err));
+    } else if (poRequestId && bookId) {
       api.get(`/catalog/books/${bookId}`).then((res: any) => {
         const foundBook = res?.data || res;
         if (foundBook && foundBook.title) {
@@ -177,7 +203,43 @@ export default function PurchaseOrdersPage() {
     }
   }, []);
 
-  const handleCreate = async () => {
+  const handleOpenCreate = () => {
+    setEditingPO(null);
+    setLinkedPoRequestId(null);
+    setLinkedTransferId(null);
+    setSelectedSupplier('');
+    setCustomSupplier('');
+    setExpectedDate('');
+    setCart([]);
+    setIsCreating(true);
+  };
+
+  const handleOpenEdit = (po: any) => {
+    setEditingPO(po);
+    setLinkedPoRequestId(null);
+    setLinkedTransferId(null);
+    const foundSupplier = (suppliers || []).find((s: any) => s.id === po.supplierId);
+    if (foundSupplier) {
+      setSelectedSupplier(foundSupplier.id);
+      setCustomSupplier('');
+    } else {
+      setSelectedSupplier('OTHER');
+      setCustomSupplier(po.supplier?.name || '');
+    }
+    setExpectedDate(po.expectedDate ? new Date(po.expectedDate).toISOString().slice(0, 10) : '');
+    const items: POCartItem[] = (po.items || []).map((it: any) => ({
+      bookId: it.bookId,
+      isNewBook: false,
+      isPmsBook: it.book?.publishType === 'KAIRALI_BOOKS',
+      title: getBookTitle(it),
+      quantity: Number(it.quantityOrdered),
+      unitCost: Number(it.unitCost),
+    }));
+    setCart(items);
+    setIsCreating(true);
+  };
+
+  const handleSaveOrder = async () => {
     if (!selectedSupplier) {
       alert('Please select a supplier');
       return;
@@ -193,10 +255,14 @@ export default function PurchaseOrdersPage() {
 
     const totalQty = cart.reduce((acc, i) => acc + i.quantity, 0);
     const totalEstCost = cart.reduce((acc, i) => acc + (i.quantity * i.unitCost), 0);
+    const isEdit = !!editingPO;
+
     const ok = await confirm({
-      title: "Place Purchase Order",
-      message: `Place purchase order for ${cart.length} item(s) (${totalQty} total units) for ₹${totalEstCost.toLocaleString()}?`,
-      confirmText: "Yes, Place Order",
+      title: isEdit ? "Update Purchase Order" : "Place Purchase Order",
+      message: isEdit 
+        ? `Update purchase order "${editingPO.orderNumber}" for ${cart.length} item(s) (${totalQty} total units) for ₹${totalEstCost.toLocaleString()}?`
+        : `Place purchase order for ${cart.length} item(s) (${totalQty} total units) for ₹${totalEstCost.toLocaleString()}?`,
+      confirmText: isEdit ? "Yes, Update Order" : "Yes, Place Order",
       cancelText: "No, Cancel",
       variant: "primary",
     });
@@ -204,11 +270,12 @@ export default function PurchaseOrdersPage() {
 
     try {
       setIsSubmitting(true);
-      await api.post('/procurement', {
+      const payload = {
         supplierId: selectedSupplier === 'OTHER' ? undefined : selectedSupplier,
         supplierName: selectedSupplier === 'OTHER' ? customSupplier.trim() : undefined,
         expectedDate: expectedDate || undefined,
         poRequestId: linkedPoRequestId || undefined,
+        transferId: linkedTransferId || undefined,
         items: cart.map(i => ({ 
           bookId: i.bookId, 
           newBook: i.newBook, 
@@ -216,21 +283,63 @@ export default function PurchaseOrdersPage() {
           quantityOrdered: i.quantity, 
           unitCost: i.unitCost 
         }))
-      });
+      };
+
+      if (isEdit) {
+        await api.put(`/procurement/${editingPO.id}`, payload);
+      } else {
+        await api.post('/procurement', payload);
+      }
+
       setIsCreating(false);
+      setEditingPO(null);
       setCart([]);
       setSelectedSupplier('');
       setCustomSupplier('');
       setExpectedDate('');
       setLinkedPoRequestId(null);
+      setLinkedTransferId(null);
       await Promise.all([refetchPOs(), refetchPoRequests()]);
-      alert('Purchase Order Created Successfully');
+      alert(isEdit ? 'Purchase Order Updated Successfully' : 'Purchase Order Created Successfully');
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to create PO');
+      alert(err.response?.data?.message || `Failed to ${isEdit ? 'update' : 'create'} PO`);
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  const handleDeletePO = async (po: any) => {
+    const ok = await confirm({
+      title: "Delete Purchase Order",
+      message: `Are you sure you want to permanently delete Purchase Order "${po.orderNumber}"? All items in this order will be removed.`,
+      confirmText: "Yes, Delete PO",
+      cancelText: "Cancel",
+      variant: "danger",
+    });
+    if (!ok) return;
+
+    try {
+      setIsSubmitting(true);
+      await api.delete(`/procurement/${po.id}`);
+      await Promise.all([refetchPOs(), refetchPoRequests()]);
+      alert(`Purchase Order ${po.orderNumber} deleted successfully.`);
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to delete purchase order');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDownloadPDF = (po: any) => {
+    try {
+      generatePurchaseOrderPDF(po);
+    } catch (err) {
+      console.error('Failed to generate PO PDF', err);
+      alert('Failed to generate PDF. Please try again.');
+    }
+  };
+
+  const handleCreate = handleSaveOrder;
 
   const handleReviewRequest = async (id: string, status: 'APPROVED' | 'REJECTED', note?: string) => {
     const ok = await confirm({
@@ -526,10 +635,7 @@ export default function PurchaseOrdersPage() {
             </div>
 
             <button
-              onClick={() => {
-                setLinkedPoRequestId(null);
-                setIsCreating(true);
-              }}
+              onClick={handleOpenCreate}
               className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-[#7e2562] hover:bg-[#681b50] rounded-sm shadow-sm shadow-plum-sm active:scale-95 transition-all shrink-0 uppercase tracking-wider"
             >
               <Plus className="w-4 h-4" />
@@ -538,157 +644,213 @@ export default function PurchaseOrdersPage() {
           </div>
 
           <div className="bg-white shadow-sm border border-[#7e2562]/15 rounded-sm overflow-hidden">
-            <table className="min-w-full divide-y divide-[#7e2562]/10">
-              <thead className="bg-[#faf6f9]/70">
-                <tr>
-                  <th 
-                    scope="col" 
-                    onClick={() => toggleSort('orderNumber')}
-                    className="group px-6 py-3.5 text-left text-[11px] font-bold text-[#7e2562] uppercase tracking-wider cursor-pointer select-none hover:bg-[#faedf5]/60 transition-colors whitespace-nowrap"
-                  >
-                    <div className="flex items-center gap-1.5">
-                      <span>Order No / Date</span>
-                      {sortField === 'orderNumber' || sortField === 'date' ? (
-                        sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-[#7e2562] font-bold" /> : <ArrowDown className="w-3.5 h-3.5 text-[#7e2562] font-bold" />
-                      ) : (
-                        <ArrowUpDown className="w-3 h-3 text-neutral-400 opacity-50 group-hover:opacity-100 transition-opacity" />
-                      )}
-                    </div>
-                  </th>
-                  <th 
-                    scope="col" 
-                    onClick={() => toggleSort('supplier')}
-                    className="group px-6 py-3.5 text-left text-[11px] font-bold text-[#7e2562] uppercase tracking-wider cursor-pointer select-none hover:bg-[#faedf5]/60 transition-colors whitespace-nowrap"
-                  >
-                    <div className="flex items-center gap-1.5">
-                      <span>Supplier</span>
-                      {sortField === 'supplier' ? (
-                        sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-[#7e2562] font-bold" /> : <ArrowDown className="w-3.5 h-3.5 text-[#7e2562] font-bold" />
-                      ) : (
-                        <ArrowUpDown className="w-3 h-3 text-neutral-400 opacity-50 group-hover:opacity-100 transition-opacity" />
-                      )}
-                    </div>
-                  </th>
-                  <th scope="col" className="px-6 py-3.5 text-left text-[11px] font-bold text-[#7e2562] uppercase tracking-wider whitespace-nowrap">Items Overview</th>
-                  <th 
-                    scope="col" 
-                    onClick={() => toggleSort('totalCost')}
-                    className="group px-6 py-3.5 text-right text-[11px] font-bold text-[#7e2562] uppercase tracking-wider cursor-pointer select-none hover:bg-[#faedf5]/60 transition-colors whitespace-nowrap"
-                  >
-                    <div className="flex items-center justify-end gap-1.5">
-                      <span>Total Cost</span>
-                      {sortField === 'totalCost' ? (
-                        sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-[#7e2562] font-bold" /> : <ArrowDown className="w-3.5 h-3.5 text-[#7e2562] font-bold" />
-                      ) : (
-                        <ArrowUpDown className="w-3 h-3 text-neutral-400 opacity-50 group-hover:opacity-100 transition-opacity" />
-                      )}
-                    </div>
-                  </th>
-                  <th 
-                    scope="col" 
-                    onClick={() => toggleSort('status')}
-                    className="group px-6 py-3.5 text-center text-[11px] font-bold text-[#7e2562] uppercase tracking-wider cursor-pointer select-none hover:bg-[#faedf5]/60 transition-colors whitespace-nowrap"
-                  >
-                    <div className="flex items-center justify-center gap-1.5">
-                      <span>Status</span>
-                      {sortField === 'status' ? (
-                        sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-[#7e2562] font-bold" /> : <ArrowDown className="w-3.5 h-3.5 text-[#7e2562] font-bold" />
-                      ) : (
-                        <ArrowUpDown className="w-3 h-3 text-neutral-400 opacity-50 group-hover:opacity-100 transition-opacity" />
-                      )}
-                    </div>
-                  </th>
-                  <th scope="col" className="px-6 py-3.5 text-right text-[11px] font-bold text-[#7e2562] uppercase tracking-wider whitespace-nowrap">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-neutral-100">
-                {paginatedPOs.map((po: any) => (
-                  <tr key={po.id} className="hover:bg-[#faf6f9]/40 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-bold text-neutral-900">{po.orderNumber}</div>
-                      <div className="text-xs text-neutral-500 font-mono">
-                        {new Date(po.createdAt).toLocaleDateString()}
+            <div className="overflow-x-auto w-full">
+              <table className="min-w-full divide-y divide-[#7e2562]/10">
+                <thead className="bg-[#faf6f9]/70">
+                  <tr>
+                    <th 
+                      scope="col" 
+                      onClick={() => toggleSort('orderNumber')}
+                      className="group px-4 sm:px-6 py-3.5 text-left text-[11px] font-bold text-[#7e2562] uppercase tracking-wider cursor-pointer select-none hover:bg-[#faedf5]/60 transition-colors whitespace-nowrap"
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span>Order No / Date</span>
+                        {sortField === 'orderNumber' || sortField === 'date' ? (
+                          sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-[#7e2562] font-bold" /> : <ArrowDown className="w-3.5 h-3.5 text-[#7e2562] font-bold" />
+                        ) : (
+                          <ArrowUpDown className="w-3 h-3 text-neutral-400 opacity-50 group-hover:opacity-100 transition-opacity" />
+                        )}
                       </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-bold text-neutral-900">{po.supplier?.name}</div>
-                      <div className="text-xs text-neutral-500">{po.supplier?.email || po.supplier?.phone || ''}</div>
-                    </td>
-                    <td className="px-6 py-4">
-                      {po.items && po.items.length > 0 ? (
-                        <div className="flex flex-col gap-0.5">
-                          <div className="text-sm font-semibold text-neutral-900 flex items-center gap-1.5">
-                            <span>{getBookTitle(po.items[0])}</span>
-                            <span className="text-xs font-bold text-[#7e2562] bg-[#faedf5] px-1.5 py-0.5 rounded-sm">
-                              ×{po.items[0].quantityOrdered}
-                            </span>
-                          </div>
-                          {po.items.length > 1 && (
-                            <div 
-                              className="text-xs text-[#7e2562] font-medium cursor-help"
-                              title={po.items.slice(1).map((item: any) => `${getBookTitle(item)} (×${item.quantityOrdered})`).join('\n')}
+                    </th>
+                    <th 
+                      scope="col" 
+                      onClick={() => toggleSort('supplier')}
+                      className="group px-4 sm:px-6 py-3.5 text-left text-[11px] font-bold text-[#7e2562] uppercase tracking-wider cursor-pointer select-none hover:bg-[#faedf5]/60 transition-colors whitespace-nowrap"
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span>Supplier</span>
+                        {sortField === 'supplier' ? (
+                          sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-[#7e2562] font-bold" /> : <ArrowDown className="w-3.5 h-3.5 text-[#7e2562] font-bold" />
+                        ) : (
+                          <ArrowUpDown className="w-3 h-3 text-neutral-400 opacity-50 group-hover:opacity-100 transition-opacity" />
+                        )}
+                      </div>
+                    </th>
+                    <th scope="col" className="px-4 sm:px-6 py-3.5 text-left text-[11px] font-bold text-[#7e2562] uppercase tracking-wider whitespace-nowrap">Items Overview</th>
+                    <th 
+                      scope="col" 
+                      onClick={() => toggleSort('totalCost')}
+                      className="group px-4 sm:px-6 py-3.5 text-right text-[11px] font-bold text-[#7e2562] uppercase tracking-wider cursor-pointer select-none hover:bg-[#faedf5]/60 transition-colors whitespace-nowrap"
+                    >
+                      <div className="flex items-center justify-end gap-1.5">
+                        <span>Total Cost</span>
+                        {sortField === 'totalCost' ? (
+                          sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-[#7e2562] font-bold" /> : <ArrowDown className="w-3.5 h-3.5 text-[#7e2562] font-bold" />
+                        ) : (
+                          <ArrowUpDown className="w-3 h-3 text-neutral-400 opacity-50 group-hover:opacity-100 transition-opacity" />
+                        )}
+                      </div>
+                    </th>
+                    <th 
+                      scope="col" 
+                      onClick={() => toggleSort('status')}
+                      className="group px-4 sm:px-6 py-3.5 text-center text-[11px] font-bold text-[#7e2562] uppercase tracking-wider cursor-pointer select-none hover:bg-[#faedf5]/60 transition-colors whitespace-nowrap"
+                    >
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span>Status</span>
+                        {sortField === 'status' ? (
+                          sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-[#7e2562] font-bold" /> : <ArrowDown className="w-3.5 h-3.5 text-[#7e2562] font-bold" />
+                        ) : (
+                          <ArrowUpDown className="w-3 h-3 text-neutral-400 opacity-50 group-hover:opacity-100 transition-opacity" />
+                        )}
+                      </div>
+                    </th>
+                    <th scope="col" className="px-4 sm:px-6 py-3.5 text-right text-[11px] font-bold text-[#7e2562] uppercase tracking-wider whitespace-nowrap min-w-[200px]">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-neutral-100">
+                  {paginatedPOs.map((po: any) => (
+                    <tr key={po.id} className="hover:bg-[#faf6f9]/40 transition-colors">
+                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-bold text-neutral-900">{po.orderNumber}</div>
+                        <div className="text-xs text-neutral-500 font-mono">
+                          {new Date(po.createdAt).toLocaleDateString()}
+                        </div>
+                        {po.transfers && po.transfers.length > 0 && (
+                          <div className="mt-1.5">
+                            <a 
+                              href="/dashboard/transfers"
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-sm text-[10px] font-bold bg-[#faedf5] text-[#7e2562] border border-[#7e2562]/20 hover:bg-[#7e2562] hover:text-white transition-colors"
+                              title="Linked to Stock Transfer Request"
                             >
-                              +{po.items.length - 1} more title{po.items.length - 1 > 1 ? 's' : ''} ({po.items.reduce((sum: number, item: any) => sum + (item.quantityOrdered || 0), 0)} total copies)
+                              <ArrowLeftRight className="w-2.5 h-2.5" />
+                              <span>Transfer #{po.transfers[0].transferNumber} ({po.transfers[0].toBranch?.name || 'Branch'})</span>
+                            </a>
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 sm:px-6 py-4 max-w-[200px]">
+                        <div className="text-sm font-bold text-neutral-900 break-words">{po.supplier?.name}</div>
+                        <div className="text-xs text-neutral-500 truncate">{po.supplier?.email || po.supplier?.phone || ''}</div>
+                      </td>
+                      <td className="px-4 sm:px-6 py-4 min-w-[200px]">
+                        {po.items && po.items.length > 0 ? (
+                          <div className="flex flex-col gap-0.5">
+                            <div className="text-sm font-semibold text-neutral-900 flex items-center gap-1.5 flex-wrap">
+                              <span>{getBookTitle(po.items[0])}</span>
+                              <span className="text-xs font-bold text-[#7e2562] bg-[#faedf5] px-1.5 py-0.5 rounded-sm shrink-0">
+                                ×{po.items[0].quantityOrdered}
+                              </span>
                             </div>
+                            {po.items.length > 1 && (
+                              <div 
+                                className="text-xs text-[#7e2562] font-medium cursor-help"
+                                title={po.items.slice(1).map((item: any) => `${getBookTitle(item)} (×${item.quantityOrdered})`).join('\n')}
+                              >
+                                +{po.items.length - 1} more title{po.items.length - 1 > 1 ? 's' : ''} ({po.items.reduce((sum: number, item: any) => sum + (item.quantityOrdered || 0), 0)} total copies)
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-neutral-400 italic">No items</span>
+                        )}
+                      </td>
+                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm font-bold text-right text-neutral-900 font-mono">
+                        ₹{Number(po.totalCost).toFixed(2)}
+                      </td>
+                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-center">
+                        {getStatusBadge(po.status)}
+                      </td>
+                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-right text-xs font-medium min-w-[200px]">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {/* Download PDF Button */}
+                          <button
+                            onClick={() => handleDownloadPDF(po)}
+                            className="p-1.5 text-[#7e2562] bg-[#faedf5] hover:bg-[#f3dcee] border border-[#7e2562]/20 rounded-sm transition-all active:scale-95 shadow-2xs cursor-pointer shrink-0"
+                            title="Download PO as PDF"
+                          >
+                            <FileDown className="w-3.5 h-3.5" />
+                          </button>
+
+                          {/* Edit PO Button (DRAFT or PLACED, before receiving) */}
+                          {(po.status === 'DRAFT' || po.status === 'PLACED') && (
+                            <button
+                              onClick={() => handleOpenEdit(po)}
+                              className="p-1.5 text-neutral-700 bg-neutral-100 hover:bg-neutral-200 border border-neutral-200 rounded-sm transition-all active:scale-95 shadow-2xs cursor-pointer shrink-0"
+                              title="Edit Purchase Order"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+
+                          {/* Delete PO Button (DRAFT or PLACED, before receiving) */}
+                          {(po.status === 'DRAFT' || po.status === 'PLACED') && (
+                            <button
+                              onClick={() => handleDeletePO(po)}
+                              className="p-1.5 text-[#e45e34] bg-[#fef5f2] hover:bg-[#fdeae4] border border-[#e45e34]/20 rounded-sm transition-all active:scale-95 shadow-2xs cursor-pointer shrink-0"
+                              title="Delete Purchase Order"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+
+                          {/* Place Order Button */}
+                          {po.status === 'DRAFT' && (
+                            <button 
+                              onClick={() => handleStatusUpdate(po.id, 'PLACED')} 
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-white bg-[#7e2562] hover:bg-[#681b50] rounded-sm shadow-sm shadow-plum-sm active:scale-95 transition-all cursor-pointer shrink-0"
+                            >
+                              <Send className="w-3.5 h-3.5" />
+                              Place Order
+                            </button>
+                          )}
+
+                          {/* Receive Items Button */}
+                          {(po.status === 'PLACED' || po.status === 'PARTIALLY_RECEIVED') && canReceive && (
+                            <button 
+                              onClick={() => {
+                                setReceivingPO(po);
+                                const initialData = po.items.map((i: any) => ({
+                                  itemId: i.id,
+                                  quantityReceived: Math.max(0, i.quantityOrdered - i.quantityReceived)
+                                }));
+                                setReceiveData(initialData);
+                                const isAllFullyReceived = po.items.every((it: any) => {
+                                  const cur = initialData.find((r: any) => r.itemId === it.id)?.quantityReceived || 0;
+                                  return (it.quantityReceived + cur) >= it.quantityOrdered;
+                                });
+                                setReceiveStatus(isAllFullyReceived ? 'RECEIVED' : 'PARTIALLY_RECEIVED');
+                              }} 
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-white bg-[#3cb976] hover:bg-[#2fa264] rounded-sm shadow-sm active:scale-95 transition-all cursor-pointer shrink-0"
+                            >
+                              <PackageCheck className="w-3.5 h-3.5" />
+                              Receive Items
+                            </button>
+                          )}
+
+                          {po.status === 'RECEIVED' && (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-[#3cb976] bg-[#f0fbf5] rounded-sm border border-[#3cb976]/30 shrink-0">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-[#3cb976]" />
+                              Fulfilled
+                            </span>
+                          )}
+
+                          {po.status === 'CANCELLED' && (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-[#e45e34] bg-[#fef5f2] rounded-sm border border-[#e45e34]/30 shrink-0">
+                              <XCircle className="w-3.5 h-3.5 text-[#e45e34]" />
+                              Cancelled
+                            </span>
                           )}
                         </div>
-                      ) : (
-                        <span className="text-xs text-neutral-400 italic">No items</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-right text-neutral-900 font-mono">
-                      ₹{Number(po.totalCost).toFixed(2)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                      {getStatusBadge(po.status)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-xs font-medium">
-                      <div className="flex items-center justify-end gap-2">
-                        {po.status === 'DRAFT' && (
-                          <button 
-                            onClick={() => handleStatusUpdate(po.id, 'PLACED')} 
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-white bg-[#7e2562] hover:bg-[#681b50] rounded-sm shadow-sm shadow-plum-sm active:scale-95 transition-all"
-                          >
-                            <Send className="w-3.5 h-3.5" />
-                            Place Order
-                          </button>
-                        )}
-                        {(po.status === 'PLACED' || po.status === 'PARTIALLY_RECEIVED') && canReceive && (
-                          <button 
-                            onClick={() => {
-                              setReceivingPO(po);
-                              const initialData = po.items.map((i: any) => ({
-                                itemId: i.id,
-                                quantityReceived: Math.max(0, i.quantityOrdered - i.quantityReceived)
-                              }));
-                              setReceiveData(initialData);
-                              const isAllFullyReceived = po.items.every((it: any) => {
-                                const cur = initialData.find((r: any) => r.itemId === it.id)?.quantityReceived || 0;
-                                return (it.quantityReceived + cur) >= it.quantityOrdered;
-                              });
-                              setReceiveStatus(isAllFullyReceived ? 'RECEIVED' : 'PARTIALLY_RECEIVED');
-                            }} 
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-white bg-[#3cb976] hover:bg-[#2fa264] rounded-sm shadow-sm active:scale-95 transition-all cursor-pointer"
-                          >
-                            <PackageCheck className="w-3.5 h-3.5" />
-                            Receive Items
-                          </button>
-                        )}
-                        {po.status === 'RECEIVED' && (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-[#3cb976] bg-[#f0fbf5] rounded-sm border border-[#3cb976]/30">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-[#3cb976]" />
-                            Fulfilled
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {sortedPOs.length === 0 && (
-                  <tr><td colSpan={6} className="px-6 py-12 text-center text-neutral-400 text-sm italic">No purchase orders found matching your criteria.</td></tr>
-                )}
-              </tbody>
-            </table>
+                      </td>
+                    </tr>
+                  ))}
+                  {sortedPOs.length === 0 && (
+                    <tr><td colSpan={6} className="px-6 py-12 text-center text-neutral-400 text-sm italic">No purchase orders found matching your criteria.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
 
             <Pagination
               currentPage={currentPage}
@@ -881,23 +1043,34 @@ export default function PurchaseOrdersPage() {
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white rounded-sm shadow-xl w-full max-w-3xl p-6 border border-[#7e2562]/20">
               <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
-                <h3 className="text-lg font-bold text-neutral-900">Create Purchase Order</h3>
+                <div>
+                  <h3 className="text-lg font-bold text-neutral-900">
+                    {editingPO ? `Edit Purchase Order (${editingPO.orderNumber})` : 'Create Purchase Order'}
+                  </h3>
+                  {editingPO && (
+                    <p className="text-xs text-neutral-500">Modify items, supplier, or expected delivery before dispatch.</p>
+                  )}
+                </div>
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleFillDemoPO}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[#7e2562] bg-[#faedf5] hover:bg-[#f3dcee] border border-[#7e2562]/20 rounded-sm shadow-2xs transition-all cursor-pointer"
-                    title="Fill sample PO data for staging"
-                  >
-                    <Sparkles className="w-3.5 h-3.5 text-[#7e2562]" />
-                    <span>Fill Dummy PO</span>
-                  </button>
+                  {!editingPO && (
+                    <button
+                      type="button"
+                      onClick={handleFillDemoPO}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[#7e2562] bg-[#faedf5] hover:bg-[#f3dcee] border border-[#7e2562]/20 rounded-sm shadow-2xs transition-all cursor-pointer"
+                      title="Fill sample PO data for staging"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-[#7e2562]" />
+                      <span>Fill Dummy PO</span>
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => {
                       setIsCreating(false);
+                      setEditingPO(null);
                       setCart([]);
                       setLinkedPoRequestId(null);
+                      setLinkedTransferId(null);
                     }}
                     className="p-1.5 text-neutral-400 hover:text-neutral-700 hover:bg-[#faedf5] rounded-sm transition-colors cursor-pointer"
                   >
@@ -915,7 +1088,23 @@ export default function PurchaseOrdersPage() {
                   <button 
                     type="button" 
                     onClick={() => setLinkedPoRequestId(null)} 
-                    className="text-[#7e2562] hover:text-[#541440] font-bold underline ml-2"
+                    className="text-[#7e2562] hover:text-[#541440] font-bold underline ml-2 cursor-pointer"
+                  >
+                    Unlink
+                  </button>
+                </div>
+              )}
+
+              {linkedTransferId && (
+                <div className="mb-4 p-3.5 bg-[#faedf5] border border-[#7e2562]/30 rounded-sm flex items-center justify-between text-xs text-[#7e2562] shadow-sm">
+                  <div className="flex items-center gap-2">
+                    <ArrowLeftRight className="w-4 h-4 text-[#7e2562] shrink-0" />
+                    <span><strong>Stock Transfer Request PO:</strong> This PO will automatically link to transfer request. Once stock is received at Central Warehouse, you can immediately fulfill and dispatch it to the requesting branch.</span>
+                  </div>
+                  <button 
+                    type="button" 
+                    onClick={() => setLinkedTransferId(null)} 
+                    className="text-[#7e2562] hover:text-[#541440] font-bold underline ml-2 cursor-pointer"
                   >
                     Unlink
                   </button>
@@ -1338,10 +1527,25 @@ export default function PurchaseOrdersPage() {
                   Total: <span className="text-[#7e2562]">₹{cart.reduce((sum, item) => sum + (item.quantity * item.unitCost), 0).toFixed(2)}</span>
                 </div>
                 <div className="flex items-center space-x-3">
-                  <button onClick={() => setIsCreating(false)} className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-neutral-700 bg-white border border-neutral-300 rounded-sm hover:bg-neutral-50 active:scale-95 transition-all">Cancel</button>
-                  <button onClick={handleCreate} disabled={cart.length === 0 || !selectedSupplier || isSubmitting} className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wider text-white bg-[#7e2562] hover:bg-[#681b50] rounded-sm shadow-sm shadow-plum-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all">
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      setIsCreating(false);
+                      setEditingPO(null);
+                      setCart([]);
+                    }} 
+                    className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-neutral-700 bg-white border border-neutral-300 rounded-sm hover:bg-neutral-50 active:scale-95 transition-all cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={handleCreate} 
+                    disabled={cart.length === 0 || !selectedSupplier || isSubmitting} 
+                    className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wider text-white bg-[#7e2562] hover:bg-[#681b50] rounded-sm shadow-sm shadow-plum-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
+                  >
                     {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                    Save Draft PO
+                    {editingPO ? 'Update Purchase Order' : 'Save Draft PO'}
                   </button>
                 </div>
               </div>

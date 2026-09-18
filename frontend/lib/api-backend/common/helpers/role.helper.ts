@@ -29,3 +29,5 @@ export function hasAnyRole(user: JwtPayload | User, roles: UserRole[]): boolean 
   }
   return false;
 }
+
+export { ROLE_PRIORITY_ORDER, getHighestPriorityRole } from '../../users/enums/user-role.enum';

@@ -24,11 +24,11 @@ export const generateBillPDF = (bill: any, items: any[], branch: any) => {
   }
   
   // Define Theme Colors (RGB)
-  const colorPrimary = [35, 31, 32]; // #231F20
-  const colorAccent = [0, 0, 0];      // #000000
-  const colorBlack = [0, 0, 0];      // #000000
-  const colorMuted = [107, 114, 128]; // #6b7280
-  const colorLine = [229, 231, 235];  // #e5e7eb
+  const colorPrimary: [number, number, number] = [35, 31, 32]; // #231F20
+  const colorAccent: [number, number, number] = [0, 0, 0];      // #000000
+  const colorBlack: [number, number, number] = [0, 0, 0];      // #000000
+  const colorMuted: [number, number, number] = [107, 114, 128]; // #6b7280
+  const colorLine: [number, number, number] = [229, 231, 235];  // #e5e7eb
   
   // ── 1. Top Section (Title & Logo) ────────────────────────────────────────
   doc.setFont('helvetica', 'bold');
@@ -262,9 +262,20 @@ export const generateBillPDF = (bill: any, items: any[], branch: any) => {
   const img = new Image();
   img.src = '/kairaliLogo.png';
   img.onload = () => {
-    // Width and height should preserve aspect ratio: 873 / 353 = 2.47
-    // Height: 12, Width: 12 * 2.47 = 29.64 -> 30
-    doc.addImage(img, 'PNG', pageWidth - 44, 12, 30, 12);
+    const naturalWidth = img.naturalWidth || img.width || 1;
+    const naturalHeight = img.naturalHeight || img.height || 1;
+    const aspectRatio = naturalWidth / naturalHeight;
+
+    let renderHeight = 9.5;
+    let renderWidth = renderHeight * aspectRatio;
+    if (renderWidth > 50) {
+      renderWidth = 50;
+      renderHeight = renderWidth / aspectRatio;
+    }
+
+    const xPos = pageWidth - 14 - renderWidth;
+    const yPos = 16;
+    doc.addImage(img, 'PNG', xPos, yPos, renderWidth, renderHeight);
     doc.save(`Invoice_${bill.billNumber}.pdf`);
   };
   
@@ -279,3 +290,306 @@ export const generateBillPDF = (bill: any, items: any[], branch: any) => {
     doc.save(`Invoice_${bill.billNumber}.pdf`);
   };
 };
+
+export const generatePurchaseOrderPDF = (po: any) => {
+  const doc = new jsPDF();
+  const pageWidth = doc.internal.pageSize.width;
+  const pageHeight = doc.internal.pageSize.height;
+
+  // Theme Colors (RGB)
+  const colorPlum: [number, number, number] = [126, 37, 98];    // #7e2562
+  const colorDark: [number, number, number] = [30, 41, 59];     // Slate 800
+  const colorMuted: [number, number, number] = [100, 116, 139]; // Slate 500
+  const colorLine: [number, number, number] = [226, 232, 240];  // Slate 200
+  const colorLightBg: [number, number, number] = [250, 237, 245]; // Light Plum
+
+  // ── 1. Top Section (Title & Meta) ──────────────────────────────────────────
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(24);
+  doc.setTextColor(colorPlum[0], colorPlum[1], colorPlum[2]);
+  doc.text('PURCHASE ORDER', 14, 24);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(colorMuted[0], colorMuted[1], colorMuted[2]);
+  doc.text('Kairali Books Central Procurement', 14, 30);
+
+  // Status Badge
+  const status = (po.status || 'DRAFT').toUpperCase();
+  let statusBg: [number, number, number] = [241, 245, 249];
+  let statusText: [number, number, number] = [71, 85, 105];
+  if (status === 'PLACED') {
+    statusBg = [250, 237, 245];
+    statusText = [126, 37, 98];
+  } else if (status === 'RECEIVED') {
+    statusBg = [240, 251, 245];
+    statusText = [60, 185, 118];
+  } else if (status === 'PARTIALLY_RECEIVED') {
+    statusBg = [254, 243, 199];
+    statusText = [180, 83, 9];
+  } else if (status === 'CANCELLED') {
+    statusBg = [254, 242, 242];
+    statusText = [228, 94, 52];
+  }
+
+  doc.setFillColor(statusBg[0], statusBg[1], statusBg[2]);
+  doc.roundedRect(14, 34, 34, 6, 1, 1, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(statusText[0], statusText[1], statusText[2]);
+  doc.text(status, 31, 38.2, { align: 'center' });
+
+  // ── 2. Order Meta Details ──────────────────────────────────────────────────
+  let metaY = 48;
+  const drawMeta = (label: string, value: string, y: number) => {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(colorDark[0], colorDark[1], colorDark[2]);
+    doc.text(label, 14, y);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(colorMuted[0], colorMuted[1], colorMuted[2]);
+    doc.text(value, 54, y);
+  };
+
+  const createdDate = po.createdAt 
+    ? new Date(po.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+    : 'N/A';
+  const expectedDate = po.expectedDate 
+    ? new Date(po.expectedDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+    : 'Immediate / As agreed';
+
+  drawMeta('PO Number:', po.orderNumber || 'N/A', metaY);
+  drawMeta('Order Date:', createdDate, metaY + 5.5);
+  drawMeta('Expected Delivery:', expectedDate, metaY + 11);
+  if (po.placedBy?.name) {
+    drawMeta('Authorized By:', po.placedBy.name, metaY + 16.5);
+  }
+
+  // ── 3. Buyer & Vendor Address Blocks ───────────────────────────────────────
+  const addressY = metaY + 24;
+
+  // Buyer (Ship To / Bill To) Box
+  doc.setFillColor(248, 250, 252);
+  doc.roundedRect(14, addressY, 86, 36, 1.5, 1.5, 'F');
+  doc.setDrawColor(colorLine[0], colorLine[1], colorLine[2]);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(14, addressY, 86, 36, 1.5, 1.5, 'S');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(colorPlum[0], colorPlum[1], colorPlum[2]);
+  doc.text('SHIP & BILL TO (BUYER)', 18, addressY + 6);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(colorDark[0], colorDark[1], colorDark[2]);
+  doc.text('Kairali Books Central Warehouse', 18, addressY + 12);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(colorMuted[0], colorMuted[1], colorMuted[2]);
+  doc.text('1st Floor, Mulliyaangana Complex', 18, addressY + 17);
+  doc.text('Airport Road, Bondel, Mangaluru, KA - 575008', 18, addressY + 22);
+  doc.text('GSTIN: 29AASCM4072F1Z2 | procurement@kairalibooks.com', 18, addressY + 27);
+
+  // Vendor (Supplier) Box
+  const vendorX = 110;
+  doc.setFillColor(248, 250, 252);
+  doc.roundedRect(vendorX, addressY, pageWidth - vendorX - 14, 36, 1.5, 1.5, 'F');
+  doc.roundedRect(vendorX, addressY, pageWidth - vendorX - 14, 36, 1.5, 1.5, 'S');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(colorPlum[0], colorPlum[1], colorPlum[2]);
+  doc.text('VENDOR / SUPPLIER', vendorX + 4, addressY + 6);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(colorDark[0], colorDark[1], colorDark[2]);
+  doc.text(po.supplier?.name || 'Direct Supplier', vendorX + 4, addressY + 12);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(colorMuted[0], colorMuted[1], colorMuted[2]);
+  
+  let vLineY = addressY + 17;
+  if (po.supplier?.contactPerson) {
+    doc.text(`Contact: ${po.supplier.contactPerson}`, vendorX + 4, vLineY);
+    vLineY += 5;
+  }
+  if (po.supplier?.email || po.supplier?.phone) {
+    doc.text(`${po.supplier.email || ''} ${po.supplier.phone ? '• ' + po.supplier.phone : ''}`.trim(), vendorX + 4, vLineY);
+    vLineY += 5;
+  }
+  if (po.supplier?.address) {
+    doc.text(po.supplier.address.substring(0, 45), vendorX + 4, vLineY);
+  } else {
+    doc.text('Authorized Publisher / Distributor', vendorX + 4, vLineY);
+  }
+
+  // ── 4. Order Items Table ───────────────────────────────────────────────────
+  const items = po.items || [];
+  const tableBody = items.map((item: any, idx: number) => {
+    const title = item.book?.title || item.title || item.newBook?.title || 'Book Title';
+    const isbn = item.book?.isbn || item.isbn || item.newBook?.isbn || item.book?.barcode || 'N/A';
+    const author = item.book?.author?.name || item.newBook?.authorName || item.pmsTitle?.authorName || '';
+    const desc = author ? `${title}\nAuthor: ${author}` : title;
+    const qty = Number(item.quantityOrdered || 0);
+    const unitCost = Number(item.unitCost || 0);
+    const lineTotal = qty * unitCost;
+
+    return [
+      idx + 1,
+      desc,
+      isbn,
+      qty,
+      `Rs. ${unitCost.toFixed(2)}`,
+      `Rs. ${lineTotal.toFixed(2)}`
+    ];
+  });
+
+  const currencySymbol = 'Rs.';
+
+  autoTable(doc, {
+    startY: addressY + 42,
+    head: [['#', 'Book / Item Description', 'ISBN / Code', 'Qty', 'Unit Cost', 'Amount']],
+    body: tableBody,
+    theme: 'plain',
+    headStyles: { 
+      fillColor: colorLightBg,
+      textColor: colorPlum, 
+      fontStyle: 'bold', 
+      fontSize: 8.5,
+      lineColor: colorLine,
+      lineWidth: { bottom: 0.5, top: 0.5 }
+    },
+    bodyStyles: { 
+      textColor: colorDark, 
+      fontSize: 8,
+      lineColor: colorLine,
+      lineWidth: { bottom: 0.2 }
+    },
+    columnStyles: {
+      0: { halign: 'center', cellWidth: 10 },
+      1: { halign: 'left' },
+      2: { halign: 'left', cellWidth: 32 },
+      3: { halign: 'right', cellWidth: 16 },
+      4: { halign: 'right', cellWidth: 26 },
+      5: { halign: 'right', cellWidth: 28 }
+    },
+    margin: { left: 14, right: 14 },
+    didParseCell: (data) => {
+      data.cell.styles.cellPadding = 3.5;
+    }
+  });
+
+  // ── 5. Totals & Notes Section ──────────────────────────────────────────────
+  const finalY = (doc as any).lastAutoTable?.finalY || 180;
+  
+  const totalQtyOrdered = items.reduce((sum: number, it: any) => sum + (Number(it.quantityOrdered) || 0), 0);
+  const totalAmount = Number(po.totalCost || items.reduce((sum: number, it: any) => sum + ((Number(it.quantityOrdered) || 0) * (Number(it.unitCost) || 0)), 0));
+
+  const rightColX = pageWidth - 14;
+  const labelColX = pageWidth - 82;
+
+  let totalsY = finalY + 8;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(colorMuted[0], colorMuted[1], colorMuted[2]);
+  
+  doc.text('Total Titles / Lines', labelColX, totalsY);
+  doc.text(`${items.length}`, rightColX, totalsY, { align: 'right' });
+
+  totalsY += 5;
+  doc.text('Total Units Ordered', labelColX, totalsY);
+  doc.text(`${totalQtyOrdered} copies`, rightColX, totalsY, { align: 'right' });
+
+  totalsY += 4;
+  doc.setDrawColor(colorLine[0], colorLine[1], colorLine[2]);
+  doc.setLineWidth(0.3);
+  doc.line(labelColX, totalsY, rightColX, totalsY);
+
+  totalsY += 6;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9.5);
+  doc.setTextColor(colorPlum[0], colorPlum[1], colorPlum[2]);
+  doc.text('Total Estimated Cost', labelColX, totalsY);
+  doc.text(`${currencySymbol} ${totalAmount.toFixed(2)}`, rightColX, totalsY, { align: 'right' });
+
+  // Terms and Notes on the Left
+  let notesY = finalY + 8;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(colorDark[0], colorDark[1], colorDark[2]);
+  doc.text('Terms & Delivery Conditions:', 14, notesY);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(colorMuted[0], colorMuted[1], colorMuted[2]);
+  doc.text('1. Please supply books in good condition matching exact ISBN specifications.', 14, notesY + 4.5);
+  doc.text('2. Mention PO Number on all delivery challans and invoices.', 14, notesY + 9);
+  doc.text('3. Central Warehouse stock receiving verification applies upon arrival.', 14, notesY + 13.5);
+
+  // ── 6. Signatures ──────────────────────────────────────────────────────────
+  const sigY = Math.max(totalsY + 18, notesY + 28);
+  if (sigY < pageHeight - 25) {
+    doc.setDrawColor(colorLine[0], colorLine[1], colorLine[2]);
+    doc.setLineWidth(0.4);
+    
+    // Left signature
+    doc.line(14, sigY + 12, 65, sigY + 12);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(colorDark[0], colorDark[1], colorDark[2]);
+    doc.text('Authorized Signatory', 14, sigY + 16);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(colorMuted[0], colorMuted[1], colorMuted[2]);
+    doc.text('Kairali Books Procurement', 14, sigY + 20);
+
+    // Right signature
+    doc.line(pageWidth - 65, sigY + 12, pageWidth - 14, sigY + 12);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(colorDark[0], colorDark[1], colorDark[2]);
+    doc.text('Vendor Acknowledgment', pageWidth - 65, sigY + 16);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(colorMuted[0], colorMuted[1], colorMuted[2]);
+    doc.text('Signature & Stamp', pageWidth - 65, sigY + 20);
+  }
+
+  // ── 7. Footer ──────────────────────────────────────────────────────────────
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(156, 163, 175);
+  doc.text(`Generated on ${new Date().toLocaleString()} | Official Kairali Books Purchase Order`, 14, pageHeight - 8);
+  doc.text('Page 1 of 1', pageWidth - 14, pageHeight - 8, { align: 'right' });
+
+  // Load and Add Logo Image on Top Right, then Save PDF
+  const img = new Image();
+  img.src = '/kairaliLogo.png';
+  img.onload = () => {
+    const naturalWidth = img.naturalWidth || img.width || 1;
+    const naturalHeight = img.naturalHeight || img.height || 1;
+    const aspectRatio = naturalWidth / naturalHeight;
+
+    let renderHeight = 9.5;
+    let renderWidth = renderHeight * aspectRatio;
+    if (renderWidth > 50) {
+      renderWidth = 50;
+      renderHeight = renderWidth / aspectRatio;
+    }
+
+    const xPos = pageWidth - 14 - renderWidth;
+    const yPos = 18;
+    doc.addImage(img, 'PNG', xPos, yPos, renderWidth, renderHeight);
+    doc.save(`PurchaseOrder_${po.orderNumber || 'PO'}.pdf`);
+  };
+
+  img.onerror = () => {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(18);
+    doc.setTextColor(colorPlum[0], colorPlum[1], colorPlum[2]);
+    doc.text('KAIRALI', pageWidth - 38, 20);
+    doc.save(`PurchaseOrder_${po.orderNumber || 'PO'}.pdf`);
+  };
+};
+

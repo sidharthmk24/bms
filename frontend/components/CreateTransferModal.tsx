@@ -34,6 +34,7 @@ interface SelectedBook {
   isbn?: string;
   barcode?: string;
   authorName?: string;
+  branchStock?: number;
 }
 
 interface TransferItem {
@@ -68,9 +69,7 @@ export default function CreateTransferModal({ isOpen, onClose, onSuccess }: Crea
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [activeBook, setActiveBook] = useState<SelectedBook | null>(null);
   
-  // Stock by branch for active book
-  const [activeBranchStocks, setActiveBranchStocks] = useState<any[]>([]);
-  const [loadingBranchStocks, setLoadingBranchStocks] = useState(false);
+  // Quantity for currently selected book
   const [activeQty, setActiveQty] = useState(1);
 
   // Permissions check
@@ -90,111 +89,47 @@ export default function CreateTransferModal({ isOpen, onClose, onSuccess }: Crea
       return;
     }
 
-    const delayDebounce = setTimeout(async () => {
+    const timer = setTimeout(async () => {
       setSearching(true);
       try {
-        const response = await api.get(`/catalog/books?search=${encodeURIComponent(searchQuery)}&limit=10`);
+        const targetBranch = toBranchId || user?.branchId || '';
+        const response = await api.get(`/catalog/books?search=${encodeURIComponent(searchQuery)}&branchId=${targetBranch}&limit=10`);
         if (response.success && response.data) {
-          setSearchResults(response.data.books || response.data.items || (Array.isArray(response.data) ? response.data : []));
+          const list = response.data.items || response.data?.books || response.data;
+          setSearchResults(Array.isArray(list) ? list : []);
         }
       } catch (err) {
-        console.error('Book search failed:', err);
+        console.error('Failed to search books:', err);
       } finally {
         setSearching(false);
       }
     }, 250);
 
-    return () => clearTimeout(delayDebounce);
-  }, [searchQuery]);
+    return () => clearTimeout(timer);
+  }, [searchQuery, toBranchId, user?.branchId]);
 
-  // Select Book
-  const handleSelectBook = async (book: any) => {
-    // Check if already in items list
-    if (items.some(i => i.bookId === book.id)) {
-      setError(`"${book.title}" is already in the transfer list. You can adjust its quantity in the table.`);
-      setSearchQuery('');
-      setShowSearchResults(false);
-      return;
-    }
-
+  // Select a book from search dropdown
+  const handleSelectBook = (book: any) => {
     setActiveBook({
       id: book.id,
       title: book.title,
       isbn: book.isbn,
       barcode: book.barcode,
-      authorName: book.author?.name || book.authorName
+      authorName: book.author?.name || book.authorName,
+      branchStock: book.branchStock ?? 0,
     });
     setSearchQuery('');
     setSearchResults([]);
     setShowSearchResults(false);
     setError(null);
-    setActiveBranchStocks([]);
-    setLoadingBranchStocks(true);
     setActiveQty(1);
-
-    try {
-      const response = await api.get(`/transfers/stock-by-book?bookId=${book.id}`);
-      if (response.success && response.data) {
-        const stocks = response.data;
-        setActiveBranchStocks(stocks);
-
-        // If fromBranchId was already set by a previous book, check if it has stock here
-        if (fromBranchId) {
-          const matching = stocks.find((s: any) => s.branchId === fromBranchId);
-          if (matching) {
-            setActiveQty(Math.min(1, matching.quantity || 1));
-          }
-        } else if (stocks.length > 0) {
-          // Default to first branch that has stock
-          setFromBranchId(stocks[0].branchId);
-          setActiveQty(Math.min(1, stocks[0].quantity || 1));
-        }
-      }
-    } catch (err) {
-      console.error('Failed to fetch book stock by branch:', err);
-      setError('Failed to fetch stock availability for this book.');
-    } finally {
-      setLoadingBranchStocks(false);
-    }
-  };
-
-  // Select source branch for the current transfer
-  const handleSelectSourceBranch = (branchId: string) => {
-    setFromBranchId(branchId);
-    setError(null);
-    const stock = activeBranchStocks.find((s) => s.branchId === branchId);
-    const maxQty = stock?.quantity || 1;
-    if (activeQty > maxQty) {
-      setActiveQty(maxQty);
-    }
-    // If toBranchId is same as new fromBranchId, reset toBranchId
-    if (toBranchId === branchId) {
-      const other = branches.find((b: any) => b.id !== branchId && b.isActive);
-      setToBranchId(other?.id || '');
-    }
   };
 
   // Add the active book to items list
   const handleAddActiveBookToList = () => {
     if (!activeBook) return;
-    if (!fromBranchId) {
-      setError('Please select which branch to transfer this book from.');
-      return;
-    }
-
-    const sourceStock = activeBranchStocks.find(s => s.branchId === fromBranchId);
-    const available = sourceStock?.quantity || 0;
-
-    if (available <= 0) {
-      setError(`The selected branch has 0 available copies of "${activeBook.title}".`);
-      return;
-    }
 
     const qtyToAdd = Math.max(1, activeQty);
-    if (qtyToAdd > available) {
-      setError(`Requested quantity (${qtyToAdd}) exceeds available stock (${available}).`);
-      return;
-    }
 
     setItems(prev => [
       ...prev,
@@ -203,13 +138,12 @@ export default function CreateTransferModal({ isOpen, onClose, onSuccess }: Crea
         title: activeBook.title,
         isbn: activeBook.isbn,
         quantity: qtyToAdd,
-        availableQuantity: available
+        availableQuantity: 0
       }
     ]);
 
     // Clear active book so user can add another
     setActiveBook(null);
-    setActiveBranchStocks([]);
     setActiveQty(1);
     setError(null);
   };
@@ -218,15 +152,10 @@ export default function CreateTransferModal({ isOpen, onClose, onSuccess }: Crea
   const handleRemoveItem = (index: number) => {
     const updated = items.filter((_, i) => i !== index);
     setItems(updated);
-    // If no items remain and no active book, allow resetting fromBranch
-    if (updated.length === 0 && !activeBook) {
-      // Keep destination branch, keep fromBranchId or let user pick freely
-    }
   };
 
   // Adjust quantity in list (supports both typing and buttons)
   const handleQuantityChange = (index: number, val: number | string) => {
-    const item = items[index];
     if (val === '') {
       const updated = [...items];
       updated[index].quantity = 0;
@@ -237,16 +166,8 @@ export default function CreateTransferModal({ isOpen, onClose, onSuccess }: Crea
     const num = typeof val === 'string' ? parseInt(val, 10) : val;
     if (isNaN(num)) return;
 
-    if (num > item.availableQuantity) {
-      setError(`Cannot request more than available copies (${item.availableQuantity}) for "${item.title}".`);
-      const updated = [...items];
-      updated[index].quantity = item.availableQuantity;
-      setItems(updated);
-      return;
-    }
-
     const updated = [...items];
-    updated[index].quantity = Math.max(0, num);
+    updated[index].quantity = Math.max(1, num);
     setItems(updated);
     setError(null);
   };
@@ -255,7 +176,6 @@ export default function CreateTransferModal({ isOpen, onClose, onSuccess }: Crea
   const handleReset = () => {
     setItems([]);
     setActiveBook(null);
-    setActiveBranchStocks([]);
     setFromBranchId('');
     setToBranchId(user?.branchId || '');
     setNote('');
@@ -266,39 +186,22 @@ export default function CreateTransferModal({ isOpen, onClose, onSuccess }: Crea
   const handleSubmit = async () => {
     // Combine items list with activeBook if configured
     let finalItems = [...items];
-    if (activeBook && fromBranchId) {
-      const sourceStock = activeBranchStocks.find(s => s.branchId === fromBranchId);
-      const available = sourceStock?.quantity || 0;
-      if (available > 0 && activeQty > 0 && activeQty <= available) {
-        finalItems.push({
-          bookId: activeBook.id,
-          title: activeBook.title,
-          isbn: activeBook.isbn,
-          quantity: activeQty,
-          availableQuantity: available
-        });
-      }
+    if (activeBook && activeQty > 0) {
+      finalItems.push({
+        bookId: activeBook.id,
+        title: activeBook.title,
+        isbn: activeBook.isbn,
+        quantity: activeQty,
+        availableQuantity: 0
+      });
     }
 
     if (finalItems.length === 0) {
-      setError('Please add at least one book to the transfer list.');
-      return;
-    }
-    if (!fromBranchId) {
-      setError('Please select the source branch holding the stock.');
+      setError('Please add at least one book to the transfer request.');
       return;
     }
     if (!toBranchId) {
       setError('Please select the destination branch.');
-      return;
-    }
-    if (fromBranchId === toBranchId) {
-      setError('Source and destination branches must be different.');
-      return;
-    }
-
-    if (!isChainRole && fromBranchId !== user?.branchId && toBranchId !== user?.branchId) {
-      setError(`Transfers must involve your own branch ("${branches.find((b: any) => b.id === user?.branchId)?.name || 'Your Branch'}").`);
       return;
     }
 
@@ -307,7 +210,7 @@ export default function CreateTransferModal({ isOpen, onClose, onSuccess }: Crea
 
     try {
       const response = await api.post('/transfers', {
-        fromBranchId,
+        fromBranchId: fromBranchId || undefined,
         toBranchId,
         note,
         items: finalItems.map(i => ({ bookId: i.bookId, quantity: i.quantity }))
@@ -321,58 +224,46 @@ export default function CreateTransferModal({ isOpen, onClose, onSuccess }: Crea
         setError(response.message || 'Failed to create transfer request.');
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || err.message || 'An error occurred while creating transfer.');
+      setError(err.response?.data?.message || err.message || 'An error occurred while creating transfer request.');
     } finally {
       setSaving(false);
     }
   };
 
-  // Destination branch options (exclude selected fromBranch)
-  const toOptions = branches
-    .filter((b: any) => b.id !== fromBranchId && b.isActive)
-    .map((b: any) => ({
-      value: b.id,
-      label: `${b.name} (${b.code})`
-    }));
-
   if (!isOpen) return null;
 
-  const fromBranchName = branches.find((b: any) => b.id === fromBranchId)?.name || 
-    activeBranchStocks.find((s: any) => s.branchId === fromBranchId)?.branchName || 'Source';
-  const toBranchName = branches.find((b: any) => b.id === toBranchId)?.name || 'Destination';
-
-  const activeBranchStock = activeBranchStocks.find((s) => s.branchId === fromBranchId);
-  const activeMaxStock = activeBranchStock?.quantity || 0;
-  const totalBooksCount = items.length + (activeBook && activeMaxStock > 0 ? 1 : 0);
-  const totalCopiesCount = items.reduce((acc, i) => acc + i.quantity, 0) + (activeBook && activeMaxStock > 0 ? activeQty : 0);
+  const destBranch = branches.find((b: any) => b.id === toBranchId);
+  const destBranchName = destBranch?.name || 'Your Branch';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs">
       <AnimatePresence>
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 15 }}
-          className="bg-white rounded-sm shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] border border-neutral-200/80"
+          className="bg-white rounded-sm shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[92dvh] border border-[#7e2562]/15"
         >
           {/* Header */}
-          <div className="px-6 py-4 border-b border-neutral-100 flex items-center justify-between bg-[#faf6f9]/60">
-            <div>
-              <h3 className="text-base font-bold text-neutral-900">Request Stock Transfer</h3>
-              <p className="text-xs text-neutral-500 mt-0.5">
-                Add one or more books, inspect location stock, and dispatch to destination.
+          <div className="p-4 sm:px-6 sm:py-4 border-b border-[#7e2562]/10 flex items-center justify-between bg-gradient-to-r from-[#faedf5]/60 to-[#faf6f9] shrink-0">
+            <div className="min-w-0 pr-2">
+              <h3 className="text-base sm:text-lg font-bold text-gray-900 truncate">
+                Request Stock Transfer
+              </h3>
+              <p className="text-xs text-gray-500 mt-0.5 hidden sm:block">
+                Request books for your branch. Central Inventory will allocate and fulfill from available stock or PO.
               </p>
             </div>
             <button
               onClick={onClose}
-              className="p-1.5 text-neutral-400 hover:text-neutral-700 hover:bg-[#faedf5] rounded-sm transition"
+              className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-[#faedf5] rounded-sm transition shrink-0"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
 
           {/* Body */}
-          <div className="p-6 flex-1 overflow-y-auto min-h-0 space-y-5">
+          <div className="p-4 sm:p-6 flex-1 overflow-y-auto space-y-4 sm:space-y-5">
             {error && (
               <div className="p-3 bg-[#fef5f2] border border-[#e45e34]/20 rounded-sm text-[#e45e34] text-xs font-semibold flex items-center space-x-2">
                 <AlertCircle className="w-4 h-4 text-[#e45e34] shrink-0" />
@@ -380,40 +271,42 @@ export default function CreateTransferModal({ isOpen, onClose, onSuccess }: Crea
               </div>
             )}
 
-            {/* ROUTE BANNER (If fromBranchId is locked by added items) */}
-            {fromBranchId && (
-              <div className="p-3 bg-gradient-to-r from-[#541440] to-[#7e2562] text-white rounded-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 shadow-sm">
-                <div className="flex items-center gap-2 text-xs font-semibold">
-                  <span className="text-white/70">Transfer Route:</span>
-                  <span className="font-bold text-white bg-white/20 px-2 py-0.5 rounded-sm">{fromBranchName}</span>
-                  <ArrowRight className="w-3.5 h-3.5 text-white/70" />
-                  <span className="font-bold text-white bg-white/20 px-2 py-0.5 rounded-sm">{toBranchName}</span>
+            {/* Destination Branch Context Banner */}
+            <div className="p-3 bg-[#faedf5]/70 border border-[#7e2562]/20 rounded-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs">
+              {/* <div className="flex items-center gap-2">
+                <Building2 className="w-4 h-4 text-[#7e2562] shrink-0" />
+                <div>
+                  <span className="text-gray-500 font-medium">Requesting For: </span>
+                  <strong className="text-[#7e2562] font-bold">{destBranchName}</strong>
                 </div>
-                {items.length === 0 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFromBranchId('');
-                      setActiveBranchStocks([]);
-                    }}
-                    className="text-[11px] text-[#faedf5] hover:text-white underline font-semibold"
-                  >
-                    Change Source
-                  </button>
-                )}
-              </div>
-            )}
+              </div> */}
 
-            {/* SECTION 1: SEARCH & ADD BOOK */}
+              {isChainRole && (
+                <div className="w-full sm:w-auto min-w-[200px]">
+                  <Dropdown
+                    value={toBranchId}
+                    onChange={(val) => setToBranchId(val)}
+                    options={branches.filter((b: any) => b.isActive).map((b: any) => ({
+                      value: b.id,
+                      label: `${b.name} (${b.code})`
+                    }))}
+                    placeholder="Select destination branch..."
+                    selectClassName="text-xs py-1 px-2 border-[#7e2562]/20 bg-white"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* SECTION 1: SEARCH & SELECT BOOKS */}
             <div className="space-y-2">
               <label className="text-xs font-bold text-[#7e2562] uppercase tracking-wider flex items-center justify-between">
                 <span className="flex items-center gap-1.5">
                   <span className="w-5 h-5 rounded-sm bg-[#7e2562] text-white text-[10px] flex items-center justify-center font-bold">1</span>
-                  {items.length > 0 ? "Add Another Book to Transfer" : "Select Book to Transfer"}
+                  {items.length > 0 ? "Add Another Book to Request" : "Search & Select Books Needed"}
                 </span>
                 {items.length > 0 && (
-                  <span className="text-xs font-semibold text-neutral-400">
-                    {items.length} {items.length === 1 ? 'book' : 'books'} in transfer list
+                  <span className="text-xs font-semibold text-gray-400">
+                    {items.length} {items.length === 1 ? 'book' : 'books'} in request list
                   </span>
                 )}
               </label>
@@ -422,20 +315,16 @@ export default function CreateTransferModal({ isOpen, onClose, onSuccess }: Crea
               <div className="relative">
                 <input
                   type="text"
-                  placeholder={
-                    fromBranchId 
-                      ? `Search books to transfer from ${fromBranchName}...`
-                      : "Search by title, author, ISBN, or keywords..."
-                  }
+                  placeholder="Search by book title, author, ISBN, or barcode..."
                   value={searchQuery}
                   onChange={(e) => {
                     setSearchQuery(e.target.value);
                     setShowSearchResults(true);
                   }}
                   onFocus={() => setShowSearchResults(true)}
-                  className="w-full pl-9 pr-4 py-2 text-sm border border-[#7e2562]/20 rounded-sm focus:outline-none focus:ring-2 focus:ring-[#7e2562]/20 focus:border-[#7e2562] bg-white"
+                  className="w-full pl-9 pr-4 py-2 text-xs sm:text-sm border border-[#7e2562]/20 rounded-sm focus:outline-none focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562] bg-white shadow-xs"
                 />
-                <Search className="w-4 h-4 text-neutral-400 absolute left-3 top-2.5" />
+                <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
                 {searching && <Loader2 className="w-4 h-4 text-[#7e2562] animate-spin absolute right-3 top-2.5" />}
               </div>
 
@@ -446,26 +335,31 @@ export default function CreateTransferModal({ isOpen, onClose, onSuccess }: Crea
                     initial={{ opacity: 0, y: 5 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: 5 }}
-                    className="absolute z-30 w-full max-w-xl bg-white border border-[#7e2562]/20 shadow-xl rounded-sm mt-1 overflow-hidden max-h-60 overflow-y-auto divide-y divide-neutral-100"
+                    className="relative z-30 w-full bg-white border border-[#7e2562]/20 shadow-xl rounded-sm mt-1 overflow-hidden max-h-60 overflow-y-auto divide-y divide-gray-100"
                   >
                     {searchResults.map((book) => (
                       <button
                         key={book.id}
                         type="button"
                         onClick={() => handleSelectBook(book)}
-                        className="w-full px-4 py-2.5 hover:bg-[#faedf5]/50 flex items-center justify-between text-left text-sm transition-colors"
+                        className="w-full px-4 py-2.5 hover:bg-[#faedf5]/50 flex items-center justify-between text-left text-xs sm:text-sm transition-colors"
                       >
                         <div className="flex items-center space-x-2.5 min-w-0">
                           <BookOpen className="w-4 h-4 text-[#7e2562] shrink-0" />
                           <div className="min-w-0">
-                            <p className="font-bold text-neutral-900 truncate text-xs">{book.title}</p>
-                            <p className="text-[11px] text-neutral-400 font-mono">
-                              {[
-                                book.author?.name ? `Author: ${book.author.name}` : '',
-                                book.isbn ? `ISBN: ${book.isbn}` : '',
-                                book.barcode ? `Barcode: ${book.barcode}` : ''
-                              ].filter(Boolean).join(' • ')}
-                            </p>
+                            <p className="font-bold text-gray-900 truncate text-xs">{book.title}</p>
+                            <div className="flex items-center gap-1.5 text-[11px] mt-0.5 flex-wrap">
+                              {book.author?.name && (
+                                <span className="text-gray-500 font-medium">Author: {book.author.name}</span>
+                              )}
+                              {book.author?.name && <span className="text-gray-300">•</span>}
+                              <span className="font-semibold text-gray-700">
+                                Current Branch Stock:{' '}
+                                <strong className={Number(book.branchStock || 0) > 0 ? 'text-[#3cb976]' : 'text-[#e45e34]'}>
+                                  {Number(book.branchStock || 0)} {Number(book.branchStock || 0) === 1 ? 'copy' : 'copies'}
+                                </strong>
+                              </span>
+                            </div>
                           </div>
                         </div>
                         <span className="text-[11px] font-bold text-[#7e2562] bg-[#faedf5] px-2.5 py-0.5 rounded-sm border border-[#7e2562]/20 shrink-0">
@@ -480,246 +374,175 @@ export default function CreateTransferModal({ isOpen, onClose, onSuccess }: Crea
 
             {/* ACTIVE BOOK CONFIGURATION CARD */}
             {activeBook && (
-              <div className="p-4 bg-[#faf6f9]/50 border border-[#7e2562]/15 rounded-sm space-y-4">
+              <div className="p-3 sm:p-4 bg-[#faf6f9]/60 border border-[#7e2562]/15 rounded-sm space-y-3">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="p-2 bg-[#7e2562] text-white rounded-sm shrink-0">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="p-2 bg-[#7e2562] text-white rounded-sm shrink-0 shadow-xs">
                       <BookOpen className="w-4 h-4" />
                     </div>
                     <div className="min-w-0">
-                      <h4 className="text-sm font-bold text-neutral-900 truncate">{activeBook.title}</h4>
-                      <p className="text-[11px] text-neutral-400 font-mono">
-                        {[
-                          activeBook.authorName ? `Author: ${activeBook.authorName}` : '',
-                          activeBook.isbn ? `ISBN: ${activeBook.isbn}` : '',
-                          activeBook.barcode ? `Barcode: ${activeBook.barcode}` : ''
-                        ].filter(Boolean).join(' • ')}
-                      </p>
+                      <h4 className="text-xs sm:text-sm font-bold text-gray-900 truncate">{activeBook.title}</h4>
+                      <div className="flex items-center gap-1.5 text-[11px] mt-0.5 flex-wrap">
+                        {activeBook.authorName && (
+                          <span className="text-gray-500 font-medium">Author: {activeBook.authorName}</span>
+                        )}
+                        {activeBook.authorName && <span className="text-gray-300">•</span>}
+                        <span className="font-semibold text-gray-700">
+                          Current Branch Stock:{' '}
+                          <strong className={Number(activeBook.branchStock || 0) > 0 ? 'text-[#3cb976]' : 'text-[#e45e34]'}>
+                            {Number(activeBook.branchStock || 0)} {Number(activeBook.branchStock || 0) === 1 ? 'copy' : 'copies'}
+                          </strong>
+                        </span>
+                      </div>
                     </div>
                   </div>
                   <button
                     type="button"
                     onClick={() => {
                       setActiveBook(null);
-                      setActiveBranchStocks([]);
                     }}
-                    className="p-1 text-neutral-400 hover:text-neutral-700 rounded-sm transition"
+                    className="p-1 text-gray-400 hover:text-gray-700 rounded-sm transition shrink-0"
                     title="Cancel selecting this book"
                   >
                     <X className="w-4 h-4" />
                   </button>
                 </div>
 
-                {/* LOCATIONS WITH STOCK */}
-                <div className="space-y-2 pt-2 border-t border-[#7e2562]/10">
-                  <label className="text-[11px] font-bold text-[#7e2562] uppercase tracking-wider block">
-                    {fromBranchId ? `Stock at Available Locations:` : `Select Source Branch (Where this book is in stock):`}
-                  </label>
-
-                  {loadingBranchStocks ? (
-                    <div className="py-6 flex items-center justify-center text-xs text-neutral-500 font-medium">
-                      <Loader2 className="w-4 h-4 animate-spin text-[#7e2562] mr-2" />
-                      Checking stock levels across branches...
+                {/* QUANTITY INPUT & ADD BUTTON */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2 border-t border-[#7e2562]/10">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-bold text-gray-700">Requested Copies:</span>
+                    <div className="flex items-center border border-[#7e2562]/20 rounded-sm overflow-hidden bg-white shadow-xs h-8">
+                      <button
+                        type="button"
+                        onClick={() => setActiveQty(prev => Math.max(1, prev - 1))}
+                        disabled={activeQty <= 1}
+                        className="px-2.5 h-full hover:bg-[#faedf5] text-gray-800 text-xs font-bold border-r border-[#7e2562]/20 disabled:opacity-40"
+                      >
+                        -
+                      </button>
+                      <input
+                        type="number"
+                        min={1}
+                        value={activeQty === 0 ? '' : activeQty}
+                        onChange={(e) => {
+                          const valStr = e.target.value;
+                          if (valStr === '') {
+                            setActiveQty(0);
+                            return;
+                          }
+                          const num = parseInt(valStr, 10);
+                          if (!isNaN(num)) {
+                            setActiveQty(Math.max(1, num));
+                          }
+                        }}
+                        onBlur={() => {
+                          if (activeQty < 1) setActiveQty(1);
+                        }}
+                        className="w-14 text-center text-xs font-bold text-gray-900 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none bg-transparent"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setActiveQty(prev => prev + 1)}
+                        className="px-2.5 h-full hover:bg-[#faedf5] text-gray-800 text-xs font-bold border-l border-[#7e2562]/20"
+                      >
+                        +
+                      </button>
                     </div>
-                  ) : activeBranchStocks.length === 0 ? (
-                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-sm text-xs text-amber-800 font-medium">
-                      No branches or warehouse currently hold stock for this book.
-                    </div>
-                  ) : fromBranchId && !activeBranchStock ? (
-                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-sm text-xs text-amber-800">
-                      <strong>{fromBranchName}</strong> has 0 copies of this book.
-                      <span className="block mt-1 text-neutral-600">
-                        Available at: {activeBranchStocks.map(s => `${s.branchName} (${s.quantity})`).join(', ')}.
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {activeBranchStocks.map((stock) => {
-                        const isSelected = fromBranchId === stock.branchId;
-                        const disabled = items.length > 0 && !isSelected;
-
-                        return (
-                          <div
-                            key={stock.branchId}
-                            onClick={() => {
-                              if (!disabled) {
-                                handleSelectSourceBranch(stock.branchId);
-                              }
-                            }}
-                            className={`p-2.5 rounded-sm border transition-all select-none flex items-center justify-between ${
-                              isSelected
-                                ? 'bg-[#7e2562] border-[#7e2562] text-white shadow-sm'
-                                : disabled
-                                  ? 'bg-neutral-100 border-neutral-200 text-neutral-400 opacity-60 cursor-not-allowed'
-                                  : 'bg-white border-neutral-200 hover:border-[#7e2562]/40 text-neutral-800 hover:bg-[#faf6f9] cursor-pointer'
-                            }`}
-                          >
-                            <div className="flex items-center gap-2 min-w-0">
-                              <Building2 className={`w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-white' : 'text-neutral-500'}`} />
-                              <div className="min-w-0">
-                                <p className={`text-xs font-bold truncate ${isSelected ? 'text-white' : 'text-neutral-900'}`}>
-                                  {stock.branchName}
-                                </p>
-                              </div>
-                            </div>
-                            <span className={`px-2 py-0.5 rounded-sm text-xs font-bold ${
-                              isSelected
-                                ? 'bg-white/20 text-white'
-                                : 'bg-[#f0fbf5] text-[#3cb976] border border-[#3cb976]/30'
-                            }`}>
-                              {stock.quantity} in stock
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-
-                {/* QUANTITY & ADD BUTTON */}
-                {fromBranchId && activeMaxStock > 0 && (
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2 border-t border-[#7e2562]/10">
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs font-bold text-neutral-700">Quantity:</span>
-                      <div className="flex items-center border border-[#7e2562]/20 rounded-sm overflow-hidden bg-white shadow-sm h-8">
-                        <button
-                          type="button"
-                          onClick={() => setActiveQty(prev => Math.max(1, prev - 1))}
-                          disabled={activeQty <= 1}
-                          className="px-2.5 h-full hover:bg-[#faedf5] text-neutral-800 text-xs font-bold border-r border-[#7e2562]/20 disabled:opacity-40"
-                        >
-                          -
-                        </button>
-                        <input
-                          type="number"
-                          min={1}
-                          max={activeMaxStock}
-                          value={activeQty === 0 ? '' : activeQty}
-                          onChange={(e) => {
-                            const valStr = e.target.value;
-                            if (valStr === '') {
-                              setActiveQty(0);
-                              return;
-                            }
-                            const num = parseInt(valStr, 10);
-                            if (!isNaN(num)) {
-                              if (num > activeMaxStock) {
-                                setActiveQty(activeMaxStock);
-                              } else {
-                                setActiveQty(Math.max(0, num));
-                              }
-                            }
-                          }}
-                          onBlur={() => {
-                            if (activeQty < 1) {
-                              setActiveQty(1);
-                            }
-                          }}
-                          className="w-14 text-center text-xs font-bold text-neutral-900 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none bg-transparent"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setActiveQty(prev => Math.min(activeMaxStock, prev + 1))}
-                          disabled={activeQty >= activeMaxStock}
-                          className="px-2.5 h-full hover:bg-[#faedf5] text-neutral-800 text-xs font-bold border-l border-[#7e2562]/20 disabled:opacity-40"
-                        >
-                          +
-                        </button>
-                      </div>
-                      <span className="text-xs text-neutral-500">
-                        (Max: <strong className="text-neutral-900">{activeMaxStock}</strong> copies)
-                      </span>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={handleAddActiveBookToList}
-                      className="inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-[#7e2562] hover:bg-[#681b50] rounded-sm shadow-sm active:scale-95 transition-all"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>Add to Transfer List</span>
-                    </button>
                   </div>
-                )}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!activeBook) return;
+                      const qtyToAdd = Math.max(1, activeQty);
+                      setItems(prev => [
+                        ...prev,
+                        {
+                          bookId: activeBook.id,
+                          title: activeBook.title,
+                          isbn: activeBook.isbn,
+                          quantity: qtyToAdd,
+                          availableQuantity: 0
+                        }
+                      ]);
+                      setActiveBook(null);
+                      setActiveQty(1);
+                      setError(null);
+                    }}
+                    className="inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-[#7e2562] hover:bg-[#681b50] rounded-sm shadow-xs active:scale-95 transition-all cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add to Request List</span>
+                  </button>
+                </div>
               </div>
             )}
 
-            {/* SECTION 2: TRANSFER ITEMS LIST / TABLE */}
+            {/* SECTION 2: REQUEST ITEMS TABLE */}
             {items.length > 0 && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-bold text-[#7e2562] uppercase tracking-wider flex items-center gap-1.5">
                     <span className="w-5 h-5 rounded-sm bg-[#7e2562] text-white text-[10px] flex items-center justify-center font-bold">2</span>
-                    Transfer Items Summary ({items.length})
+                    Requested Books ({items.length})
                   </label>
                   <button
                     type="button"
                     onClick={handleReset}
-                    className="text-xs text-neutral-500 hover:text-[#e45e34] font-semibold inline-flex items-center gap-1"
+                    className="text-xs text-gray-500 hover:text-[#e45e34] font-semibold inline-flex items-center gap-1"
                   >
                     <RotateCcw className="w-3 h-3" />
                     Reset List
                   </button>
                 </div>
 
-                <div className="border border-neutral-200/80 rounded-sm overflow-hidden bg-white shadow-sm">
-                  <table className="w-full text-left text-sm">
+                <div className="border border-[#7e2562]/15 rounded-sm overflow-x-auto bg-white shadow-xs">
+                  <table className="min-w-[480px] w-full text-left text-xs">
                     <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562] uppercase tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
                       <tr>
-                        <th className="px-4 py-2.5">Book</th>
-                        <th className="px-4 py-2.5 text-center">Quantity</th>
-                        <th className="px-4 py-2.5 text-right">Action</th>
+                        <th className="px-4 py-2.5">Book Title</th>
+                        <th className="px-4 py-2.5 text-center w-28">Requested Qty</th>
+                        <th className="px-4 py-2.5 text-right w-20">Action</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-neutral-100 text-sm">
+                    <tbody className="divide-y divide-gray-100">
                       {items.map((item, idx) => (
-                        <tr key={item.bookId} className="hover:bg-[#faf6f9]/30">
-                          <td className="px-4 py-3">
-                            <div className="font-bold text-neutral-900 text-xs">{item.title}</div>
-                            <div className="text-[11px] text-neutral-400 font-mono">
-                              {item.isbn || 'ISBN: N/A'} • Available: {item.availableQuantity}
-                            </div>
+                        <tr key={item.bookId} className="hover:bg-[#faf6f9]/30 transition-colors">
+                          <td className="px-4 py-2.5">
+                            <div className="font-semibold text-gray-900">{item.title}</div>
+                            {item.isbn && <div className="text-[10px] text-gray-400 font-mono">{item.isbn}</div>}
                           </td>
-                          <td className="px-4 py-3 text-center">
-                            <div className="inline-flex items-center border border-[#7e2562]/20 rounded-sm overflow-hidden bg-white shadow-sm h-7">
+                          <td className="px-4 py-2.5 text-center">
+                            <div className="inline-flex items-center border border-gray-300 rounded-sm overflow-hidden h-7">
                               <button
                                 type="button"
-                                onClick={() => handleQuantityChange(idx, item.quantity - 1)}
-                                disabled={item.quantity <= 1}
-                                className="px-2 h-full hover:bg-[#faedf5] text-neutral-800 text-xs font-bold border-r border-[#7e2562]/20 disabled:opacity-40"
+                                onClick={() => handleQuantityChange(idx, Math.max(1, item.quantity - 1))}
+                                className="px-2 h-full hover:bg-gray-100 text-gray-700 font-bold border-r border-gray-200"
                               >
                                 -
                               </button>
                               <input
                                 type="number"
                                 min={1}
-                                max={item.availableQuantity}
                                 value={item.quantity === 0 ? '' : item.quantity}
                                 onChange={(e) => handleQuantityChange(idx, e.target.value)}
-                                onBlur={() => {
-                                  if (item.quantity < 1) {
-                                    const updated = [...items];
-                                    updated[idx].quantity = 1;
-                                    setItems(updated);
-                                  }
-                                }}
-                                className="w-12 text-center text-xs font-bold text-neutral-900 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none bg-transparent"
+                                className="w-12 text-center text-xs font-bold text-gray-900 focus:outline-none"
                               />
                               <button
                                 type="button"
                                 onClick={() => handleQuantityChange(idx, item.quantity + 1)}
-                                disabled={item.quantity >= item.availableQuantity}
-                                className="px-2 h-full hover:bg-[#faedf5] text-neutral-800 text-xs font-bold border-l border-[#7e2562]/20 disabled:opacity-40"
+                                className="px-2 h-full hover:bg-gray-100 text-gray-700 font-bold border-l border-gray-200"
                               >
                                 +
                               </button>
                             </div>
                           </td>
-                          <td className="px-4 py-3 text-right">
+                          <td className="px-4 py-2.5 text-right">
                             <button
                               type="button"
                               onClick={() => handleRemoveItem(idx)}
-                              className="p-1 text-neutral-400 hover:text-[#e45e34] rounded-sm transition"
+                              className="p-1 text-gray-400 hover:text-[#e45e34] rounded-sm transition"
                               title="Remove item"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -729,100 +552,49 @@ export default function CreateTransferModal({ isOpen, onClose, onSuccess }: Crea
                       ))}
                     </tbody>
                   </table>
-                  <div className="px-4 py-2.5 bg-[#faf6f9]/50 border-t border-neutral-200/80 text-xs text-[#7e2562] flex justify-between font-bold">
-                    <span>Total Books: {items.length}</span>
-                    <span>Total Copies: {items.reduce((acc, i) => acc + i.quantity, 0)}</span>
-                  </div>
                 </div>
               </div>
             )}
 
-            {/* SECTION 3: DESTINATION & NOTES */}
-            {fromBranchId && (
-              <div className="space-y-4 pt-2 border-t border-neutral-100">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Destination Branch */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-[#7e2562] uppercase tracking-wider flex items-center gap-1.5">
-                      <span className="w-5 h-5 rounded-sm bg-[#7e2562] text-white text-[10px] flex items-center justify-center font-bold">3</span>
-                      Destination Branch (To)
-                    </label>
-                    <Dropdown
-                      value={toBranchId}
-                      onChange={(val) => {
-                        setToBranchId(val);
-                        setError(null);
-                      }}
-                      placeholder="Select receiving branch..."
-                      options={toOptions}
-                      selectClassName="!rounded-sm border-[#7e2562]/20 text-xs font-semibold"
-                    />
-                  </div>
-
-                  {/* Transfer Reason / Notes */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-[#7e2562] uppercase tracking-wider">
-                      Transfer Reason / Notes
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Replenishing stock for branch..."
-                      value={note}
-                      onChange={(e) => setNote(e.target.value)}
-                      className="w-full px-3.5 py-2 text-sm border border-[#7e2562]/20 rounded-sm focus:outline-none focus:ring-2 focus:ring-[#7e2562]/20 focus:border-[#7e2562] bg-white"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
+            {/* Optional Request Note */}
+            <div>
+              <label className="block text-xs font-bold text-gray-700 mb-1">Request Notes / Instructions (Optional)</label>
+              <textarea
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="E.g., Urgently needed for customer reservation or upcoming branch display..."
+                rows={2}
+                className="w-full p-2.5 text-xs sm:text-sm border border-gray-300 rounded-sm focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]"
+              />
+            </div>
           </div>
 
           {/* Footer */}
-          <div className="px-6 py-4 border-t border-neutral-200 bg-[#faf6f9]/50 flex items-center justify-between">
-            <div className="text-xs text-neutral-500 font-semibold">
-              {totalBooksCount > 0 ? (
-                <span>
-                  Ready to transfer: <strong className="text-neutral-900 font-bold">{totalCopiesCount} {totalCopiesCount === 1 ? 'copy' : 'copies'}</strong> ({totalBooksCount} {totalBooksCount === 1 ? 'title' : 'titles'})
-                </span>
-              ) : (
-                <span>No books selected</span>
-              )}
-            </div>
+          <div className="p-4 sm:px-6 sm:py-3 border-t border-gray-200 bg-gray-50 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-2.5 shrink-0">
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-full sm:w-auto px-4 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-sm hover:bg-gray-50 text-center"
+            >
+              Cancel
+            </button>
 
-            <div className="flex items-center space-x-3">
-              <button
-                type="button"
-                onClick={onClose}
-                disabled={saving}
-                className="px-4 py-2 text-xs font-semibold text-neutral-700 bg-white border border-neutral-200 hover:bg-neutral-50 rounded-sm transition-all disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleSubmit}
-                disabled={
-                  saving || 
-                  (items.length === 0 && (!activeBook || activeMaxStock <= 0)) ||
-                  !fromBranchId || 
-                  !toBranchId || 
-                  fromBranchId === toBranchId
-                }
-                className="inline-flex items-center gap-2 px-5 py-2 text-xs font-bold text-white bg-[#7e2562] hover:bg-[#681b50] disabled:bg-neutral-300 rounded-sm shadow-sm active:scale-95 transition-all disabled:pointer-events-none"
-              >
-                {saving ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin text-white" />
-                    <span>Submitting...</span>
-                  </>
-                ) : (
-                  <>
-                    <PackageCheck className="w-4 h-4 text-white" />
-                    <span>Submit Transfer ({totalBooksCount} {totalBooksCount === 1 ? 'Book' : 'Books'})</span>
-                  </>
-                )}
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={saving || (items.length === 0 && (!activeBook || activeQty < 1))}
+              className="w-full sm:w-auto inline-flex items-center justify-center px-5 py-2 text-sm font-semibold text-white bg-[#7e2562] hover:bg-[#681b50] disabled:opacity-50 rounded-sm shadow-xs transition-colors active:scale-[0.98]"
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Submitting Request...
+                </>
+              ) : (
+                <>
+                  <PackageCheck className="w-4 h-4 mr-1.5" /> Submit Stock Request
+                </>
+              )}
+            </button>
           </div>
         </motion.div>
       </AnimatePresence>

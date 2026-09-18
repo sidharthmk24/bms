@@ -157,7 +157,7 @@ export default function NotificationDropdown() {
       title.includes('restock') || 
       message.includes('restock')
     ) {
-      return { url: '/dashboard/restock', label: 'Restock' };
+      return { url: '/dashboard/transfers', label: 'Stock Transfers' };
     }
 
     // 4. Stock alerts (Sold Out / Low Stock)

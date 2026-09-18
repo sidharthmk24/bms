@@ -7,7 +7,8 @@ import RoleSwitcher from '@/components/RoleSwitcher';
 import NotificationDropdown from '@/components/NotificationDropdown';
 import { Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
+import UserProfileDropdown from '@/components/UserProfileDropdown';
 
 export default function DashboardLayout({
   children,
@@ -53,30 +54,10 @@ export default function DashboardLayout({
           <div className="flex items-center space-x-3 sm:space-x-4">
             <NotificationDropdown />
             <RoleSwitcher />
-
-            {/* User Profile Card */}
-            <div className="flex items-center gap-2.5 pl-1.5 pr-3.5 py-1 bg-white border border-[#7e2562]/15 rounded-sm shadow-xs backdrop-blur-md group hover:shadow-plum-sm hover:border-primary/30 transition-all duration-200">
-              <div className="w-7 h-7 rounded-sm bg-gradient-to-tr from-[#7e2562] via-[#9b3179] to-[#681b50] text-white flex items-center justify-center font-bold text-xs shadow-xs ring-1 ring-white/80 shrink-0">
-                {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
-              </div>
-              <div className="flex flex-col text-left min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <p className="text-xs font-bold text-foreground tracking-tight truncate max-w-[130px] leading-none">
-                    {user.name}
-                  </p>
-                  <span className="relative flex h-2 w-2 shrink-0">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-[#3cb976]"></span>
-                  </span>
-                </div>
-                <p className="text-[10px] font-medium text-muted-foreground capitalize leading-tight mt-0.5 truncate max-w-[150px]">
-                  {(user.role || user.primaryRole || '').replace(/_/g, ' ').toLowerCase()}
-                  {user.branch?.name ? ` • ${user.branch.name}` : ''}
-                </p>
-              </div>
-            </div>
+            <UserProfileDropdown />
           </div>
         </header>
+
         <div className="p-6 md:p-8 flex-1 w-full max-w-7xl mx-auto">
           {children}
         </div>

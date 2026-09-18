@@ -8,8 +8,9 @@ async function dispatchHandler(req: AuthenticatedRequest, { params }: { params: 
   try {
     const id = (await params).id;
     const ipAddress = req.headers.get('x-forwarded-for') || '127.0.0.1';
+    const body = await req.json().catch(() => ({}));
     
-    const data = await transfersService.dispatchTransfer(id, req.user, ipAddress);
+    const data = await transfersService.dispatchTransfer(id, body, req.user, ipAddress);
     return apiSuccess(data);
   } catch (error: any) {
     console.error('Transfers DISPATCH API Error:', error);

@@ -273,7 +273,7 @@ export class CatalogService {
   // ── 5. BOOK ───────────────────────────────────────────────────────────
   async findAllBooks(query: any) {
     const { bookRepo } = await this.getRepos();
-    const { search, categoryId, authorId, publisherId, page = 1, limit = 10, sortBy = 'title', order = 'ASC' } = query;
+    const { search, categoryId, authorId, publisherId, branchId, page = 1, limit = 10, sortBy = 'title', order = 'ASC' } = query;
     
     const pageNum = parseInt(page as string, 10) || 1;
     const limitNum = parseInt(limit as string, 10) || 10;
@@ -333,8 +333,29 @@ export class CatalogService {
 
     const [books, total] = await qb.getManyAndCount();
 
+    let enrichedBooks: any[] = books;
+    if (branchId && books.length > 0) {
+      try {
+        const ds = await getDataSource();
+        const bookIds = books.map(b => b.id);
+        const rows = await ds.query(
+          `SELECT book_id, quantity FROM branch_inventory WHERE branch_id = ? AND book_id IN (?)`,
+          [branchId, bookIds]
+        );
+        const stockMap = new Map<string, number>();
+        rows.forEach((r: any) => stockMap.set(r.book_id, Number(r.quantity) || 0));
+
+        enrichedBooks = books.map(b => ({
+          ...b,
+          branchStock: stockMap.get(b.id) ?? 0,
+        }));
+      } catch (err) {
+        console.error('Failed to attach branchStock:', err);
+      }
+    }
+
     return {
-      books,
+      books: enrichedBooks,
       total,
       page: pageNum,
       limit: limitNum,

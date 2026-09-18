@@ -53,6 +53,9 @@ export class PurchaseOrder {
   @OneToMany(() => PurchaseOrderItem, (item) => item.purchaseOrder)
   items: PurchaseOrderItem[];
 
+  @OneToMany('StockTransfer', 'purchaseOrder')
+  transfers: any[];
+
   @CreateDateColumn()
   createdAt: Date;
 

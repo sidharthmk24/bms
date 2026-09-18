@@ -109,7 +109,7 @@ export class DashboardService {
       revenue: data.revenue,
       expense: data.expense,
       cogs: data.cogs,
-      profit: data.revenue - data.cogs - data.expense
+      profit: data.revenue
     }));
 
     return {
@@ -184,7 +184,7 @@ export class DashboardService {
       revenue: data.revenue,
       expense: data.expense,
       cogs: data.cogs,
-      profit: data.revenue - data.cogs - data.expense
+      profit: data.revenue
     }));
 
     return {
@@ -245,7 +245,7 @@ export class DashboardService {
       revenue: data.revenue,
       expense: data.expense,
       cogs: data.cogs,
-      profit: data.revenue - data.cogs - data.expense
+      profit: data.revenue
     }));
 
     return { trendData };
@@ -300,7 +300,7 @@ export class DashboardService {
       revenue: data.revenue,
       expense: data.expense,
       cogs: data.cogs,
-      profit: data.revenue - data.cogs - data.expense
+      profit: data.revenue
     }));
 
     return { trendData };

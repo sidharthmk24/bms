@@ -13,6 +13,10 @@ export class UpdateUserDto {
   @IsOptional()
   email?: string;
 
+  @IsString()
+  @IsOptional()
+  password?: string;
+
   
   @IsArray()
   @IsEnum(UserRole, { each: true, message: 'Invalid role assigned' })

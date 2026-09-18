@@ -23,6 +23,7 @@ import {
   BadRequestException,
   ConflictException,
 } from '../errors';
+import { v4 as uuidv4 } from 'uuid';
 import { hasRole } from '../api-backend/common/helpers/role.helper';
 
 export class TransfersService {
@@ -42,8 +43,8 @@ export class TransfersService {
 
   async createTransfer(
     dto: {
-      fromBranchId: string;
-      toBranchId: string;
+      fromBranchId?: string;
+      toBranchId?: string;
       note?: string;
       items: Array<{ bookId: string; quantity: number }>;
       instantDispatch?: boolean;
@@ -51,7 +52,34 @@ export class TransfersService {
     currentUser: JwtPayload,
     ipAddress: string,
   ): Promise<StockTransfer> {
-    const { fromBranchId, toBranchId, note, items, instantDispatch } = dto;
+    let { fromBranchId, toBranchId, note, items, instantDispatch } = dto;
+    const { dataSource, branchRepo } = await this.getRepos();
+
+    if (!toBranchId) {
+      toBranchId = currentUser.branchId || '';
+    }
+
+    if (!toBranchId) {
+      throw new BadRequestException('Destination branch is required');
+    }
+
+    // If source is not specified, default to Central Warehouse
+    if (!fromBranchId) {
+      const warehouse = await branchRepo.findOne({
+        where: [
+          { type: 'WAREHOUSE' as any },
+          { code: 'WH-01' },
+          { name: 'Central Warehouse' }
+        ]
+      });
+      if (warehouse) {
+        fromBranchId = warehouse.id;
+      }
+    }
+
+    if (!fromBranchId) {
+      throw new BadRequestException('Source branch is required');
+    }
     
     if (fromBranchId === toBranchId) {
       throw new BadRequestException('Source and destination branches cannot be the same');
@@ -70,7 +98,6 @@ export class TransfersService {
       throw new BadRequestException('Transfer must contain at least one item');
     }
 
-    const { dataSource, branchRepo } = await this.getRepos();
     const queryRunner = dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -162,6 +189,17 @@ export class TransfersService {
     }
   }
 
+  private async ensurePurchaseOrderColumnExists(queryRunner: any) {
+    try {
+      await queryRunner.manager.query(`
+        ALTER TABLE \`stock_transfer\` 
+        ADD COLUMN \`purchase_order_id\` varchar(36) NULL;
+      `);
+    } catch (e: any) {
+      // Ignore if already exists (error code 1060: Duplicate column name)
+    }
+  }
+
   async getTransfers(
     query: {
       status?: string;
@@ -175,7 +213,10 @@ export class TransfersService {
     const limit = parseInt(query.limit || '15') || 15;
     const skip = (page - 1) * limit;
 
-    const { transferRepo } = await this.getRepos();
+    const { transferRepo, dataSource } = await this.getRepos();
+    const qr = dataSource.createQueryRunner();
+    await this.ensurePurchaseOrderColumnExists(qr);
+    await qr.release();
 
     const qb = transferRepo.createQueryBuilder('t')
       .leftJoinAndSelect('t.fromBranch', 'fromBranch')
@@ -183,6 +224,8 @@ export class TransfersService {
       .leftJoinAndSelect('t.requestedBy', 'requestedBy')
       .leftJoinAndSelect('t.items', 'items')
       .leftJoinAndSelect('items.book', 'book')
+      .leftJoinAndSelect('t.purchaseOrder', 'purchaseOrder')
+      .leftJoinAndSelect('purchaseOrder.supplier', 'supplier')
       .orderBy('t.createdAt', 'DESC')
       .skip(skip)
       .take(limit);
@@ -217,11 +260,24 @@ export class TransfersService {
   }
 
   async findOne(id: string, currentUser: JwtPayload): Promise<StockTransfer> {
-    const { transferRepo } = await this.getRepos();
+    const { transferRepo, dataSource } = await this.getRepos();
+    const qr = dataSource.createQueryRunner();
+    await this.ensurePurchaseOrderColumnExists(qr);
+    await qr.release();
 
     const transfer = await transferRepo.findOne({
       where: { id },
-      relations: ['fromBranch', 'toBranch', 'requestedBy', 'items', 'items.book'],
+      relations: [
+        'fromBranch', 
+        'toBranch', 
+        'requestedBy', 
+        'items', 
+        'items.book',
+        'purchaseOrder',
+        'purchaseOrder.supplier',
+        'purchaseOrder.items',
+        'purchaseOrder.items.book'
+      ],
     });
 
     if (!transfer) throw new NotFoundException(`Stock transfer with ID ${id} not found`);
@@ -241,7 +297,12 @@ export class TransfersService {
     return transfer;
   }
 
-  async dispatchTransfer(id: string, currentUser: JwtPayload, ipAddress: string): Promise<StockTransfer> {
+  async dispatchTransfer(
+    id: string,
+    dto: { items?: Array<{ bookId: string; quantityDispatched: number }>; note?: string } | undefined,
+    currentUser: JwtPayload,
+    ipAddress: string,
+  ): Promise<StockTransfer> {
     const transfer = await this.findOne(id, currentUser);
 
     if (transfer.status !== StockTransferStatus.PENDING) {
@@ -276,31 +337,41 @@ export class TransfersService {
       const beforeState = { ...transfer };
       
       transfer.status = StockTransferStatus.DISPATCHED;
+      if (dto?.note) {
+        transfer.note = dto.note;
+      }
       await queryRunner.manager.save(StockTransfer, transfer);
 
       // Decrement stock in source branch (fromBranch)
       for (const item of transfer.items) {
-        if (transfer.fromBranch.type === 'WAREHOUSE') {
-          await decrementCentralStock(queryRunner, item.bookId, item.quantityRequested);
-        } else {
-          await decrementBranchStock(queryRunner, transfer.fromBranchId, item.bookId, item.quantityRequested);
+        const itemDto = dto?.items?.find((it: any) => it.bookId === item.bookId);
+        const dispatchQty = itemDto !== undefined ? Math.max(0, Math.min(item.quantityRequested, Number(itemDto.quantityDispatched))) : item.quantityRequested;
+
+        if (dispatchQty > 0) {
+          if (transfer.fromBranch.type === 'WAREHOUSE') {
+            await decrementCentralStock(queryRunner, item.bookId, dispatchQty);
+          } else {
+            await decrementBranchStock(queryRunner, transfer.fromBranchId, item.bookId, dispatchQty);
+          }
         }
 
         // Set quantityDispatched
-        item.quantityDispatched = item.quantityRequested;
+        item.quantityDispatched = dispatchQty;
         await queryRunner.manager.save(StockTransferItem, item);
 
         // Record stock movement (outbound)
-        await writeStockMovement(queryRunner, {
-          bookId: item.bookId,
-          branchId: transfer.fromBranch.type === 'WAREHOUSE' ? null : transfer.fromBranchId,
-          type: 'TRANSFER_OUT',
-          quantity: -item.quantityRequested,
-          performedById: currentUser.userId,
-          referenceType: 'MANUAL',
-          referenceId: transfer.id,
-          note: `Stock Transfer ${transfer.transferNumber} - Dispatched`,
-        });
+        if (dispatchQty > 0) {
+          await writeStockMovement(queryRunner, {
+            bookId: item.bookId,
+            branchId: transfer.fromBranch.type === 'WAREHOUSE' ? null : transfer.fromBranchId,
+            type: 'TRANSFER_OUT',
+            quantity: -dispatchQty,
+            performedById: currentUser.userId,
+            referenceType: 'MANUAL',
+            referenceId: transfer.id,
+            note: `Stock Transfer ${transfer.transferNumber} - Dispatched${dispatchQty < item.quantityRequested ? ' (Partial)' : ''}`,
+          });
+        }
       }
 
       await queryRunner.manager.save(AuditLog, {
@@ -343,7 +414,12 @@ export class TransfersService {
     }
   }
 
-  async receiveTransfer(id: string, currentUser: JwtPayload, ipAddress: string): Promise<StockTransfer> {
+  async receiveTransfer(
+    id: string,
+    dto: { items?: Array<{ bookId: string; quantityReceived: number }>; note?: string } | undefined,
+    currentUser: JwtPayload,
+    ipAddress: string,
+  ): Promise<StockTransfer> {
     const transfer = await this.findOne(id, currentUser);
 
     if (transfer.status !== StockTransferStatus.DISPATCHED) {
@@ -378,31 +454,42 @@ export class TransfersService {
       const beforeState = { ...transfer };
       
       transfer.status = StockTransferStatus.RECEIVED;
+      if (dto?.note) {
+        transfer.note = transfer.note ? `${transfer.note} | Receipt Note: ${dto.note}` : `Receipt Note: ${dto.note}`;
+      }
       await queryRunner.manager.save(StockTransfer, transfer);
 
       // Increment stock in destination branch (toBranch)
       for (const item of transfer.items) {
-        if (transfer.toBranch.type === 'WAREHOUSE') {
-          await incrementCentralStock(queryRunner, item.bookId, item.quantityDispatched);
-        } else {
-          await incrementBranchStock(queryRunner, transfer.toBranchId, item.bookId, item.quantityDispatched);
+        const itemDto = dto?.items?.find((it: any) => it.bookId === item.bookId);
+        const maxReceivable = item.quantityDispatched || item.quantityRequested;
+        const receiveQty = itemDto !== undefined ? Math.max(0, Math.min(maxReceivable, Number(itemDto.quantityReceived))) : maxReceivable;
+
+        if (receiveQty > 0) {
+          if (transfer.toBranch.type === 'WAREHOUSE') {
+            await incrementCentralStock(queryRunner, item.bookId, receiveQty);
+          } else {
+            await incrementBranchStock(queryRunner, transfer.toBranchId, item.bookId, receiveQty);
+          }
         }
 
         // Set quantityReceived
-        item.quantityReceived = item.quantityDispatched;
+        item.quantityReceived = receiveQty;
         await queryRunner.manager.save(StockTransferItem, item);
 
         // Record stock movement (inbound)
-        await writeStockMovement(queryRunner, {
-          bookId: item.bookId,
-          branchId: transfer.toBranch.type === 'WAREHOUSE' ? null : transfer.toBranchId,
-          type: 'TRANSFER_IN',
-          quantity: item.quantityDispatched,
-          performedById: currentUser.userId,
-          referenceType: 'MANUAL',
-          referenceId: transfer.id,
-          note: `Stock Transfer ${transfer.transferNumber} - Received`,
-        });
+        if (receiveQty > 0) {
+          await writeStockMovement(queryRunner, {
+            bookId: item.bookId,
+            branchId: transfer.toBranch.type === 'WAREHOUSE' ? null : transfer.toBranchId,
+            type: 'TRANSFER_IN',
+            quantity: receiveQty,
+            performedById: currentUser.userId,
+            referenceType: 'MANUAL',
+            referenceId: transfer.id,
+            note: `Stock Transfer ${transfer.transferNumber} - Received${receiveQty < maxReceivable ? ` (Partial: ${receiveQty}/${maxReceivable})` : ''}`,
+          });
+        }
       }
 
       await queryRunner.manager.save(AuditLog, {
@@ -637,4 +724,248 @@ export class TransfersService {
 
     return results;
   }
+
+  async routeTransfer(
+    id: string,
+    dto: { fromBranchId: string; note?: string },
+    currentUser: JwtPayload,
+    ipAddress: string,
+  ): Promise<StockTransfer> {
+    const transfer = await this.findOne(id, currentUser);
+    if (transfer.status !== StockTransferStatus.PENDING) {
+      throw new ConflictException('Only pending transfers can be routed');
+    }
+
+    if (!hasRole(currentUser, UserRole.SUPER_ADMIN) && 
+        !hasRole(currentUser, UserRole.ADMIN) && 
+        !hasRole(currentUser, UserRole.CENTRAL_INVENTORY_MANAGER)) {
+      throw new ForbiddenException('Only Central Inventory Managers or Admins can assign or route transfer sources');
+    }
+
+    const { transferRepo, branchRepo, auditRepo } = await this.getRepos();
+    const sourceBranch = await branchRepo.findOne({ where: { id: dto.fromBranchId } });
+    if (!sourceBranch) throw new NotFoundException(`Source location with ID ${dto.fromBranchId} not found`);
+
+    if (dto.fromBranchId === transfer.toBranchId) {
+      throw new BadRequestException('Source and destination branches cannot be the same');
+    }
+
+    const beforeState = { ...transfer };
+    transfer.fromBranchId = dto.fromBranchId;
+    if (dto.note) {
+      transfer.note = dto.note;
+    }
+
+    await transferRepo.save(transfer);
+
+    await auditRepo.save({
+      userId: currentUser.userId,
+      action: 'STOCK_TRANSFER_ROUTED',
+      entityType: 'StockTransfer',
+      entityId: transfer.id,
+      beforeJson: beforeState,
+      afterJson: transfer,
+      ipAddress,
+    });
+
+    this.notificationsService.triggerRefresh('transfers_changed');
+    return this.findOne(id, currentUser);
+  }
+
+  async splitAndRouteTransfer(
+    id: string,
+    dto: {
+      allocations: Array<{
+        branchId: string;
+        quantity: number;
+        bookId?: string;
+      }>;
+      dispatchNow?: boolean;
+      note?: string;
+    },
+    currentUser: JwtPayload,
+    ipAddress: string,
+  ): Promise<StockTransfer[]> {
+    const transfer = await this.findOne(id, currentUser);
+    if (transfer.status !== StockTransferStatus.PENDING) {
+      throw new ConflictException('Only pending transfers can be split or re-allocated');
+    }
+
+    if (
+      !hasRole(currentUser, UserRole.SUPER_ADMIN) &&
+      !hasRole(currentUser, UserRole.ADMIN) &&
+      !hasRole(currentUser, UserRole.CENTRAL_INVENTORY_MANAGER)
+    ) {
+      throw new ForbiddenException('Only Central Inventory Managers or Admins can perform multi-branch allocation');
+    }
+
+    const validAllocations = (dto.allocations || []).filter(
+      (a) => a.branchId && Number(a.quantity) > 0 && a.branchId !== transfer.toBranchId
+    );
+
+    if (validAllocations.length === 0) {
+      throw new BadRequestException('Please allocate at least 1 copy from a valid source branch');
+    }
+
+    const { dataSource, branchRepo } = await this.getRepos();
+    const queryRunner = dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const results: StockTransfer[] = [];
+
+      // Clean base number (strip any existing -A, -B suffix)
+      const baseNumber = transfer.transferNumber.replace(/-[A-Z0-9]+$/, '');
+
+      // Query any existing sibling/related numbers in DB to guarantee uniqueness
+      const existingWithBase = await queryRunner.manager.query(
+        `SELECT transfer_number FROM stock_transfer WHERE transfer_number LIKE ?`,
+        [`${baseNumber}-%`]
+      );
+      const existingNumbers = new Set(existingWithBase.map((r: any) => r.transfer_number));
+
+      let suffixAscii = 65; // 'A'
+
+      for (let i = 0; i < validAllocations.length; i++) {
+        const alloc = validAllocations[i];
+        const sourceBranch = await branchRepo.findOne({ where: { id: alloc.branchId } });
+        if (!sourceBranch) {
+          throw new NotFoundException(`Branch with ID ${alloc.branchId} not found`);
+        }
+
+        const isFromWarehouse = sourceBranch.type === 'WAREHOUSE';
+        const bookId = alloc.bookId || transfer.items[0]?.bookId;
+        const allocQty = Number(alloc.quantity);
+
+        if (i === 0) {
+          // Update primary transfer
+          transfer.fromBranchId = alloc.branchId;
+          transfer.fromBranch = sourceBranch;
+          if (dto.note) transfer.note = dto.note;
+
+          if (dto.dispatchNow) {
+            transfer.status = StockTransferStatus.DISPATCHED;
+          }
+
+          await queryRunner.manager.save(StockTransfer, transfer);
+
+          // Update transfer items
+          if (transfer.items && transfer.items.length > 0) {
+            const primaryItem = transfer.items.find((it: any) => it.bookId === bookId) || transfer.items[0];
+            primaryItem.quantityRequested = allocQty;
+            if (dto.dispatchNow) {
+              primaryItem.quantityDispatched = allocQty;
+            }
+            await queryRunner.manager.save(StockTransferItem, primaryItem);
+          }
+
+          if (dto.dispatchNow && bookId) {
+            if (isFromWarehouse) {
+              await decrementCentralStock(queryRunner, bookId, allocQty);
+            } else {
+              await decrementBranchStock(queryRunner, alloc.branchId, bookId, allocQty);
+            }
+
+            await writeStockMovement(queryRunner, {
+              bookId,
+              branchId: isFromWarehouse ? null : alloc.branchId,
+              type: 'TRANSFER_OUT',
+              quantity: -allocQty,
+              performedById: currentUser.userId,
+              referenceType: 'MANUAL',
+              referenceId: transfer.id,
+              note: `Stock Transfer ${transfer.transferNumber} - Dispatched (Multi-Branch Split)`,
+            });
+          }
+
+          results.push(transfer);
+        } else {
+          // Find next available unused sibling transfer number
+          let siblingNumber = `${baseNumber}-${String.fromCharCode(suffixAscii)}`;
+          while (existingNumbers.has(siblingNumber)) {
+            suffixAscii++;
+            if (suffixAscii <= 90) {
+              siblingNumber = `${baseNumber}-${String.fromCharCode(suffixAscii)}`;
+            } else {
+              siblingNumber = `${baseNumber}-S${suffixAscii - 90}`;
+            }
+          }
+          existingNumbers.add(siblingNumber);
+          suffixAscii++;
+
+          const siblingTransfer = queryRunner.manager.create(StockTransfer, {
+            id: uuidv4(),
+            transferNumber: siblingNumber,
+            fromBranchId: alloc.branchId,
+            toBranchId: transfer.toBranchId,
+            requestedById: transfer.requestedById,
+            status: dto.dispatchNow ? StockTransferStatus.DISPATCHED : StockTransferStatus.PENDING,
+            note: dto.note || transfer.note,
+            purchaseOrderId: transfer.purchaseOrderId,
+          });
+
+          const savedSibling = await queryRunner.manager.save(StockTransfer, siblingTransfer);
+
+          if (bookId) {
+            const siblingItem = queryRunner.manager.create(StockTransferItem, {
+              id: uuidv4(),
+              transferId: savedSibling.id,
+              bookId,
+              quantityRequested: allocQty,
+              quantityDispatched: dto.dispatchNow ? allocQty : 0,
+              quantityReceived: 0,
+            });
+            await queryRunner.manager.save(StockTransferItem, siblingItem);
+
+            if (dto.dispatchNow) {
+              if (isFromWarehouse) {
+                await decrementCentralStock(queryRunner, bookId, allocQty);
+              } else {
+                await decrementBranchStock(queryRunner, alloc.branchId, bookId, allocQty);
+              }
+
+              await writeStockMovement(queryRunner, {
+                bookId,
+                branchId: isFromWarehouse ? null : alloc.branchId,
+                type: 'TRANSFER_OUT',
+                quantity: -allocQty,
+                performedById: currentUser.userId,
+                referenceType: 'MANUAL',
+                referenceId: savedSibling.id,
+                note: `Stock Transfer ${savedSibling.transferNumber} - Dispatched (Multi-Branch Split)`,
+              });
+            }
+          }
+
+          results.push(savedSibling);
+        }
+      }
+
+      await queryRunner.manager.save(AuditLog, {
+        userId: currentUser.userId,
+        action: dto.dispatchNow ? 'STOCK_TRANSFER_MULTI_DISPATCHED' : 'STOCK_TRANSFER_MULTI_ROUTED',
+        entityType: 'StockTransfer',
+        entityId: transfer.id,
+        beforeJson: null,
+        afterJson: { allocations: validAllocations, resultsCount: results.length },
+        ipAddress,
+      });
+
+      await queryRunner.commitTransaction();
+
+      this.notificationsService.triggerRefresh('transfers_changed');
+      this.notificationsService.triggerRefresh('stock_changed');
+
+      return results;
+    } catch (err) {
+      if (queryRunner.isTransactionActive) {
+        await queryRunner.rollbackTransaction();
+      }
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+  }
 }
+

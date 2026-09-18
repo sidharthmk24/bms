@@ -223,7 +223,7 @@ function ResetPasswordForm() {
           href="/login"
           className="text-xs font-semibold text-[#7e2562] hover:text-[#681b50] transition-colors"
         >
-          &larr; Back to sign in
+            Back to sign in
         </Link>
       </div>
     </form>
