@@ -28,7 +28,7 @@ export function StatCard({ title, value, icon: Icon, trend, trendUp, color = 'pl
       className="bg-white rounded-sm border border-[#7e2562]/12 p-5 shadow-plum-sm hover:border-[#7e2562]/25 hover:shadow-plum-md transition-all"
     >
       <div className="flex items-center justify-between">
-        <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider truncate">{title}</p>
+        <p className="text-xs font-bold text-muted-foreground   tracking-wider truncate">{title}</p>
         <div className={`p-2 rounded-sm ${colorMap[color] || colorMap.plum}`}>
           <Icon className="w-4 h-4" />
         </div>
@@ -41,7 +41,7 @@ export function StatCard({ title, value, icon: Icon, trend, trendUp, color = 'pl
           <span className={`font-bold ${trendUp ? 'text-success' : 'text-danger'}`}>
             {trend}
           </span>
-          <span className="ml-2 text-muted-foreground text-[10px] uppercase tracking-wide">vs last month</span>
+          <span className="ml-2 text-muted-foreground text-[10px]   tracking-wide">vs last month</span>
         </div>
       )}
     </motion.div>

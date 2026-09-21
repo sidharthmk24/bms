@@ -195,9 +195,147 @@ export class CreditCopiesService {
     }
   }
 
+  async issueBatchCreditCopies(
+    items: Array<{ bookId: string; quantity: number }>,
+    recipientName: string,
+    note: string | undefined,
+    user: JwtPayload,
+    branchId: string | undefined,
+    ipAddress: string
+  ): Promise<CreditCopy[]> {
+    if (!items || items.length === 0) throw new BadRequestException('At least one book item is required');
+    for (const it of items) {
+      if (!it.bookId) throw new BadRequestException('All items must have a book selected');
+      if (!it.quantity || it.quantity <= 0) throw new BadRequestException('Quantity must be greater than 0');
+    }
+
+    const targetBranchId = branchId || user.branchId;
+    const isCentral = !targetBranchId;
+
+    if (isCentral && !hasRole(user, UserRole.SUPER_ADMIN) && !hasRole(user, UserRole.ADMIN)) {
+      throw new ForbiddenException('Only administrators can issue central credit copies');
+    }
+
+    if (targetBranchId && !hasRole(user, UserRole.SUPER_ADMIN) && !hasRole(user, UserRole.ADMIN) && user.branchId !== targetBranchId) {
+      throw new ForbiddenException('Cannot issue credit copies for another branch');
+    }
+
+    const { dataSource, creditCopyRepo } = await this.getRepos();
+    const queryRunner = dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      let branch: Branch | null = null;
+      if (isCentral) {
+        branch = await queryRunner.manager.findOne(Branch, {
+          where: { type: BranchType.WAREHOUSE },
+        });
+        if (!branch) throw new NotFoundException('Central Warehouse branch not found in DB');
+      } else {
+        branch = await queryRunner.manager.findOne(Branch, {
+          where: { id: targetBranchId },
+        });
+        if (!branch) throw new NotFoundException(`Branch with ID ${targetBranchId} not found`);
+      }
+
+      const billNumber = await generateBillNumber(dataSource, branch.code, queryRunner.manager);
+
+      let subTotal = 0;
+      let totalCost = 0;
+
+      const preparedItems: Array<{ book: Book; quantity: number; lineTotal: number }> = [];
+
+      for (const it of items) {
+        const book = await queryRunner.manager.findOne(Book, { where: { id: it.bookId } });
+        if (!book) throw new NotFoundException(`Book with ID ${it.bookId} not found`);
+
+        if (isCentral) {
+          await decrementCentralStock(queryRunner, it.bookId, it.quantity);
+        } else {
+          await decrementBranchStock(queryRunner, targetBranchId!, it.bookId, it.quantity);
+        }
+
+        const lineTotal = Number(book.price) * it.quantity;
+        subTotal += lineTotal;
+        totalCost += Number(book.costPrice || 0) * it.quantity;
+
+        preparedItems.push({ book, quantity: it.quantity, lineTotal });
+      }
+
+      const newBill = queryRunner.manager.create(Bill, {
+        billNumber,
+        branchId: branch.id,
+        createdById: user.userId,
+        subTotal,
+        discount: 0,
+        totalAmount: subTotal,
+        totalCost,
+        paymentStatus: PaymentStatus.PAID,
+        paymentMode: PaymentMode.CREDIT,
+        status: BillStatus.COMPLETED,
+        customerName: recipientName.toLowerCase().includes('credit') ? recipientName : `Credit Copy: ${recipientName}`,
+        customerPhone: null,
+        exhibitionId: null,
+      } as any);
+
+      const savedBill = await queryRunner.manager.save(Bill, newBill) as any;
+
+      const createdCreditCopies: CreditCopy[] = [];
+
+      for (const item of preparedItems) {
+        const newBillItem = queryRunner.manager.create(BillItem, {
+          billId: savedBill.id,
+          bookId: item.book.id,
+          quantity: item.quantity,
+          unitPrice: item.book.price,
+          unitCost: Number(item.book.costPrice || 0),
+          lineTotal: item.lineTotal,
+        });
+        await queryRunner.manager.save(BillItem, newBillItem);
+
+        await writeStockMovement(queryRunner, {
+          bookId: item.book.id,
+          branchId: targetBranchId || null,
+          type: 'CREDIT_OUT',
+          quantity: -item.quantity,
+          performedById: user.userId,
+          referenceType: 'BILL',
+          referenceId: savedBill.id,
+          note: `Credit Copy to: ${recipientName}`,
+        });
+
+        const creditCopy = creditCopyRepo.create({
+          bookId: item.book.id,
+          branchId: targetBranchId || null,
+          quantity: item.quantity,
+          recipientName,
+          note: note || null,
+          issuedById: user.userId,
+        });
+        const saved = await queryRunner.manager.getRepository(CreditCopy).save(creditCopy);
+        createdCreditCopies.push(saved);
+
+        await queryRunner.manager.query(
+          'INSERT INTO `audit_log`(`id`,`user_id`,`action`,`entity_type`,`entity_id`,`before_json`,`after_json`,`ip_address`,`created_at`) VALUES (UUID(),?,?,?,?,NULL,?,?,DEFAULT)',
+          [user.userId, 'CREDIT_COPY_ISSUED', 'CreditCopy', saved.id, JSON.stringify(saved), ipAddress]
+        );
+      }
+
+      await queryRunner.commitTransaction();
+      return JSON.parse(JSON.stringify(createdCreditCopies));
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
   async updateCreditCopy(
     id: string,
     dto: {
+      bookId?: string;
       recipientName?: string;
       note?: string;
       quantity?: number;
@@ -237,11 +375,62 @@ export class CreditCopiesService {
         creditCopy.note = dto.note ? dto.note.trim() : null;
       }
 
-      // If quantity is adjusted
-      if (dto.quantity !== undefined && Number(dto.quantity) > 0 && Number(dto.quantity) !== creditCopy.quantity) {
+      const targetQty = (dto.quantity !== undefined && Number(dto.quantity) > 0) ? Number(dto.quantity) : creditCopy.quantity;
+
+      // Case 1: Book is changed to a different book
+      if (dto.bookId && dto.bookId !== creditCopy.bookId) {
+        const newBook = await queryRunner.manager.findOne(Book, { where: { id: dto.bookId } });
+        if (!newBook) throw new NotFoundException(`New book with ID ${dto.bookId} not found`);
+
+        const oldBookId = creditCopy.bookId;
+        const oldQty = creditCopy.quantity;
+        const oldBookTitle = creditCopy.book?.title || 'Previous Book';
+
+        // 1. Return old book stock
+        if (!creditCopy.branchId) {
+          await incrementCentralStock(queryRunner, oldBookId, oldQty);
+        } else {
+          await incrementBranchStock(queryRunner, creditCopy.branchId, oldBookId, oldQty);
+        }
+
+        await writeStockMovement(queryRunner, {
+          bookId: oldBookId,
+          branchId: creditCopy.branchId || null,
+          type: 'ADJUSTMENT',
+          quantity: oldQty,
+          performedById: user.userId,
+          referenceType: 'MANUAL',
+          referenceId: creditCopy.id,
+          note: `Credit Copy Book Changed (Returned ${oldQty}x "${oldBookTitle}") from recipient: ${creditCopy.recipientName}`,
+        });
+
+        // 2. Deduct new book stock
+        if (!creditCopy.branchId) {
+          await decrementCentralStock(queryRunner, dto.bookId, targetQty);
+        } else {
+          await decrementBranchStock(queryRunner, creditCopy.branchId, dto.bookId, targetQty);
+        }
+
+        await writeStockMovement(queryRunner, {
+          bookId: dto.bookId,
+          branchId: creditCopy.branchId || null,
+          type: 'CREDIT_OUT',
+          quantity: -targetQty,
+          performedById: user.userId,
+          referenceType: 'MANUAL',
+          referenceId: creditCopy.id,
+          note: `Credit Copy Book Changed (Issued ${targetQty}x "${newBook.title}") to recipient: ${creditCopy.recipientName}`,
+        });
+
+        creditCopy.bookId = dto.bookId;
+        creditCopy.book = newBook;
+        creditCopy.quantity = targetQty;
+      } 
+      // Case 2: Same book, quantity is adjusted
+      else if (dto.quantity !== undefined && Number(dto.quantity) > 0 && Number(dto.quantity) !== creditCopy.quantity) {
         const newQty = Number(dto.quantity);
         const oldQty = creditCopy.quantity;
-        const diff = newQty - oldQty; // e.g. 5 - 3 = +2 (need 2 more), 2 - 5 = -3 (return 3)
+        const diff = newQty - oldQty;
 
         if (diff > 0) {
           // Decrement additional stock
@@ -294,6 +483,75 @@ export class CreditCopiesService {
 
       await queryRunner.commitTransaction();
       return JSON.parse(JSON.stringify(saved));
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  async deleteCreditCopy(
+    id: string,
+    user: JwtPayload,
+    ipAddress: string
+  ): Promise<void> {
+    const { dataSource, creditCopyRepo } = await this.getRepos();
+    const creditCopy = await creditCopyRepo.findOne({
+      where: { id },
+      relations: ['book', 'branch', 'issuedBy'],
+    });
+
+    if (!creditCopy) throw new NotFoundException(`Credit copy record with ID ${id} not found`);
+
+    const isAdmin = hasRole(user, UserRole.SUPER_ADMIN) || hasRole(user, UserRole.ADMIN) || hasRole(user, UserRole.CENTRAL_INVENTORY_MANAGER);
+    if (!isAdmin) {
+      if (user.branchId && creditCopy.branchId !== user.branchId) {
+        throw new ForbiddenException('Cannot delete credit copies for another branch');
+      }
+      if (creditCopy.issuedById !== user.userId) {
+        throw new ForbiddenException('Only the issuer or an administrator can delete this credit copy');
+      }
+    }
+
+    const queryRunner = dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const beforeJson = JSON.stringify(creditCopy);
+      const returnQty = creditCopy.quantity;
+      const bookTitle = creditCopy.book?.title || 'Book';
+
+      // 1. Return stock back to inventory
+      if (!creditCopy.branchId) {
+        await incrementCentralStock(queryRunner, creditCopy.bookId, returnQty);
+      } else {
+        await incrementBranchStock(queryRunner, creditCopy.branchId, creditCopy.bookId, returnQty);
+      }
+
+      // 2. Write stock movement
+      await writeStockMovement(queryRunner, {
+        bookId: creditCopy.bookId,
+        branchId: creditCopy.branchId || null,
+        type: 'ADJUSTMENT',
+        quantity: returnQty,
+        performedById: user.userId,
+        referenceType: 'MANUAL',
+        referenceId: creditCopy.id,
+        note: `Credit Copy Cancelled/Voided: Returned ${returnQty}x "${bookTitle}" from recipient ${creditCopy.recipientName}`,
+      });
+
+      // 3. Remove credit copy
+      await queryRunner.manager.getRepository(CreditCopy).remove(creditCopy);
+
+      // 4. Audit Log
+      await queryRunner.manager.query(
+        'INSERT INTO `audit_log`(`id`,`user_id`,`action`,`entity_type`,`entity_id`,`before_json`,`after_json`,`ip_address`,`created_at`) VALUES (UUID(),?,?,?,?,?,NULL,?,DEFAULT)',
+        [user.userId, 'CREDIT_COPY_DELETED', 'CreditCopy', id, beforeJson, ipAddress]
+      );
+
+      await queryRunner.commitTransaction();
     } catch (err) {
       await queryRunner.rollbackTransaction();
       throw err;

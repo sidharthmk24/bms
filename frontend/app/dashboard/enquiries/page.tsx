@@ -131,7 +131,7 @@ export default function EnquiriesPage() {
             <div className="p-10 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-[#7e2562]"/></div>
           ) : (
             <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562] uppercase tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
+              <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562]   tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
                 <tr>
                   <th scope="col" className="px-6 py-3.5 text-left whitespace-nowrap">Requested Item</th>
                   <th scope="col" className="px-6 py-3.5 text-left whitespace-nowrap">Type</th>
@@ -196,7 +196,7 @@ export default function EnquiriesPage() {
             <div className="p-10 flex justify-center"><Loader2 className="w-8 h-8 animate-spin text-[#7e2562]"/></div>
           ) : (
             <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562] uppercase tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
+              <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562]   tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
                 <tr>
                   <th scope="col" className="px-6 py-3.5 text-left whitespace-nowrap">Item</th>
                   <th scope="col" className="px-6 py-3.5 text-left whitespace-nowrap">Type</th>
@@ -245,7 +245,7 @@ export default function EnquiriesPage() {
               <div className="space-y-4 mb-6">
                 {enquiryType === 'CATALOG' ? (
                   <div>
-                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Select Book</label>
+                    <label className="block text-xs font-bold text-gray-700   tracking-wider mb-1">Select Book</label>
                     <Dropdown
                       searchable
                       value={bookId}
@@ -262,18 +262,18 @@ export default function EnquiriesPage() {
                   </div>
                 ) : (
                   <div>
-                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Book Title / Details</label>
+                    <label className="block text-xs font-bold text-gray-700   tracking-wider mb-1">Book Title / Details</label>
                     <input type="text" value={freeTextTitle} onChange={e => setFreeTextTitle(e.target.value)} placeholder="e.g. Harry Potter" className="block w-full px-3 py-2 border border-gray-300 rounded-sm text-sm focus:border-[#7e2562] focus:ring-1 focus:ring-[#7e2562] outline-none" />
                   </div>
                 )}
 
                 <div className="grid grid-cols-2 gap-4 border-t border-gray-100 pt-4">
                   <div>
-                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Customer Name</label>
+                    <label className="block text-xs font-bold text-gray-700   tracking-wider mb-1">Customer Name</label>
                     <input type="text" value={customerName} onChange={e => setCustomerName(e.target.value)} className="block w-full px-3 py-2 border border-gray-300 rounded-sm text-sm focus:border-[#7e2562] focus:ring-1 focus:ring-[#7e2562] outline-none" />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">Phone</label>
+                    <label className="block text-xs font-bold text-gray-700   tracking-wider mb-1">Phone</label>
                     <input type="text" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} className="block w-full px-3 py-2 border border-gray-300 rounded-sm text-sm focus:border-[#7e2562] focus:ring-1 focus:ring-[#7e2562] outline-none" />
                   </div>
                 </div>
@@ -306,7 +306,7 @@ export default function EnquiriesPage() {
               </div>
               <div className="p-6 overflow-y-auto">
                 <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562] uppercase tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
+                  <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562]   tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
                     <tr>
                       <th scope="col" className="px-4 py-3 text-left whitespace-nowrap">Customer</th>
                       <th scope="col" className="px-4 py-3 text-left whitespace-nowrap">Branch / Date</th>

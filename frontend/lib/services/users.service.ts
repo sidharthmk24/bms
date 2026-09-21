@@ -76,13 +76,13 @@ export class UsersService {
       return userRepo.find({
         where: { branchId: currentUser.branchId },
         relations: ['branch', 'roles'],
-        order: { name: 'ASC' },
+        order: { isActive: 'DESC', name: 'ASC' },
       });
     }
 
     return userRepo.find({
       relations: ['branch', 'roles'],
-      order: { primaryRole: 'ASC', name: 'ASC' },
+      order: { isActive: 'DESC', primaryRole: 'ASC', name: 'ASC' },
     });
   }
 

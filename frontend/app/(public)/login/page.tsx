@@ -213,7 +213,7 @@ export default function LoginPage() {
           {step === 'EMAIL' && (
             <form onSubmit={handleVerifyEmail} className={`space-y-4.5 ${error ? "animate-apple-shake" : ""}`}>
               <div>
-                <label htmlFor="email" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <label htmlFor="email" className="mb-1.5 block text-xs font-semibold   tracking-wider text-muted-foreground">
                   Work Email Address
                 </label>
                 <div className="apple-input-container relative flex items-center rounded-sm border border-[#7e2562]/20 bg-white">
@@ -278,7 +278,7 @@ export default function LoginPage() {
               </div>
 
               <div>
-                <label htmlFor="password" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <label htmlFor="password" className="mb-1.5 block text-xs font-semibold   tracking-wider text-muted-foreground">
                   Password
                 </label>
                 <div className="apple-input-container relative flex items-center rounded-sm border border-[#7e2562]/20 bg-white">
@@ -365,7 +365,7 @@ export default function LoginPage() {
               </div>
 
               <div>
-                <label htmlFor="new-password" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <label htmlFor="new-password" className="mb-1.5 block text-xs font-semibold   tracking-wider text-muted-foreground">
                   Create Password
                 </label>
                 <div className="apple-input-container relative flex items-center rounded-sm border border-[#7e2562]/20 bg-white">
@@ -396,7 +396,7 @@ export default function LoginPage() {
               </div>
 
               <div>
-                <label htmlFor="confirm-password" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <label htmlFor="confirm-password" className="mb-1.5 block text-xs font-semibold   tracking-wider text-muted-foreground">
                   Confirm Password
                 </label>
                 <div className="apple-input-container relative flex items-center rounded-sm border border-[#7e2562]/20 bg-white">
@@ -493,7 +493,7 @@ export default function LoginPage() {
               ) : (
                 <form onSubmit={handleForgotPassword} className={`space-y-4.5 ${error ? "animate-apple-shake" : ""}`}>
                   <div>
-                    <label htmlFor="forgot-email" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    <label htmlFor="forgot-email" className="mb-1.5 block text-xs font-semibold   tracking-wider text-muted-foreground">
                       Account Email Address
                     </label>
                     <div className="apple-input-container relative flex items-center rounded-sm border border-[#7e2562]/20 bg-white">

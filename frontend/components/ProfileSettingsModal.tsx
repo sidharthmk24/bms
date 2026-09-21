@@ -205,12 +205,12 @@ export default function ProfileSettingsModal({ isOpen, onClose }: ProfileSetting
             {/* User Meta Summary */}
             <div className="p-3 bg-[#faf6f9] border border-[#7e2562]/10 rounded-sm flex flex-wrap items-center justify-between gap-2">
               <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 block">Assigned Roles</span>
+                <span className="text-[10px] font-bold   tracking-wider text-neutral-500 block">Assigned Roles</span>
                 <div className="flex flex-wrap gap-1 mt-0.5">
                   {(user.roles || [user.role || user.primaryRole]).map((r: string, idx: number) => (
                     <span
                       key={idx}
-                      className="inline-flex items-center px-2 py-0.5 rounded-xs text-[10px] font-bold uppercase tracking-wider bg-[#faedf5] text-[#7e2562] border border-[#7e2562]/20"
+                      className="inline-flex items-center px-2 py-0.5 rounded-xs text-[10px] font-bold   tracking-wider bg-[#faedf5] text-[#7e2562] border border-[#7e2562]/20"
                     >
                       <Shield className="w-2.5 h-2.5 mr-1" />
                       {r.replace(/_/g, ' ')}
@@ -221,7 +221,7 @@ export default function ProfileSettingsModal({ isOpen, onClose }: ProfileSetting
 
               {user.branch && (
                 <div className="text-right">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 block">Branch</span>
+                  <span className="text-[10px] font-bold   tracking-wider text-neutral-500 block">Branch</span>
                   <span className="text-xs font-bold text-neutral-800 flex items-center gap-1 justify-end">
                     <Store className="w-3 h-3 text-neutral-500" />
                     {user.branch.name} ({user.branch.code})
@@ -234,7 +234,7 @@ export default function ProfileSettingsModal({ isOpen, onClose }: ProfileSetting
             {activeTab === 'profile' && (
               <form onSubmit={handleUpdateProfile} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-1">
+                  <label className="block text-xs font-bold   tracking-wider text-neutral-700 mb-1">
                     Full Name *
                   </label>
                   <div className="relative">
@@ -251,7 +251,7 @@ export default function ProfileSettingsModal({ isOpen, onClose }: ProfileSetting
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-1">
+                  <label className="block text-xs font-bold   tracking-wider text-neutral-700 mb-1">
                     Email Address *
                   </label>
                   <div className="relative">
@@ -274,14 +274,14 @@ export default function ProfileSettingsModal({ isOpen, onClose }: ProfileSetting
                   <button
                     type="button"
                     onClick={onClose}
-                    className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-neutral-700 bg-white border border-neutral-300 rounded-sm hover:bg-neutral-50 transition-colors cursor-pointer"
+                    className="px-4 py-2 text-xs font-bold   tracking-wider text-neutral-700 bg-white border border-neutral-300 rounded-sm hover:bg-neutral-50 transition-colors cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={isSubmitting || !name.trim() || !email.trim()}
-                    className="flex items-center px-5 py-2 text-xs font-bold uppercase tracking-wider text-white bg-[#7e2562] rounded-sm hover:bg-[#681b50] disabled:opacity-50 transition-all shadow-sm shadow-plum-sm cursor-pointer"
+                    className="flex items-center px-5 py-2 text-xs font-bold   tracking-wider text-white bg-[#7e2562] rounded-sm hover:bg-[#681b50] disabled:opacity-50 transition-all shadow-sm shadow-plum-sm cursor-pointer"
                   >
                     {isSubmitting && <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />}
                     Save Profile
@@ -294,7 +294,7 @@ export default function ProfileSettingsModal({ isOpen, onClose }: ProfileSetting
             {activeTab === 'security' && (
               <form onSubmit={handleChangePassword} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-1">
+                  <label className="block text-xs font-bold   tracking-wider text-neutral-700 mb-1">
                     Current Password
                   </label>
                   <div className="relative">
@@ -316,7 +316,7 @@ export default function ProfileSettingsModal({ isOpen, onClose }: ProfileSetting
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-1">
+                  <label className="block text-xs font-bold   tracking-wider text-neutral-700 mb-1">
                     New Password *
                   </label>
                   <div className="relative">
@@ -339,7 +339,7 @@ export default function ProfileSettingsModal({ isOpen, onClose }: ProfileSetting
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-1">
+                  <label className="block text-xs font-bold   tracking-wider text-neutral-700 mb-1">
                     Confirm New Password *
                   </label>
                   <input
@@ -356,14 +356,14 @@ export default function ProfileSettingsModal({ isOpen, onClose }: ProfileSetting
                   <button
                     type="button"
                     onClick={onClose}
-                    className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-neutral-700 bg-white border border-neutral-300 rounded-sm hover:bg-neutral-50 transition-colors cursor-pointer"
+                    className="px-4 py-2 text-xs font-bold   tracking-wider text-neutral-700 bg-white border border-neutral-300 rounded-sm hover:bg-neutral-50 transition-colors cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={isSubmitting || !newPassword || !confirmPassword}
-                    className="flex items-center px-5 py-2 text-xs font-bold uppercase tracking-wider text-white bg-[#7e2562] rounded-sm hover:bg-[#681b50] disabled:opacity-50 transition-all shadow-sm shadow-plum-sm cursor-pointer"
+                    className="flex items-center px-5 py-2 text-xs font-bold   tracking-wider text-white bg-[#7e2562] rounded-sm hover:bg-[#681b50] disabled:opacity-50 transition-all shadow-sm shadow-plum-sm cursor-pointer"
                   >
                     {isSubmitting && <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />}
                     Update Password

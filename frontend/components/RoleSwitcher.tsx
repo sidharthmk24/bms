@@ -95,7 +95,7 @@ export default function RoleSwitcher() {
               className="absolute right-0 mt-2 w-64 bg-white rounded-sm shadow-plum-md border border-[#7e2562]/15 overflow-hidden z-50 flex flex-col"
             >
               <div className="p-3 border-b border-[#7e2562]/10 bg-[#faedf5]/80">
-                <p className="text-xs font-bold text-primary uppercase tracking-wider">Switch Role</p>
+                <p className="text-xs font-bold text-primary   tracking-wider">Switch Role</p>
               </div>
               <div className="max-h-[60vh] overflow-y-auto py-1 divide-y divide-[#7e2562]/5">
                 {ROLES.map((r) => {

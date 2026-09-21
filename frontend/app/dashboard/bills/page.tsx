@@ -267,7 +267,7 @@ export default function BillsPage() {
         <div className="flex flex-wrap items-center gap-3">
           {/* 1. Date Range Dropdown */}
           <div className="w-44">
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-neutral-500 mb-1">Date Range</label>
+            <label className="block text-[10px] font-bold   tracking-wider text-neutral-500 mb-1">Date Range</label>
             <Dropdown
               value={dateFilter}
               onChange={(val) => {
@@ -288,7 +288,7 @@ export default function BillsPage() {
 
           {/* 2. Branch Dropdown */}
           <div className="w-44">
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-neutral-500 mb-1">Branch</label>
+            <label className="block text-[10px] font-bold   tracking-wider text-neutral-500 mb-1">Branch</label>
             <Dropdown
               value={selectedBranch}
               onChange={(val) => {
@@ -308,7 +308,7 @@ export default function BillsPage() {
 
           {/* 3. Source / Type Dropdown */}
           <div className="w-48">
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-neutral-500 mb-1">Bill Source</label>
+            <label className="block text-[10px] font-bold   tracking-wider text-neutral-500 mb-1">Bill Source</label>
             <Dropdown
               value={selectedSource}
               onChange={(val) => {
@@ -326,7 +326,7 @@ export default function BillsPage() {
 
           {/* 4. Payment Mode Dropdown */}
           <div className="w-40">
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-neutral-500 mb-1">Payment Mode</label>
+            <label className="block text-[10px] font-bold   tracking-wider text-neutral-500 mb-1">Payment Mode</label>
             <Dropdown
               value={selectedPaymentMode}
               onChange={(val) => {
@@ -345,7 +345,7 @@ export default function BillsPage() {
 
           {/* 5. Status Dropdown */}
           <div className="w-36">
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-neutral-500 mb-1">Status</label>
+            <label className="block text-[10px] font-bold   tracking-wider text-neutral-500 mb-1">Status</label>
             <Dropdown
               value={selectedStatus}
               onChange={(val) => {
@@ -365,7 +365,7 @@ export default function BillsPage() {
           {dateFilter === 'custom' && (
             <>
               <div className="flex flex-col">
-                <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">Start Date</span>
+                <span className="text-[10px] font-bold text-neutral-500   tracking-wider mb-1">Start Date</span>
                 <input
                   type="date"
                   value={customStartDate}
@@ -377,7 +377,7 @@ export default function BillsPage() {
                 />
               </div>
               <div className="flex flex-col">
-                <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">End Date</span>
+                <span className="text-[10px] font-bold text-neutral-500   tracking-wider mb-1">End Date</span>
                 <input
                   type="date"
                   value={customEndDate}
@@ -423,7 +423,7 @@ export default function BillsPage() {
           <button
             onClick={handleExport}
             disabled={isExporting || totalBillsCount === 0}
-            className="apple-button inline-flex items-center px-4 py-2 text-xs font-bold uppercase tracking-wider text-white bg-primary rounded-sm hover:bg-primary-hover shadow-plum-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+            className="apple-button inline-flex items-center px-4 py-2 text-xs font-bold   tracking-wider text-white bg-primary rounded-sm hover:bg-primary-hover shadow-plum-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
           >
             {isExporting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
             {isExporting ? 'Exporting...' : 'Export to Excel'}
@@ -434,7 +434,7 @@ export default function BillsPage() {
       <div className="bg-white rounded-sm border border-[#7e2562]/15 shadow-plum-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="text-xs font-bold uppercase tracking-wider text-muted-foreground bg-[#faf6f9]/60 border-b border-[#7e2562]/10">
+            <thead className="text-xs font-bold   tracking-wider text-muted-foreground bg-[#faf6f9]/60 border-b border-[#7e2562]/10">
               <tr>
                 <th scope="col" className="px-6 py-4 whitespace-nowrap">Bill Number</th>
                 <th scope="col" className="px-6 py-4 whitespace-nowrap">Date</th>

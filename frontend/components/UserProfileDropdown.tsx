@@ -93,7 +93,7 @@ export default function UserProfileDropdown() {
                         <p className="text-xs font-bold text-neutral-900 leading-tight">
                           {user.name}
                         </p>
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-xs text-[9px] font-bold uppercase tracking-wider bg-[#faedf5] text-[#7e2562] border border-[#7e2562]/20 shrink-0">
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-xs text-[9px] font-bold   tracking-wider bg-[#faedf5] text-[#7e2562] border border-[#7e2562]/20 shrink-0">
                           <Shield className="w-2.5 h-2.5 mr-0.5" />
                           {(user.role || user.primaryRole || '').replace(/_/g, ' ')}
                         </span>

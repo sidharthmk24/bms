@@ -307,11 +307,11 @@ export default function BillingPage() {
       {/* Left Pane: Cart */}
       <div className="flex-1 flex flex-col bg-white rounded-sm border border-[#7e2562]/15 shadow-sm overflow-hidden relative">
         <div className="p-4 border-b border-[#7e2562]/10 bg-[#faf6f9]/70 flex items-center justify-between">
-          <h3 className="font-bold text-neutral-900 flex items-center text-sm uppercase tracking-wider">
+          <h3 className="font-bold text-neutral-900 flex items-center text-sm   tracking-wider">
             <ShoppingCartIcon className="w-4 h-4 mr-2 text-[#7e2562]" />
             Current Bill
           </h3>
-          <span className="bg-[#faedf5] text-[#7e2562] border border-[#7e2562]/20 text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-sm">
+          <span className="bg-[#faedf5] text-[#7e2562] border border-[#7e2562]/20 text-[10px] font-bold   tracking-wider px-2.5 py-0.5 rounded-sm">
             {cart.length} items
           </span>
         </div>
@@ -385,7 +385,7 @@ export default function BillingPage() {
               </div>
             </div>
             <div className="flex justify-between text-base font-bold text-neutral-900 pt-2 border-t border-[#7e2562]/10">
-              <span className="uppercase tracking-wider">Total</span>
+              <span className="  tracking-wider">Total</span>
               <span className="font-mono text-[#7e2562] text-lg">₹{grandTotal.toFixed(2)}</span>
             </div>
           </div>
@@ -420,7 +420,7 @@ export default function BillingPage() {
             <div className="space-y-4 w-full">
               <button
                 onClick={printBill}
-                className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-sm shadow-sm shadow-plum-sm text-xs font-bold uppercase tracking-wider text-white bg-[#7e2562] hover:bg-[#681b50] focus:outline-none transition-colors"
+                className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-sm shadow-sm shadow-plum-sm text-xs font-bold   tracking-wider text-white bg-[#7e2562] hover:bg-[#681b50] focus:outline-none transition-colors"
               >
                 <Printer className="w-4 h-4 mr-2" />
                 Print Bill (PDF)
@@ -428,7 +428,7 @@ export default function BillingPage() {
               
               <button
                 onClick={startNewSale}
-                className="w-full flex justify-center items-center py-3 px-4 border border-neutral-300 rounded-sm shadow-sm text-xs font-bold uppercase tracking-wider text-neutral-700 bg-white hover:bg-[#faf6f9] focus:outline-none transition-colors"
+                className="w-full flex justify-center items-center py-3 px-4 border border-neutral-300 rounded-sm shadow-sm text-xs font-bold   tracking-wider text-neutral-700 bg-white hover:bg-[#faf6f9] focus:outline-none transition-colors"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Start New Sale
@@ -440,7 +440,7 @@ export default function BillingPage() {
           <>
             {/* Scanner Input */}
             <div className="bg-white rounded-sm border border-[#7e2562]/15 shadow-sm p-5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-2">Scan Barcode / ISBN</label>
+              <label className="block text-xs font-bold   tracking-wider text-neutral-700 mb-2">Scan Barcode / ISBN</label>
               <form onSubmit={handleBarcodeSubmit} className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   {isScanning ? (
@@ -468,7 +468,7 @@ export default function BillingPage() {
                   type="button"
                   onClick={handleBarcodeSubmit}
                   disabled={isScanning || !barcodeInput.trim()}
-                  className="text-xs px-3 py-1 bg-[#faedf5] text-[#7e2562] hover:bg-[#f6dbe9] rounded-sm font-bold uppercase tracking-wider transition-colors flex items-center disabled:opacity-50"
+                  className="text-xs px-3 py-1 bg-[#faedf5] text-[#7e2562] hover:bg-[#f6dbe9] rounded-sm font-bold   tracking-wider transition-colors flex items-center disabled:opacity-50"
                 >
                   Enter
                 </button>
@@ -478,7 +478,7 @@ export default function BillingPage() {
             {/* Checkout Details */}
             <div className="bg-white rounded-sm border border-[#7e2562]/15 shadow-sm p-5 flex-1 flex flex-col">
               <div className="flex items-center justify-between mb-4 border-b border-[#7e2562]/10 pb-2">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-[#7e2562]">Checkout Details</h3>
+                <h3 className="text-xs font-bold   tracking-wider text-[#7e2562]">Checkout Details</h3>
                 <button
                   type="button"
                   onClick={() => {
@@ -498,7 +498,7 @@ export default function BillingPage() {
                 {/* Customer Name Field with Autocomplete */}
                 <div className="relative">
                   <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700">
+                    <label className="block text-xs font-bold   tracking-wider text-neutral-700">
                       Customer Name <span className="text-[#e45e34]">*</span>
                     </label>
                     <span className="text-[10px] text-neutral-400">Search past customers</span>
@@ -530,7 +530,7 @@ export default function BillingPage() {
                   {/* Dropdown for Name Search */}
                   {activeSearchField === 'name' && customerSuggestions.length > 0 && (
                     <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-[#7e2562]/20 rounded-sm shadow-xl max-h-56 overflow-y-auto divide-y divide-neutral-100">
-                      <div className="px-3 py-1.5 bg-[#faf6f9] text-[10px] font-bold text-[#7e2562] uppercase tracking-wider flex items-center justify-between">
+                      <div className="px-3 py-1.5 bg-[#faf6f9] text-[10px] font-bold text-[#7e2562]   tracking-wider flex items-center justify-between">
                         <span>Past Customers Found</span>
                         <span>{customerSuggestions.length} result{customerSuggestions.length !== 1 ? 's' : ''}</span>
                       </div>
@@ -563,7 +563,7 @@ export default function BillingPage() {
                 {/* Customer Phone Field with Autocomplete */}
                 <div className="relative">
                   <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700">Customer Phone (Optional)</label>
+                    <label className="block text-xs font-bold   tracking-wider text-neutral-700">Customer Phone (Optional)</label>
                     <span className="text-[10px] text-neutral-400">Search by phone</span>
                   </div>
                   <div className="relative">
@@ -596,7 +596,7 @@ export default function BillingPage() {
                   {/* Dropdown for Phone Search */}
                   {activeSearchField === 'phone' && customerSuggestions.length > 0 && (
                     <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-[#7e2562]/20 rounded-sm shadow-xl max-h-56 overflow-y-auto divide-y divide-neutral-100">
-                      <div className="px-3 py-1.5 bg-[#faf6f9] text-[10px] font-bold text-[#7e2562] uppercase tracking-wider flex items-center justify-between">
+                      <div className="px-3 py-1.5 bg-[#faf6f9] text-[10px] font-bold text-[#7e2562]   tracking-wider flex items-center justify-between">
                         <span>Past Customers Found</span>
                         <span>{customerSuggestions.length} result{customerSuggestions.length !== 1 ? 's' : ''}</span>
                       </div>
@@ -627,12 +627,12 @@ export default function BillingPage() {
                 </div>
 
                 <div className="pt-2">
-                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-2">Payment Mode</label>
+                  <label className="block text-xs font-bold   tracking-wider text-neutral-700 mb-2">Payment Mode</label>
                   <div className="flex rounded-sm shadow-sm">
                     <button
                       type="button"
                       onClick={() => setPaymentMode('CASH')}
-                      className={`flex-1 px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-l-sm border transition-colors ${
+                      className={`flex-1 px-4 py-2 text-xs font-bold   tracking-wider rounded-l-sm border transition-colors ${
                         paymentMode === 'CASH' 
                           ? 'bg-emerald-50 border-emerald-500 text-emerald-700 z-10 font-bold ring-1 ring-emerald-500/20' 
                           : 'bg-white border-neutral-300 text-neutral-700 hover:bg-[#faf6f9]'
@@ -643,7 +643,7 @@ export default function BillingPage() {
                     <button
                       type="button"
                       onClick={() => setPaymentMode('UPI')}
-                      className={`flex-1 px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-r-sm border-y border-r border-l-0 transition-colors ${
+                      className={`flex-1 px-4 py-2 text-xs font-bold   tracking-wider rounded-r-sm border-y border-r border-l-0 transition-colors ${
                         paymentMode === 'UPI' 
                           ? 'bg-blue-50 border-blue-500 text-blue-700 z-10 font-bold ring-1 ring-blue-500/20' 
                           : 'bg-white border-neutral-300 text-neutral-700 hover:bg-[#faf6f9]'
@@ -659,7 +659,7 @@ export default function BillingPage() {
                 <button
                   onClick={handleCheckout}
                   disabled={cart.length === 0 || isSubmitting || !customerName.trim()}
-                  className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-sm shadow-sm shadow-plum-sm text-xs font-bold uppercase tracking-wider text-white bg-[#7e2562] hover:bg-[#681b50] focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-mono"
+                  className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-sm shadow-sm shadow-plum-sm text-xs font-bold   tracking-wider text-white bg-[#7e2562] hover:bg-[#681b50] focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-mono"
                 >
                   {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Receipt className="w-4 h-4 mr-2" />}
                   Complete Sale • ₹{grandTotal.toFixed(2)}
@@ -691,7 +691,7 @@ export default function BillingPage() {
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-1">Book Title / Description</label>
+                  <label className="block text-xs font-bold   tracking-wider text-neutral-700 mb-1">Book Title / Description</label>
                   <input
                     type="text"
                     value={enquiryTitle}
@@ -707,7 +707,7 @@ export default function BillingPage() {
                       setShowEnquiryModal(false);
                       barcodeInputRef.current?.focus();
                     }}
-                    className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-neutral-700 bg-white border border-neutral-300 rounded-sm hover:bg-neutral-50 transition-colors"
+                    className="px-4 py-2 text-xs font-bold   tracking-wider text-neutral-700 bg-white border border-neutral-300 rounded-sm hover:bg-neutral-50 transition-colors"
                   >
                     Cancel
                   </button>

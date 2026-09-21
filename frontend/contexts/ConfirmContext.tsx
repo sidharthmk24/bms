@@ -125,7 +125,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
                     <button
                       type="button"
                       onClick={() => handleClose(false)}
-                      className="apple-button px-4 py-2 text-xs font-bold uppercase tracking-wider text-gray-700 bg-white border border-gray-300 rounded-sm hover:bg-gray-50 transition-colors cursor-pointer"
+                      className="apple-button px-4 py-2 text-xs font-bold   tracking-wider text-gray-700 bg-white border border-gray-300 rounded-sm hover:bg-gray-50 transition-colors cursor-pointer"
                     >
                       {options.cancelText || "No, Cancel"}
                     </button>
@@ -134,7 +134,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
                     type="button"
                     autoFocus
                     onClick={() => handleClose(true)}
-                    className={`apple-button px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-sm transition-all cursor-pointer ${currentStyles.confirmBtn}`}
+                    className={`apple-button px-4 py-2 text-xs font-bold   tracking-wider rounded-sm transition-all cursor-pointer ${currentStyles.confirmBtn}`}
                   >
                     {options.confirmText || currentStyles.defaultConfirmText}
                   </button>

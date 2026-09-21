@@ -134,7 +134,7 @@ export default function FinanceDashboard() {
             {/* P&L Trend Chart */}
             <div className="bg-white p-5 rounded-sm border border-neutral-200/80 shadow-sm">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-[#7e2562]">Revenue vs Expense Trend</h3>
+                <h3 className="text-xs font-bold   tracking-wider text-[#7e2562]">Revenue vs Expense Trend</h3>
                 
                 {/* Chart Type Toggle */}
                 <div className="inline-flex rounded-sm border border-[#7e2562]/20 bg-[#faf6f9] p-0.5 shadow-2xs">
@@ -245,7 +245,7 @@ export default function FinanceDashboard() {
             {/* Branch Comparison Chart */}
             <div className="bg-white p-5 rounded-sm border border-neutral-200/80 shadow-sm">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-[#7e2562]">Branch Comparison</h3>
+                <h3 className="text-xs font-bold   tracking-wider text-[#7e2562]">Branch Comparison</h3>
                 
                 {/* Chart Type Toggle */}
                 <div className="inline-flex rounded-sm border border-[#7e2562]/20 bg-[#faf6f9] p-0.5 shadow-2xs">
@@ -344,7 +344,7 @@ export default function FinanceDashboard() {
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm text-neutral-600">
-                <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562] uppercase tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
+                <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562]   tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
                   <tr>
                     <th scope="col" className="px-6 py-3.5">Date</th>
                     <th scope="col" className="px-6 py-3.5">Category</th>

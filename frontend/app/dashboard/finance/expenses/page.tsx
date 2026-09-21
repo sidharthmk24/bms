@@ -210,7 +210,7 @@ export default function ExpensesPage() {
         {/* Add Expense Form */}
         <div className="bg-white rounded-sm border border-neutral-200/80 shadow-sm p-6 lg:col-span-1 h-fit">
           <div className="flex items-center justify-between mb-4 border-b border-neutral-100 pb-2">
-            <h3 className="text-xs font-bold text-[#7e2562] uppercase tracking-wider">Log New Expense</h3>
+            <h3 className="text-xs font-bold text-[#7e2562]   tracking-wider">Log New Expense</h3>
             <button
               type="button"
               onClick={handleFillDemoExpense}
@@ -223,7 +223,7 @@ export default function ExpensesPage() {
           </div>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-bold text-[#7e2562] uppercase tracking-wider mb-1">Amount (₹)</label>
+              <label className="block text-xs font-bold text-[#7e2562]   tracking-wider mb-1">Amount (₹)</label>
               <input
                 type="number"
                 step="0.01"
@@ -236,7 +236,7 @@ export default function ExpensesPage() {
             </div>
             
             <div>
-              <label className="block text-xs font-bold text-[#7e2562] uppercase tracking-wider mb-1">Category</label>
+              <label className="block text-xs font-bold text-[#7e2562]   tracking-wider mb-1">Category</label>
               <Dropdown
                 required
                 value={formData.category}
@@ -248,7 +248,7 @@ export default function ExpensesPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-[#7e2562] uppercase tracking-wider mb-1">Branch</label>
+              <label className="block text-xs font-bold text-[#7e2562]   tracking-wider mb-1">Branch</label>
               <Dropdown
                 value={formData.branchId}
                 onChange={(value) => setFormData({ ...formData, branchId: value })}
@@ -262,7 +262,7 @@ export default function ExpensesPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-[#7e2562] uppercase tracking-wider mb-1">Date</label>
+              <label className="block text-xs font-bold text-[#7e2562]   tracking-wider mb-1">Date</label>
               <input
                 type="date"
                 required
@@ -273,7 +273,7 @@ export default function ExpensesPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-[#7e2562] uppercase tracking-wider mb-1">Description</label>
+              <label className="block text-xs font-bold text-[#7e2562]   tracking-wider mb-1">Description</label>
               <textarea
                 rows={2}
                 value={formData.description}
@@ -350,7 +350,7 @@ export default function ExpensesPage() {
           </div>
           <div className="overflow-x-auto overflow-y-auto flex-1">
             <table className="w-full text-left text-sm text-neutral-600 relative">
-              <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562] uppercase tracking-wider sticky top-0 border-b border-[#7e2562]/10 whitespace-nowrap">
+              <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562]   tracking-wider sticky top-0 border-b border-[#7e2562]/10 whitespace-nowrap">
                 <tr>
                   <th scope="col" className="px-6 py-3.5 w-12">
                     <input
@@ -408,7 +408,7 @@ export default function ExpensesPage() {
                       </td>
                       <td className="px-6 py-3.5">
                         <div className="flex flex-col">
-                          <span className="font-bold text-neutral-900 text-xs uppercase">{exp.category}</span>
+                          <span className="font-bold text-neutral-900 text-xs  ">{exp.category}</span>
                           <span className="text-xs text-neutral-400 truncate max-w-[180px]" title={exp.description}>
                             {exp.description}
                           </span>
@@ -464,7 +464,7 @@ export default function ExpensesPage() {
                 
                 <div className="grid grid-cols-2 gap-4 pt-2">
                   <div>
-                    <label className="block text-xs font-bold text-[#7e2562] uppercase tracking-wider mb-1">Start Date</label>
+                    <label className="block text-xs font-bold text-[#7e2562]   tracking-wider mb-1">Start Date</label>
                     <input
                       type="date"
                       value={exportStartDate}
@@ -473,7 +473,7 @@ export default function ExpensesPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-[#7e2562] uppercase tracking-wider mb-1">End Date</label>
+                    <label className="block text-xs font-bold text-[#7e2562]   tracking-wider mb-1">End Date</label>
                     <input
                       type="date"
                       value={exportEndDate}

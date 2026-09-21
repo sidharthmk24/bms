@@ -299,7 +299,7 @@ export default function CreateTransferModal({ isOpen, onClose, onSuccess }: Crea
 
             {/* SECTION 1: SEARCH & SELECT BOOKS */}
             <div className="space-y-2">
-              <label className="text-xs font-bold text-[#7e2562] uppercase tracking-wider flex items-center justify-between">
+              <label className="text-xs font-bold text-[#7e2562]   tracking-wider flex items-center justify-between">
                 <span className="flex items-center gap-1.5">
                   <span className="w-5 h-5 rounded-sm bg-[#7e2562] text-white text-[10px] flex items-center justify-center font-bold">1</span>
                   {items.length > 0 ? "Add Another Book to Request" : "Search & Select Books Needed"}
@@ -483,7 +483,7 @@ export default function CreateTransferModal({ isOpen, onClose, onSuccess }: Crea
             {items.length > 0 && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-[#7e2562] uppercase tracking-wider flex items-center gap-1.5">
+                  <label className="text-xs font-bold text-[#7e2562]   tracking-wider flex items-center gap-1.5">
                     <span className="w-5 h-5 rounded-sm bg-[#7e2562] text-white text-[10px] flex items-center justify-center font-bold">2</span>
                     Requested Books ({items.length})
                   </label>
@@ -499,7 +499,7 @@ export default function CreateTransferModal({ isOpen, onClose, onSuccess }: Crea
 
                 <div className="border border-[#7e2562]/15 rounded-sm overflow-x-auto bg-white shadow-xs">
                   <table className="min-w-[480px] w-full text-left text-xs">
-                    <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562] uppercase tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
+                    <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562]   tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
                       <tr>
                         <th className="px-4 py-2.5">Book Title</th>
                         <th className="px-4 py-2.5 text-center w-28">Requested Qty</th>

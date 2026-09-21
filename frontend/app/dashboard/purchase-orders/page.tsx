@@ -412,11 +412,11 @@ export default function PurchaseOrdersPage() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'DRAFT': return <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wider bg-neutral-100 text-neutral-800 border border-neutral-200">Draft</span>;
-      case 'PLACED': return <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wider bg-[#faedf5] text-[#7e2562] border border-[#7e2562]/20">Placed</span>;
-      case 'PARTIALLY_RECEIVED': return <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wider bg-amber-50 text-amber-800 border border-amber-200">Partial</span>;
-      case 'RECEIVED': return <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wider bg-[#f0fbf5] text-[#3cb976] border border-[#3cb976]/20">Received</span>;
-      case 'CANCELLED': return <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wider bg-[#fef5f2] text-[#e45e34] border border-[#e45e34]/20">Cancelled</span>;
+      case 'DRAFT': return <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-[10px] font-bold   tracking-wider bg-neutral-100 text-neutral-800 border border-neutral-200">Draft</span>;
+      case 'PLACED': return <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-[10px] font-bold   tracking-wider bg-[#faedf5] text-[#7e2562] border border-[#7e2562]/20">Placed</span>;
+      case 'PARTIALLY_RECEIVED': return <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-[10px] font-bold   tracking-wider bg-amber-50 text-amber-800 border border-amber-200">Partial</span>;
+      case 'RECEIVED': return <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-[10px] font-bold   tracking-wider bg-[#f0fbf5] text-[#3cb976] border border-[#3cb976]/20">Received</span>;
+      case 'CANCELLED': return <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-[10px] font-bold   tracking-wider bg-[#fef5f2] text-[#e45e34] border border-[#e45e34]/20">Cancelled</span>;
       default: return null;
     }
   };
@@ -636,7 +636,7 @@ export default function PurchaseOrdersPage() {
 
             <button
               onClick={handleOpenCreate}
-              className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-[#7e2562] hover:bg-[#681b50] rounded-sm shadow-sm shadow-plum-sm active:scale-95 transition-all shrink-0 uppercase tracking-wider"
+              className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-[#7e2562] hover:bg-[#681b50] rounded-sm shadow-sm shadow-plum-sm active:scale-95 transition-all shrink-0   tracking-wider"
             >
               <Plus className="w-4 h-4" />
               Create PO
@@ -651,7 +651,7 @@ export default function PurchaseOrdersPage() {
                     <th 
                       scope="col" 
                       onClick={() => toggleSort('orderNumber')}
-                      className="group px-4 sm:px-6 py-3.5 text-left text-[11px] font-bold text-[#7e2562] uppercase tracking-wider cursor-pointer select-none hover:bg-[#faedf5]/60 transition-colors whitespace-nowrap"
+                      className="group px-4 sm:px-6 py-3.5 text-left text-[11px] font-bold text-[#7e2562]   tracking-wider cursor-pointer select-none hover:bg-[#faedf5]/60 transition-colors whitespace-nowrap"
                     >
                       <div className="flex items-center gap-1.5">
                         <span>Order No / Date</span>
@@ -665,7 +665,7 @@ export default function PurchaseOrdersPage() {
                     <th 
                       scope="col" 
                       onClick={() => toggleSort('supplier')}
-                      className="group px-4 sm:px-6 py-3.5 text-left text-[11px] font-bold text-[#7e2562] uppercase tracking-wider cursor-pointer select-none hover:bg-[#faedf5]/60 transition-colors whitespace-nowrap"
+                      className="group px-4 sm:px-6 py-3.5 text-left text-[11px] font-bold text-[#7e2562]   tracking-wider cursor-pointer select-none hover:bg-[#faedf5]/60 transition-colors whitespace-nowrap"
                     >
                       <div className="flex items-center gap-1.5">
                         <span>Supplier</span>
@@ -676,11 +676,11 @@ export default function PurchaseOrdersPage() {
                         )}
                       </div>
                     </th>
-                    <th scope="col" className="px-4 sm:px-6 py-3.5 text-left text-[11px] font-bold text-[#7e2562] uppercase tracking-wider whitespace-nowrap">Items Overview</th>
+                    <th scope="col" className="px-4 sm:px-6 py-3.5 text-left text-[11px] font-bold text-[#7e2562]   tracking-wider whitespace-nowrap">Items Overview</th>
                     <th 
                       scope="col" 
                       onClick={() => toggleSort('totalCost')}
-                      className="group px-4 sm:px-6 py-3.5 text-right text-[11px] font-bold text-[#7e2562] uppercase tracking-wider cursor-pointer select-none hover:bg-[#faedf5]/60 transition-colors whitespace-nowrap"
+                      className="group px-4 sm:px-6 py-3.5 text-right text-[11px] font-bold text-[#7e2562]   tracking-wider cursor-pointer select-none hover:bg-[#faedf5]/60 transition-colors whitespace-nowrap"
                     >
                       <div className="flex items-center justify-end gap-1.5">
                         <span>Total Cost</span>
@@ -694,7 +694,7 @@ export default function PurchaseOrdersPage() {
                     <th 
                       scope="col" 
                       onClick={() => toggleSort('status')}
-                      className="group px-4 sm:px-6 py-3.5 text-center text-[11px] font-bold text-[#7e2562] uppercase tracking-wider cursor-pointer select-none hover:bg-[#faedf5]/60 transition-colors whitespace-nowrap"
+                      className="group px-4 sm:px-6 py-3.5 text-center text-[11px] font-bold text-[#7e2562]   tracking-wider cursor-pointer select-none hover:bg-[#faedf5]/60 transition-colors whitespace-nowrap"
                     >
                       <div className="flex items-center justify-center gap-1.5">
                         <span>Status</span>
@@ -705,7 +705,7 @@ export default function PurchaseOrdersPage() {
                         )}
                       </div>
                     </th>
-                    <th scope="col" className="px-4 sm:px-6 py-3.5 text-right text-[11px] font-bold text-[#7e2562] uppercase tracking-wider whitespace-nowrap min-w-[200px]">Actions</th>
+                    <th scope="col" className="px-4 sm:px-6 py-3.5 text-right text-[11px] font-bold text-[#7e2562]   tracking-wider whitespace-nowrap min-w-[200px]">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-neutral-100">
@@ -798,7 +798,7 @@ export default function PurchaseOrdersPage() {
                           {po.status === 'DRAFT' && (
                             <button 
                               onClick={() => handleStatusUpdate(po.id, 'PLACED')} 
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-white bg-[#7e2562] hover:bg-[#681b50] rounded-sm shadow-sm shadow-plum-sm active:scale-95 transition-all cursor-pointer shrink-0"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold   tracking-wider text-white bg-[#7e2562] hover:bg-[#681b50] rounded-sm shadow-sm shadow-plum-sm active:scale-95 transition-all cursor-pointer shrink-0"
                             >
                               <Send className="w-3.5 h-3.5" />
                               Place Order
@@ -821,7 +821,7 @@ export default function PurchaseOrdersPage() {
                                 });
                                 setReceiveStatus(isAllFullyReceived ? 'RECEIVED' : 'PARTIALLY_RECEIVED');
                               }} 
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-white bg-[#3cb976] hover:bg-[#2fa264] rounded-sm shadow-sm active:scale-95 transition-all cursor-pointer shrink-0"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold   tracking-wider text-white bg-[#3cb976] hover:bg-[#2fa264] rounded-sm shadow-sm active:scale-95 transition-all cursor-pointer shrink-0"
                             >
                               <PackageCheck className="w-3.5 h-3.5" />
                               Receive Items
@@ -917,12 +917,12 @@ export default function PurchaseOrdersPage() {
               <table className="min-w-full divide-y divide-[#7e2562]/10">
                 <thead className="bg-[#faf6f9]/70">
                   <tr>
-                    <th scope="col" className="px-6 py-3.5 text-left text-[11px] font-bold text-[#7e2562] uppercase tracking-wider whitespace-nowrap">Book Details</th>
-                    <th scope="col" className="px-6 py-3.5 text-center text-[11px] font-bold text-[#7e2562] uppercase tracking-wider whitespace-nowrap">Requested Qty</th>
-                    <th scope="col" className="px-6 py-3.5 text-left text-[11px] font-bold text-[#7e2562] uppercase tracking-wider whitespace-nowrap">Context & Justification</th>
-                    <th scope="col" className="px-6 py-3.5 text-left text-[11px] font-bold text-[#7e2562] uppercase tracking-wider whitespace-nowrap">Requested By</th>
-                    <th scope="col" className="px-6 py-3.5 text-center text-[11px] font-bold text-[#7e2562] uppercase tracking-wider whitespace-nowrap">Status</th>
-                    <th scope="col" className="px-6 py-3.5 text-right text-[11px] font-bold text-[#7e2562] uppercase tracking-wider whitespace-nowrap">Actions</th>
+                    <th scope="col" className="px-6 py-3.5 text-left text-[11px] font-bold text-[#7e2562]   tracking-wider whitespace-nowrap">Book Details</th>
+                    <th scope="col" className="px-6 py-3.5 text-center text-[11px] font-bold text-[#7e2562]   tracking-wider whitespace-nowrap">Requested Qty</th>
+                    <th scope="col" className="px-6 py-3.5 text-left text-[11px] font-bold text-[#7e2562]   tracking-wider whitespace-nowrap">Context & Justification</th>
+                    <th scope="col" className="px-6 py-3.5 text-left text-[11px] font-bold text-[#7e2562]   tracking-wider whitespace-nowrap">Requested By</th>
+                    <th scope="col" className="px-6 py-3.5 text-center text-[11px] font-bold text-[#7e2562]   tracking-wider whitespace-nowrap">Status</th>
+                    <th scope="col" className="px-6 py-3.5 text-right text-[11px] font-bold text-[#7e2562]   tracking-wider whitespace-nowrap">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-neutral-100">
@@ -990,13 +990,13 @@ export default function PurchaseOrdersPage() {
                                 <>
                                   <button
                                     onClick={() => handleReviewRequest(req.id, 'APPROVED')}
-                                    className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-white bg-[#3cb976] hover:bg-[#2fa264] rounded-sm shadow-sm active:scale-95 transition"
+                                    className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold   tracking-wider text-white bg-[#3cb976] hover:bg-[#2fa264] rounded-sm shadow-sm active:scale-95 transition"
                                   >
                                     Approve
                                   </button>
                                   <button
                                     onClick={() => setRejectingReqId(req.id)}
-                                    className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-[#e45e34] bg-[#fef5f2] hover:bg-[#feebe5] border border-[#e45e34]/30 rounded-sm active:scale-95 transition"
+                                    className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold   tracking-wider text-[#e45e34] bg-[#fef5f2] hover:bg-[#feebe5] border border-[#e45e34]/30 rounded-sm active:scale-95 transition"
                                   >
                                     Reject
                                   </button>
@@ -1009,7 +1009,7 @@ export default function PurchaseOrdersPage() {
                           {req.status === 'APPROVED' && (
                             <button
                               onClick={() => handleStartPoFromRequest(req)}
-                              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold uppercase tracking-wider text-white bg-[#7e2562] hover:bg-[#681b50] rounded-sm shadow-sm shadow-plum-sm active:scale-95 transition"
+                              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold   tracking-wider text-white bg-[#7e2562] hover:bg-[#681b50] rounded-sm shadow-sm shadow-plum-sm active:scale-95 transition"
                               title="Create Purchase Order for this approved request"
                             >
                               <Plus className="w-3.5 h-3.5" />
@@ -1113,7 +1113,7 @@ export default function PurchaseOrdersPage() {
 
               <div className="grid grid-cols-2 gap-4 mb-6">
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-600 mb-1">Supplier</label>
+                  <label className="block text-xs font-bold   tracking-wider text-neutral-600 mb-1">Supplier</label>
                   <Dropdown
                     value={selectedSupplier}
                     onChange={(val) => {
@@ -1154,7 +1154,7 @@ export default function PurchaseOrdersPage() {
                   </AnimatePresence>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-600 mb-1">Expected Delivery Date (Optional)</label>
+                  <label className="block text-xs font-bold   tracking-wider text-neutral-600 mb-1">Expected Delivery Date (Optional)</label>
                   <input type="date" value={expectedDate} onChange={e => setExpectedDate(e.target.value)} className="block w-full px-3 py-2 border border-[#7e2562]/20 rounded-sm text-xs text-neutral-900 bg-white focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562] outline-none transition-shadow" />
                 </div>
               </div>
@@ -1162,9 +1162,9 @@ export default function PurchaseOrdersPage() {
               <div className="border-t border-[#7e2562]/10 pt-4 mb-4">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-800">Add Items to Order</h4>
+                    <h4 className="text-xs font-bold   tracking-wider text-neutral-800">Add Items to Order</h4>
                     {isKairaliSupplier && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wider bg-[#f0fbf5] text-[#3cb976] border border-[#3cb976]/30">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-sm text-[10px] font-bold   tracking-wider bg-[#f0fbf5] text-[#3cb976] border border-[#3cb976]/30">
                         🌟 Kairali Books (PMS In-House Titles)
                       </span>
                     )}
@@ -1174,7 +1174,7 @@ export default function PurchaseOrdersPage() {
                       <button
                         type="button"
                         onClick={() => setItemMode('EXISTING')}
-                        className={`px-3 py-1 text-xs font-bold rounded-sm transition-all uppercase tracking-wider ${
+                        className={`px-3 py-1 text-xs font-bold rounded-sm transition-all   tracking-wider ${
                           itemMode === 'EXISTING'
                             ? 'bg-[#7e2562] text-white shadow-sm shadow-plum-sm'
                             : 'bg-neutral-100 text-neutral-600 hover:bg-[#faedf5] hover:text-[#7e2562]'
@@ -1185,7 +1185,7 @@ export default function PurchaseOrdersPage() {
                       <button
                         type="button"
                         onClick={() => setItemMode('NEW')}
-                        className={`px-3 py-1 text-xs font-bold rounded-sm transition-all flex items-center gap-1.5 uppercase tracking-wider ${
+                        className={`px-3 py-1 text-xs font-bold rounded-sm transition-all flex items-center gap-1.5   tracking-wider ${
                           itemMode === 'NEW'
                             ? 'bg-[#7e2562] text-white shadow-sm shadow-plum-sm'
                             : 'bg-neutral-100 text-neutral-600 hover:bg-[#faedf5] hover:text-[#7e2562]'
@@ -1201,7 +1201,7 @@ export default function PurchaseOrdersPage() {
                 {itemMode === 'EXISTING' || isKairaliSupplier ? (
                   <div className="flex items-end space-x-3 bg-[#faf6f9]/60 p-4 rounded-sm border border-[#7e2562]/15">
                     <div className="flex-1">
-                      <label className="block text-xs font-bold uppercase tracking-wider text-neutral-600 mb-1">
+                      <label className="block text-xs font-bold   tracking-wider text-neutral-600 mb-1">
                         {isKairaliSupplier ? 'Select Book Printed via PMS' : 'Select Book'}
                       </label>
                       <Dropdown
@@ -1249,12 +1249,12 @@ export default function PurchaseOrdersPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-neutral-600 mb-1">Quantity</label>
+                      <label className="block text-xs font-bold   tracking-wider text-neutral-600 mb-1">Quantity</label>
                       <input type="number" min="1" value={qtyInput} onChange={e => setQtyInput(Number(e.target.value))} placeholder="e.g. 50" className="w-28 block px-3 py-2 border border-[#7e2562]/20 rounded-sm text-xs text-neutral-900 bg-white focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562] outline-none font-semibold" />
                     </div>
                     <div>
                       <div className="flex items-center justify-between mb-1">
-                        <label className="block text-xs font-bold uppercase tracking-wider text-neutral-600">Unit Cost (₹)</label>
+                        <label className="block text-xs font-bold   tracking-wider text-neutral-600">Unit Cost (₹)</label>
                         <span className="text-[10px] text-neutral-400 font-medium">Fixed</span>
                       </div>
                       <input 
@@ -1296,19 +1296,19 @@ export default function PurchaseOrdersPage() {
                           setCostInput(0);
                         }
                       }}
-                      className="px-4 py-2 bg-[#7e2562] hover:bg-[#681b50] disabled:opacity-50 text-white rounded-sm text-xs font-bold uppercase tracking-wider transition-all shadow-sm shadow-plum-sm active:scale-95"
+                      className="px-4 py-2 bg-[#7e2562] hover:bg-[#681b50] disabled:opacity-50 text-white rounded-sm text-xs font-bold   tracking-wider transition-all shadow-sm shadow-plum-sm active:scale-95"
                     >Add to Order</button>
                   </div>
                 ) : (
                   <div className="bg-[#faf6f9]/60 p-4 rounded-sm border border-[#7e2562]/15 space-y-3">
                     <div className="flex items-center justify-between">
-                      <p className="text-xs font-bold text-[#7e2562] uppercase tracking-wider">New Title Details</p>
+                      <p className="text-xs font-bold text-[#7e2562]   tracking-wider">New Title Details</p>
                       <span className="text-[11px] text-neutral-500 font-medium">Will be registered in catalog & received into warehouse</span>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-1">Title <span className="text-[#e45e34]">*</span></label>
+                        <label className="block text-xs font-bold   tracking-wider text-neutral-700 mb-1">Title <span className="text-[#e45e34]">*</span></label>
                         <input
                           type="text"
                           placeholder="e.g., Designing Data-Intensive Applications"
@@ -1318,7 +1318,7 @@ export default function PurchaseOrdersPage() {
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-1">ISBN <span className="text-[#e45e34]">*</span></label>
+                        <label className="block text-xs font-bold   tracking-wider text-neutral-700 mb-1">ISBN <span className="text-[#e45e34]">*</span></label>
                         <input
                           type="text"
                           placeholder="e.g., 978-1449373320"
@@ -1334,7 +1334,7 @@ export default function PurchaseOrdersPage() {
 
                     <div className="grid grid-cols-3 gap-3">
                       <div>
-                        <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-1">Author Name</label>
+                        <label className="block text-xs font-bold   tracking-wider text-neutral-700 mb-1">Author Name</label>
                         <input
                           type="text"
                           placeholder="e.g., Martin Kleppmann"
@@ -1344,7 +1344,7 @@ export default function PurchaseOrdersPage() {
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-1">Category</label>
+                        <label className="block text-xs font-bold   tracking-wider text-neutral-700 mb-1">Category</label>
                         <Dropdown
                           value={selectedCategory}
                           onChange={(val) => {
@@ -1383,7 +1383,7 @@ export default function PurchaseOrdersPage() {
                         </AnimatePresence>
                       </div>
                       <div>
-                        <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-1">Publisher</label>
+                        <label className="block text-xs font-bold   tracking-wider text-neutral-700 mb-1">Publisher</label>
                         <input
                           type="text"
                           placeholder="e.g., O'Reilly Media"
@@ -1396,7 +1396,7 @@ export default function PurchaseOrdersPage() {
 
                     <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end pt-1">
                       <div>
-                        <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-1">Selling Price (₹)</label>
+                        <label className="block text-xs font-bold   tracking-wider text-neutral-700 mb-1">Selling Price (₹)</label>
                         <input
                           type="number"
                           min="0"
@@ -1408,7 +1408,7 @@ export default function PurchaseOrdersPage() {
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-1">Unit Cost (₹) <span className="text-[#e45e34]">*</span></label>
+                        <label className="block text-xs font-bold   tracking-wider text-neutral-700 mb-1">Unit Cost (₹) <span className="text-[#e45e34]">*</span></label>
                         <input
                           type="number"
                           min="0"
@@ -1420,7 +1420,7 @@ export default function PurchaseOrdersPage() {
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 mb-1">Qty Ordered <span className="text-[#e45e34]">*</span></label>
+                        <label className="block text-xs font-bold   tracking-wider text-neutral-700 mb-1">Qty Ordered <span className="text-[#e45e34]">*</span></label>
                         <input
                           type="number"
                           min="1"
@@ -1474,7 +1474,7 @@ export default function PurchaseOrdersPage() {
                           setNewPublisher('');
                           setNewSellingPrice('');
                         }}
-                        className="w-full py-2 bg-[#7e2562] hover:bg-[#681b50] text-white rounded-sm text-xs font-bold uppercase tracking-wider transition-all shadow-sm shadow-plum-sm active:scale-95 flex items-center justify-center gap-1.5"
+                        className="w-full py-2 bg-[#7e2562] hover:bg-[#681b50] text-white rounded-sm text-xs font-bold   tracking-wider transition-all shadow-sm shadow-plum-sm active:scale-95 flex items-center justify-center gap-1.5"
                       >
                         <Plus className="w-3.5 h-3.5 text-white" />
                         Add New Title
@@ -1493,12 +1493,12 @@ export default function PurchaseOrdersPage() {
                           <div className="flex items-center gap-2">
                             <span>{item.title}</span>
                             {item.isPmsBook && (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wider bg-[#f0fbf5] text-[#3cb976] border border-[#3cb976]/30">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-[10px] font-bold   tracking-wider bg-[#f0fbf5] text-[#3cb976] border border-[#3cb976]/30">
                                 KAIRALI BOOKS (PMS)
                               </span>
                             )}
                             {item.isNewBook && (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wider bg-[#faedf5] text-[#7e2562] border border-[#7e2562]/30">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-[10px] font-bold   tracking-wider bg-[#faedf5] text-[#7e2562] border border-[#7e2562]/30">
                                 NEW TITLE
                               </span>
                             )}
@@ -1534,7 +1534,7 @@ export default function PurchaseOrdersPage() {
                       setEditingPO(null);
                       setCart([]);
                     }} 
-                    className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-neutral-700 bg-white border border-neutral-300 rounded-sm hover:bg-neutral-50 active:scale-95 transition-all cursor-pointer"
+                    className="px-4 py-2 text-xs font-bold   tracking-wider text-neutral-700 bg-white border border-neutral-300 rounded-sm hover:bg-neutral-50 active:scale-95 transition-all cursor-pointer"
                   >
                     Cancel
                   </button>
@@ -1542,7 +1542,7 @@ export default function PurchaseOrdersPage() {
                     type="button"
                     onClick={handleCreate} 
                     disabled={cart.length === 0 || !selectedSupplier || isSubmitting} 
-                    className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wider text-white bg-[#7e2562] hover:bg-[#681b50] rounded-sm shadow-sm shadow-plum-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
+                    className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold   tracking-wider text-white bg-[#7e2562] hover:bg-[#681b50] rounded-sm shadow-sm shadow-plum-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
                   >
                     {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
                     {editingPO ? 'Update Purchase Order' : 'Save Draft PO'}
@@ -1566,10 +1566,10 @@ export default function PurchaseOrdersPage() {
                 <table className="min-w-full divide-y divide-[#7e2562]/10">
                   <thead className="bg-[#faf6f9]/70">
                     <tr>
-                      <th className="px-4 py-2.5 text-left text-[11px] font-bold text-[#7e2562] uppercase tracking-wider whitespace-nowrap">Book</th>
-                      <th className="px-4 py-2.5 text-right text-[11px] font-bold text-[#7e2562] uppercase tracking-wider whitespace-nowrap">Ordered</th>
-                      <th className="px-4 py-2.5 text-right text-[11px] font-bold text-[#7e2562] uppercase tracking-wider whitespace-nowrap">Prev Received</th>
-                      <th className="px-4 py-2.5 text-right text-[11px] font-bold text-[#7e2562] uppercase tracking-wider whitespace-nowrap">Receive Now</th>
+                      <th className="px-4 py-2.5 text-left text-[11px] font-bold text-[#7e2562]   tracking-wider whitespace-nowrap">Book</th>
+                      <th className="px-4 py-2.5 text-right text-[11px] font-bold text-[#7e2562]   tracking-wider whitespace-nowrap">Ordered</th>
+                      <th className="px-4 py-2.5 text-right text-[11px] font-bold text-[#7e2562]   tracking-wider whitespace-nowrap">Prev Received</th>
+                      <th className="px-4 py-2.5 text-right text-[11px] font-bold text-[#7e2562]   tracking-wider whitespace-nowrap">Receive Now</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-neutral-100">
@@ -1609,8 +1609,8 @@ export default function PurchaseOrdersPage() {
 
               <div className="mb-6 p-3 bg-[#faf6f9]/60 border border-[#7e2562]/15 rounded-sm">
                 <div className="flex items-center justify-between mb-2">
-                  <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700">Computed Status</label>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                  <label className="block text-xs font-bold   tracking-wider text-neutral-700">Computed Status</label>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full   tracking-wider ${
                     receiveStatus === 'RECEIVED' 
                       ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' 
                       : 'bg-amber-100 text-amber-800 border border-amber-300'
@@ -1631,11 +1631,11 @@ export default function PurchaseOrdersPage() {
               </div>
 
               <div className="flex justify-end space-x-3">
-                <button onClick={() => setReceivingPO(null)} className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-neutral-700 bg-white border border-neutral-300 rounded-sm hover:bg-neutral-50 active:scale-95 transition-all">Cancel</button>
+                <button onClick={() => setReceivingPO(null)} className="px-4 py-2 text-xs font-bold   tracking-wider text-neutral-700 bg-white border border-neutral-300 rounded-sm hover:bg-neutral-50 active:scale-95 transition-all">Cancel</button>
                 <button 
                   onClick={() => handleStatusUpdate(receivingPO.id, receiveStatus, receiveData)} 
                   disabled={isSubmitting} 
-                  className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wider text-white bg-[#3cb976] hover:bg-[#2fa264] rounded-sm shadow-sm active:scale-95 disabled:opacity-50 transition-all"
+                  className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold   tracking-wider text-white bg-[#3cb976] hover:bg-[#2fa264] rounded-sm shadow-sm active:scale-95 disabled:opacity-50 transition-all"
                 >
                   {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
                   Confirm Receipt
@@ -1663,14 +1663,14 @@ export default function PurchaseOrdersPage() {
               <div className="flex justify-end gap-2">
                 <button 
                   onClick={() => { setRejectingReqId(null); setRejectNote(''); }} 
-                  className="px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-neutral-700 hover:bg-neutral-100 rounded-sm"
+                  className="px-3 py-1.5 text-xs font-bold   tracking-wider text-neutral-700 hover:bg-neutral-100 rounded-sm"
                 >
                   Cancel
                 </button>
                 <button 
                   onClick={() => handleReviewRequest(rejectingReqId, 'REJECTED', rejectNote)} 
                   disabled={isRejecting} 
-                  className="px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-white bg-[#e45e34] hover:bg-[#c7451e] rounded-sm shadow-sm disabled:opacity-50"
+                  className="px-4 py-1.5 text-xs font-bold   tracking-wider text-white bg-[#e45e34] hover:bg-[#c7451e] rounded-sm shadow-sm disabled:opacity-50"
                 >
                   {isRejecting ? 'Rejecting...' : 'Confirm Reject'}
                 </button>

@@ -208,7 +208,7 @@ export default function CentralStockPage() {
                 <th 
                   scope="col" 
                   onClick={() => toggleSort('title')}
-                  className="px-6 py-3 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider cursor-pointer select-none group whitespace-nowrap hover:text-foreground transition-colors"
+                  className="px-6 py-3 text-left text-xs font-bold text-muted-foreground   tracking-wider cursor-pointer select-none group whitespace-nowrap hover:text-foreground transition-colors"
                 >
                   <div className="flex items-center gap-1.5">
                     <span>Book Title & Author</span>
@@ -219,11 +219,11 @@ export default function CentralStockPage() {
                     )}
                   </div>
                 </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Barcode / ISBN</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-bold text-muted-foreground   tracking-wider whitespace-nowrap">Barcode / ISBN</th>
                 <th 
                   scope="col" 
                   onClick={() => toggleSort('quantity')}
-                  className="px-6 py-3 text-right text-xs font-bold text-muted-foreground uppercase tracking-wider cursor-pointer select-none group whitespace-nowrap hover:text-foreground transition-colors"
+                  className="px-6 py-3 text-right text-xs font-bold text-muted-foreground   tracking-wider cursor-pointer select-none group whitespace-nowrap hover:text-foreground transition-colors"
                 >
                   <div className="flex items-center justify-end gap-1.5">
                     <span>Central Qty</span>
@@ -237,7 +237,7 @@ export default function CentralStockPage() {
                 <th 
                   scope="col" 
                   onClick={() => toggleSort('reorderThreshold')}
-                  className="px-6 py-3 text-right text-xs font-bold text-muted-foreground uppercase tracking-wider cursor-pointer select-none group whitespace-nowrap hover:text-foreground transition-colors"
+                  className="px-6 py-3 text-right text-xs font-bold text-muted-foreground   tracking-wider cursor-pointer select-none group whitespace-nowrap hover:text-foreground transition-colors"
                 >
                   <div className="flex items-center justify-end gap-1.5">
                     <span>Alert Limit</span>
@@ -251,7 +251,7 @@ export default function CentralStockPage() {
                 <th 
                   scope="col" 
                   onClick={() => toggleSort('status')}
-                  className="px-6 py-3 text-center text-xs font-bold text-muted-foreground uppercase tracking-wider cursor-pointer select-none group whitespace-nowrap hover:text-foreground transition-colors"
+                  className="px-6 py-3 text-center text-xs font-bold text-muted-foreground   tracking-wider cursor-pointer select-none group whitespace-nowrap hover:text-foreground transition-colors"
                 >
                   <div className="flex items-center justify-center gap-1.5">
                     <span>Status & Alerts</span>
@@ -262,7 +262,7 @@ export default function CentralStockPage() {
                     )}
                   </div>
                 </th>
-                <th scope="col" className="px-6 py-3 text-right text-xs font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Actions</th>
+                <th scope="col" className="px-6 py-3 text-right text-xs font-bold text-muted-foreground   tracking-wider whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-[#7e2562]/8">

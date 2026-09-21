@@ -14,7 +14,8 @@ import {
   FileText,
   Loader2,
   Eye,
-  ShoppingCart
+  ShoppingCart,
+  Zap
 } from 'lucide-react';
 import CreateTransferModal from '@/components/CreateTransferModal';
 import TransferDetailsModal from '@/components/TransferDetailsModal';
@@ -233,7 +234,7 @@ export default function StockTransfersPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-[#faf6f9]/60 border-b border-[#7e2562]/10 text-muted-foreground text-xs font-bold uppercase tracking-wider">
+                <tr className="bg-[#faf6f9]/60 border-b border-[#7e2562]/10 text-muted-foreground text-xs font-bold   tracking-wider">
                   <th className="px-6 py-4 whitespace-nowrap">Transfer Number</th>
                   <th className="px-6 py-4 whitespace-nowrap">Source (From)</th>
                   <th className="px-6 py-4 whitespace-nowrap">Destination (To)</th>
@@ -257,9 +258,26 @@ export default function StockTransfersPage() {
                     <td className="px-6 py-4 font-semibold whitespace-nowrap">{t.items?.length || 0} books</td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex flex-col items-start gap-1">
-                        <span className={`px-2.5 py-0.5 border text-xs font-bold rounded-sm ${getStatusBadge(t.status)}`}>
-                          {t.status}
-                        </span>
+                        {(() => {
+                          const req = t.items?.reduce((s: number, i: any) => s + (Number(i.quantityRequested) || 0), 0) || 0;
+                          const rec = t.items?.reduce((s: number, i: any) => s + (Number(i.quantityReceived) || 0), 0) || 0;
+                          const isPartial = t.status === 'RECEIVED' && req > 0 && rec < req;
+
+                          if (isPartial) {
+                            return (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 border text-xs font-bold rounded-sm bg-amber-50 text-amber-800 border-amber-300 shadow-2xs" title={`Partially received: ${rec} of ${req} copies`}>
+                                <Zap className="w-3 h-3 text-amber-600" />
+                                <span>Partially Fulfilled</span>
+                              </span>
+                            );
+                          }
+
+                          return (
+                            <span className={`px-2.5 py-0.5 border text-xs font-bold rounded-sm ${getStatusBadge(t.status)}`}>
+                              {t.status}
+                            </span>
+                          );
+                        })()}
                         {t.purchaseOrder && (
                           <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-sm text-[10px] font-bold border ${
                             t.purchaseOrder.status === 'RECEIVED'

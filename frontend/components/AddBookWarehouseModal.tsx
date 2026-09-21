@@ -242,7 +242,7 @@ export default function AddBookWarehouseModal({
 
           {/* Title */}
           <div>
-            <label className="block text-xs font-bold text-[#7e2562] uppercase tracking-wider mb-1">
+            <label className="block text-xs font-bold text-[#7e2562]   tracking-wider mb-1">
               Book Title <span className="text-[#e45e34]">*</span>
             </label>
             <input
@@ -258,7 +258,7 @@ export default function AddBookWarehouseModal({
           {/* ISBN & Barcode */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-[#7e2562] uppercase tracking-wider mb-1 flex items-center gap-1.5">
+              <label className="block text-xs font-bold text-[#7e2562]   tracking-wider mb-1 flex items-center gap-1.5">
                 <Barcode className="w-3.5 h-3.5 text-[#7e2562]" />
                 ISBN <span className="text-[#e45e34]">*</span>
               </label>
@@ -272,7 +272,7 @@ export default function AddBookWarehouseModal({
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-[#7e2562] uppercase tracking-wider mb-1 flex items-center gap-1.5">
+              <label className="block text-xs font-bold text-[#7e2562]   tracking-wider mb-1 flex items-center gap-1.5">
                 <Barcode className="w-3.5 h-3.5 text-[#7e2562]" />
                 Barcode (Defaults to ISBN)
               </label>
@@ -289,7 +289,7 @@ export default function AddBookWarehouseModal({
           {/* Author & Category */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-[#7e2562] uppercase tracking-wider mb-1 flex items-center gap-1.5">
+              <label className="block text-xs font-bold text-[#7e2562]   tracking-wider mb-1 flex items-center gap-1.5">
                 <UserIcon className="w-3.5 h-3.5 text-[#7e2562]" />
                 Author Name
               </label>
@@ -302,7 +302,7 @@ export default function AddBookWarehouseModal({
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-[#7e2562] uppercase tracking-wider mb-1 flex items-center gap-1.5">
+              <label className="block text-xs font-bold text-[#7e2562]   tracking-wider mb-1 flex items-center gap-1.5">
                 <Tag className="w-3.5 h-3.5 text-[#7e2562]" />
                 Category
               </label>
@@ -348,7 +348,7 @@ export default function AddBookWarehouseModal({
 
           {/* Publisher */}
           <div>
-            <label className="block text-xs font-bold text-[#7e2562] uppercase tracking-wider mb-1 flex items-center gap-1.5">
+            <label className="block text-xs font-bold text-[#7e2562]   tracking-wider mb-1 flex items-center gap-1.5">
               <Building2 className="w-3.5 h-3.5 text-[#7e2562]" />
               Publisher
             </label>
@@ -363,7 +363,7 @@ export default function AddBookWarehouseModal({
 
           {/* Pricing & Stock Grid */}
           <div className="p-4 rounded-sm bg-[#faf6f9]/50 border border-[#7e2562]/10 space-y-3">
-            <p className="text-xs font-bold text-[#7e2562] uppercase tracking-wider">Pricing & Warehouse Stock</p>
+            <p className="text-xs font-bold text-[#7e2562]   tracking-wider">Pricing & Warehouse Stock</p>
             
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div>

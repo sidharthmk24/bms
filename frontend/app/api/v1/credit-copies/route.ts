@@ -22,8 +22,20 @@ async function createCreditCopyHandler(req: AuthenticatedRequest) {
     const body = await req.json();
     const ipAddress = req.headers.get('x-forwarded-for') || '127.0.0.1';
     
-    const { bookId, quantity, recipientName, note, branchId } = body;
+    const { items, bookId, quantity, recipientName, note, branchId } = body;
     
+    if (Array.isArray(items) && items.length > 0) {
+      const result = await creditCopiesService.issueBatchCreditCopies(
+        items,
+        recipientName,
+        note,
+        req.user,
+        branchId,
+        ipAddress
+      );
+      return apiSuccess(result, undefined, 201);
+    }
+
     const result = await creditCopiesService.issueCreditCopy(
       bookId,
       quantity,

@@ -23,4 +23,18 @@ async function updateCreditCopyHandler(req: AuthenticatedRequest, { params }: { 
   }
 }
 
+async function deleteCreditCopyHandler(req: AuthenticatedRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const id = (await params).id;
+    const ipAddress = req.headers.get('x-forwarded-for') || '127.0.0.1';
+
+    await creditCopiesService.deleteCreditCopy(id, req.user, ipAddress);
+    return apiSuccess({ message: 'Credit copy record deleted and stock restored successfully' });
+  } catch (error: any) {
+    console.error('CreditCopy DELETE Error:', error);
+    return apiError(error);
+  }
+}
+
 export const PATCH = withAuth(updateCreditCopyHandler);
+export const DELETE = withAuth(deleteCreditCopyHandler);

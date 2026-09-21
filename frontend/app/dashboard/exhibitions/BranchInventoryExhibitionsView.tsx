@@ -285,7 +285,7 @@ export function BranchInventoryExhibitionsView({
               <div className="p-4 sm:p-6 flex-1 overflow-y-auto space-y-4">
                 <div className="border border-[#7e2562]/10 rounded-sm overflow-x-auto shadow-xs">
                   <table className="min-w-[640px] w-full divide-y divide-gray-200">
-                    <thead className="bg-[#faf6f9]/70 sticky top-0 z-10 shadow-xs text-[11px] font-bold text-[#7e2562] uppercase tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
+                    <thead className="bg-[#faf6f9]/70 sticky top-0 z-10 shadow-xs text-[11px] font-bold text-[#7e2562]   tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
                       <tr>
                         <th className="px-4 py-3 text-left">Book Title</th>
                         <th className="px-3 py-3 text-center">Taken</th>
@@ -420,14 +420,14 @@ export function BranchInventoryExhibitionsView({
 
               {/* Body */}
               <div className="p-4 sm:p-6 flex-1 overflow-y-auto space-y-4">
-                <h4 className="text-xs sm:text-sm font-bold text-gray-900 uppercase tracking-wider flex items-center">
+                <h4 className="text-xs sm:text-sm font-bold text-gray-900   tracking-wider flex items-center">
                   <Book className="w-4 h-4 mr-2 text-[#7e2562]" />
                   Stock Details
                 </h4>
 
                 <div className="border border-[#7e2562]/10 rounded-sm overflow-x-auto shadow-xs">
                   <table className="min-w-[550px] w-full divide-y divide-gray-200">
-                    <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562] uppercase tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
+                    <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562]   tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
                       <tr>
                         <th className="px-4 sm:px-6 py-3 text-left">Book Title</th>
                         <th className="px-4 py-3 text-right">Taken</th>

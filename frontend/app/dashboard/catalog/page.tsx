@@ -348,7 +348,7 @@ export default function CatalogManagementPage() {
             {activeTab === 'BOOKS' && (
               <>
                 <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562] uppercase tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
+                  <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562]   tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
                     <tr>
                       <th className="px-6 py-3 text-left">Title</th>
                       <th className="px-6 py-3 text-left">Author</th>
@@ -393,7 +393,7 @@ export default function CatalogManagementPage() {
 
             {activeTab !== 'BOOKS' && (
               <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562] uppercase tracking-wider border-b border-[#7e2562]/10">
+                <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562]   tracking-wider border-b border-[#7e2562]/10">
                   <tr>
                     <th className="px-6 py-3 text-left">Name</th>
                     <th className="px-6 py-3 text-left">Description / Bio</th>

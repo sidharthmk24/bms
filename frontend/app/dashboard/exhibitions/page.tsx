@@ -932,7 +932,7 @@ export default function ExhibitionsPage() {
 
       <div className="bg-white shadow-sm border border-[#7e2562]/10 rounded-sm overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562] uppercase tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
+          <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562]   tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
             <tr>
               <th scope="col" className="px-6 py-3 text-left">Event / Branch</th>
               <th scope="col" className="px-6 py-3 text-left">Dates</th>
@@ -1169,7 +1169,7 @@ export default function ExhibitionsPage() {
 
                 <div className="border-t border-gray-200 pt-4 mb-4">
                   <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                    <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                    <h4 className="text-xs font-bold text-gray-700   tracking-wider">
                       {canManageStockSources ? 'Select & Allocate Books' : 'Select Books & Quantities'}
                     </h4>
                     <span className="text-[11px] text-gray-500">
@@ -1195,7 +1195,7 @@ export default function ExhibitionsPage() {
 
                 <div className="border border-[#7e2562]/10 rounded-sm max-h-80 overflow-y-auto overflow-x-auto mb-2 shadow-xs">
                   <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562] uppercase tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap sticky top-0 z-10">
+                    <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562]   tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap sticky top-0 z-10">
                       <tr>
                         <th className={`px-4 py-2.5 text-left ${canManageStockSources ? 'w-1/4 min-w-[160px]' : 'w-1/2 min-w-[200px]'}`}>Book Title & ISBN</th>
                         {canManageStockSources && (
@@ -1487,7 +1487,7 @@ export default function ExhibitionsPage() {
 
                 <div className="overflow-x-auto border border-[#7e2562]/10 rounded-sm">
                   <table className="min-w-[640px] w-full divide-y divide-gray-200">
-                    <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562] uppercase tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
+                    <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562]   tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
                       <tr>
                         <th className="px-4 py-2.5 text-left">Book</th>
                         <th className="px-3 py-2.5 text-center">Taken</th>
@@ -1624,7 +1624,7 @@ export default function ExhibitionsPage() {
               <form id="edit-exhibition-form" onSubmit={handleEdit} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 sm:space-y-6">
                 {/* 1. Basic Details Card */}
                 <div className="bg-[#faf6f9]/50 border border-[#7e2562]/10 rounded-sm p-3.5 sm:p-4 space-y-3 sm:space-y-4">
-                  <h4 className="text-xs font-bold text-[#7e2562] uppercase tracking-wider">Event Details</h4>
+                  <h4 className="text-xs font-bold text-[#7e2562]   tracking-wider">Event Details</h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                     <div>
                       <label className="block text-xs font-semibold text-gray-700 mb-1">Event Name</label>
@@ -1701,7 +1701,7 @@ export default function ExhibitionsPage() {
 
                   <div className="border border-[#7e2562]/10 rounded-sm overflow-hidden shadow-xs max-h-80 overflow-y-auto overflow-x-auto">
                     <table className="min-w-[640px] w-full divide-y divide-gray-200">
-                      <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562] uppercase tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap sticky top-0 z-10">
+                      <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562]   tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap sticky top-0 z-10">
                         <tr>
                           <th className={`px-4 py-3 text-left ${canManageStockSources ? 'w-1/4 min-w-[160px]' : 'w-1/2 min-w-[200px]'}`}>Book Title & ISBN</th>
                           {canManageStockSources && (
@@ -2105,19 +2105,19 @@ export default function ExhibitionsPage() {
                 {/* Event Summary Banner */}
                 <div className="bg-[#faf6f9]/80 border border-[#7e2562]/10 rounded-sm p-3 sm:p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
                   <div>
-                    <span className="text-gray-400 block font-semibold uppercase tracking-wider">Event Name</span>
+                    <span className="text-gray-400 block font-semibold   tracking-wider">Event Name</span>
                     <strong className="text-sm text-gray-800 block mt-0.5">{approvingExhibition.name || approvingExhibition.eventName}</strong>
                   </div>
                   <div>
-                    <span className="text-gray-400 block font-semibold uppercase tracking-wider">Requested By / Branch</span>
+                    <span className="text-gray-400 block font-semibold   tracking-wider">Requested By / Branch</span>
                     <strong className="text-sm text-gray-800 block mt-0.5">{approvingExhibition.branch?.name || 'Central'}</strong>
                   </div>
                   <div>
-                    <span className="text-gray-400 block font-semibold uppercase tracking-wider">Location</span>
+                    <span className="text-gray-400 block font-semibold   tracking-wider">Location</span>
                     <strong className="text-sm text-gray-800 block mt-0.5">{approvingExhibition.location}</strong>
                   </div>
                   <div>
-                    <span className="text-gray-400 block font-semibold uppercase tracking-wider">Event Duration</span>
+                    <span className="text-gray-400 block font-semibold   tracking-wider">Event Duration</span>
                     <strong className="text-sm text-gray-800 block mt-0.5">
                       {new Date(approvingExhibition.startDate).toLocaleDateString()} - {new Date(approvingExhibition.endDate).toLocaleDateString()}
                     </strong>
@@ -2135,7 +2135,7 @@ export default function ExhibitionsPage() {
                 {/* Stock Allocation Table */}
                 <div className="border border-[#7e2562]/10 rounded-sm overflow-x-auto shadow-xs">
                   <table className="min-w-[650px] w-full divide-y divide-gray-200">
-                    <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562] uppercase tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap sticky top-0 z-10">
+                    <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562]   tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap sticky top-0 z-10">
                       <tr>
                         <th className="px-4 py-3 text-left w-1/4">Book Title & ISBN</th>
                         <th className="px-4 py-3 text-left w-1/2">Stock Source & Allocation</th>
@@ -2574,19 +2574,19 @@ export default function ExhibitionsPage() {
                   {/* Basic Details card for everyone */}
                   <div className="bg-[#faf6f9]/60 border border-[#7e2562]/10 rounded-sm p-3 sm:p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
                     <div>
-                      <span className="text-slate-400 block font-semibold uppercase tracking-wider">Start Date</span>
+                      <span className="text-slate-400 block font-semibold   tracking-wider">Start Date</span>
                       <strong className="text-sm text-slate-700 block mt-0.5">{new Date(historyData.exhibition.startDate).toLocaleDateString()}</strong>
                     </div>
                     <div>
-                      <span className="text-slate-400 block font-semibold uppercase tracking-wider">End Date</span>
+                      <span className="text-slate-400 block font-semibold   tracking-wider">End Date</span>
                       <strong className="text-sm text-slate-700 block mt-0.5">{new Date(historyData.exhibition.endDate).toLocaleDateString()}</strong>
                     </div>
                     <div>
-                      <span className="text-slate-400 block font-semibold uppercase tracking-wider">Status</span>
+                      <span className="text-slate-400 block font-semibold   tracking-wider">Status</span>
                       <strong className="text-sm text-slate-700 block mt-0.5 capitalize">{historyData.exhibition.status.toLowerCase()}</strong>
                     </div>
                     <div>
-                      <span className="text-slate-400 block font-semibold uppercase tracking-wider">Overseen By</span>
+                      <span className="text-slate-400 block font-semibold   tracking-wider">Overseen By</span>
                       <strong className="text-sm text-slate-700 block mt-0.5">{historyData.exhibition.assignedUserName || 'Unassigned'}</strong>
                     </div>
                   </div>
@@ -2594,19 +2594,19 @@ export default function ExhibitionsPage() {
                   {/* Financial Report Section */}
                   {showFullHistory ? (
                     <div className="space-y-5 sm:space-y-6">
-                      <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider border-l-4 border-[#7e2562] pl-2">Financial Summary</h4>
+                      <h4 className="text-sm font-bold text-slate-800   tracking-wider border-l-4 border-[#7e2562] pl-2">Financial Summary</h4>
                       
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                         <div className="bg-[#f0fbf5] border border-[#3cb976]/20 rounded-sm p-3 sm:p-4 flex flex-col">
-                          <span className="text-[10px] font-bold text-[#3cb976] uppercase tracking-wider">Total Cash/UPI Revenue</span>
+                          <span className="text-[10px] font-bold text-[#3cb976]   tracking-wider">Total Cash/UPI Revenue</span>
                           <strong className="text-lg sm:text-xl text-emerald-800 mt-1">₹{Number(historyData.metrics.totalRevenue).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
                         </div>
                         <div className="bg-amber-50/70 border border-amber-200 rounded-sm p-3 sm:p-4 flex flex-col">
-                          <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">Total Credit Sales Amount</span>
+                          <span className="text-[10px] font-bold text-amber-700   tracking-wider">Total Credit Sales Amount</span>
                           <strong className="text-lg sm:text-xl text-amber-900 mt-1">₹{Number(historyData.metrics.totalCreditAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
                         </div>
                         <div className="bg-[#faedf5] border border-[#7e2562]/20 rounded-sm p-3 sm:p-4 flex flex-col">
-                          <span className="text-[10px] font-bold text-[#7e2562] uppercase tracking-wider">Books Sold (From Invoices)</span>
+                          <span className="text-[10px] font-bold text-[#7e2562]   tracking-wider">Books Sold (From Invoices)</span>
                           <strong className="text-lg sm:text-xl text-[#7e2562] mt-1">{historyData.metrics.totalBooksSoldFromBills} books</strong>
                         </div>
                       </div>
@@ -2641,13 +2641,13 @@ export default function ExhibitionsPage() {
 
                       {/* Invoices List */}
                       <div className="space-y-3">
-                        <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider border-l-4 border-[#7e2562] pl-2">Sales Invoice History ({historyData.bills.length})</h4>
+                        <h4 className="text-sm font-bold text-slate-800   tracking-wider border-l-4 border-[#7e2562] pl-2">Sales Invoice History ({historyData.bills.length})</h4>
                         {historyData.bills.length === 0 ? (
                           <p className="text-xs text-slate-400 italic">No invoices recorded for this exhibition.</p>
                         ) : (
                           <div className="border border-[#7e2562]/10 rounded-sm overflow-x-auto shadow-xs">
                             <table className="min-w-[550px] w-full divide-y divide-slate-100 text-left text-xs text-slate-600">
-                              <thead className="bg-[#faf6f9]/70 font-bold uppercase text-[10px] text-[#7e2562] tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
+                              <thead className="bg-[#faf6f9]/70 font-bold   text-[10px] text-[#7e2562] tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
                                 <tr>
                                   <th className="px-4 py-2.5">Invoice No</th>
                                   <th className="px-4 py-2.5">Customer</th>
@@ -2701,7 +2701,7 @@ export default function ExhibitionsPage() {
 
                   {/* Stock List */}
                   <div className="space-y-3">
-                    <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider border-l-4 border-[#7e2562] pl-2">
+                    <h4 className="text-sm font-bold text-slate-800   tracking-wider border-l-4 border-[#7e2562] pl-2">
                       {showFullHistory ? 'Reconciled Stock Detail' : 'Stock List'}
                     </h4>
                     {historyData.stock.length === 0 ? (
@@ -2709,7 +2709,7 @@ export default function ExhibitionsPage() {
                     ) : (
                       <div className="border border-[#7e2562]/10 rounded-sm overflow-x-auto shadow-xs">
                         <table className="min-w-[550px] w-full divide-y divide-slate-100 text-left text-xs text-slate-600">
-                          <thead className="bg-[#faf6f9]/70 font-bold uppercase text-[10px] text-[#7e2562] tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
+                          <thead className="bg-[#faf6f9]/70 font-bold   text-[10px] text-[#7e2562] tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
                             <tr>
                               <th className="px-4 py-2.5">Book Title</th>
                               <th className="px-4 py-2.5 text-center">Taken</th>

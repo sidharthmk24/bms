@@ -58,7 +58,7 @@ export class InventoryService {
       UserRole.FINANCE,
     ];
 
-    if (chainWideRoles.includes(currentUser.primaryRole as UserRole)) {
+    if (chainWideRoles.some((r) => hasRole(currentUser, r))) {
       return; // Chain-wide has full read/write visibility
     }
 

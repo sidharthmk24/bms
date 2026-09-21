@@ -14,6 +14,7 @@ import {
   TrendingUp,
   Settings,
   Shield,
+  History,
   FileText,
   Truck,
   ArrowLeftRight,
@@ -61,7 +62,7 @@ export default function Sidebar() {
     { name: 'Billing', href: '/dashboard/billing', icon: ShoppingCart, roles: ['BRANCH_FRONT_OFFICE', 'BRANCH_MANAGER'] },
     { name: 'All Bills', href: '/dashboard/bills', icon: Receipt, roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE', 'BRANCH_MANAGER', 'BRANCH_FRONT_OFFICE'] },
     // { name: 'EOD Sales', href: '/dashboard/eod-sales', icon: BarChart2, roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE'] },
-    { name: 'Inventory', href: '/dashboard/inventory', icon: Boxes, roles: ['BRANCH_INVENTORY', 'BRANCH_MANAGER', 'SUPER_ADMIN', 'ADMIN', 'BRANCH_FRONT_OFFICE'] },
+    { name: 'Inventory', href: '/dashboard/inventory', icon: Boxes, roles: ['BRANCH_INVENTORY', 'BRANCH_MANAGER', 'SUPER_ADMIN', 'ADMIN', 'BRANCH_FRONT_OFFICE', 'CENTRAL_INVENTORY_MANAGER'] },
     { name: 'Warehouse Stock', href: '/dashboard/central-stock', icon: Store, roles: ['CENTRAL_INVENTORY_MANAGER', 'SUPER_ADMIN', 'ADMIN'] },
     { name: 'Purchase Orders', href: '/dashboard/purchase-orders', icon: Truck, roles: ['CENTRAL_INVENTORY_MANAGER', 'SUPER_ADMIN', 'ADMIN'] },
     { name: 'Stock Transfers', href: '/dashboard/transfers', icon: ArrowLeftRight, roles: ['BRANCH_INVENTORY', 'BRANCH_MANAGER', 'CENTRAL_INVENTORY_MANAGER', 'SUPER_ADMIN', 'ADMIN'] },
@@ -71,8 +72,8 @@ export default function Sidebar() {
     // { name: 'Catalog', href: '/dashboard/catalog', icon: BookOpen, roles: ['SUPER_ADMIN' , 'ADMIN', 'CENTRAL_INVENTORY_MANAGER'] },
     // { name: 'Finance', href: '/dashboard/finance', icon: FileText, roles: ['FINANCE', 'SUPER_ADMIN'] },
     { name: 'Users', href: '/dashboard/users', icon: Users, roles: ['SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER'] },
-    { name: 'Branches', href: '/dashboard/branches', icon: Store, roles: ['SUPER_ADMIN', 'ADMIN'] },
-    { name: 'Audit', href: '/dashboard/audit', icon: Shield, roles: ['SUPER_ADMIN'] },
+    { name: 'Branches', href: '/dashboard/branches', icon: Store, roles: ['SUPER_ADMIN', 'ADMIN', 'CENTRAL_INVENTORY_MANAGER'] },
+    { name: 'Audit Logs', href: '/dashboard/audit', icon: History, roles: ['SUPER_ADMIN'] },
     // { name: 'Settings', href: '/dashboard/settings', icon: Settings, roles: ['SUPER_ADMIN'] },
   ];
 
@@ -112,7 +113,7 @@ export default function Sidebar() {
       <div className="p-3 flex-1 flex flex-col gap-4">
         {/* Navigation */}
         <nav className="space-y-1.5 flex-1">
-          {!isCollapsed && <div className="px-3 text-[11px] font-bold text-[#7e2562]/70 uppercase tracking-wider mb-2">Main Menu</div>}
+          {!isCollapsed && <div className="px-3 text-[11px] font-bold text-[#7e2562]/70   tracking-wider mb-2">Main Menu</div>}
           {visibleLinks.map((link) => {
             const Icon = link.icon;
             const isActive = pathname === link.href || pathname.startsWith(`${link.href}/`);
@@ -150,24 +151,7 @@ export default function Sidebar() {
         </nav>
       </div>
 
-      {/* Sidebar Footer */}
-      <div className="p-3 border-t border-[#7e2562]/10 bg-[#faf6f9]/40 mt-auto">
-        {!isCollapsed ? (
-          <div className="flex items-center justify-between px-2 py-1 text-[11px] text-muted-foreground font-medium">
-            <span>BMS v1.0 · Connected</span>
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-[#3cb976]" />
-            </span>
-          </div>
-        ) : (
-          <div className="flex justify-center py-1">
-            <span className="relative flex h-2 w-2" title="Connected">
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-[#3cb976]" />
-            </span>
-          </div>
-        )}
-      </div>
+  \
     </div>
   );
 }

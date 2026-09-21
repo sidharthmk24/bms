@@ -20,7 +20,18 @@ export default function UsersManagementPage() {
   const { data: usersResponse, loading: usersLoading } = useApiData<any>('/users', []);
   const { data: branches, loading: branchesLoading } = useApiData<any[]>('/branches', []);
 
-  const usersList = usersResponse?.data || usersResponse || [];
+  const rawUsers = Array.isArray(usersResponse?.data)
+    ? usersResponse.data
+    : Array.isArray(usersResponse)
+    ? usersResponse
+    : [];
+
+  const usersList = [...rawUsers].sort((a: any, b: any) => {
+    const aActive = a.isActive !== false;
+    const bActive = b.isActive !== false;
+    if (aActive === bActive) return 0;
+    return aActive ? -1 : 1;
+  });
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -162,7 +173,7 @@ export default function UsersManagementPage() {
   const toggleStatus = async (id: string, currentStatus: boolean, userName?: string) => {
     const actionLabel = currentStatus ? "deactivate" : "activate";
     const ok = await confirm({
-      title: `${currentStatus ? "Deactivate" : "Activate"} User`,
+      title: `${currentStatus ? "Deactivate" : "Rectivate"} User`,
       message: `Are you sure you want to ${actionLabel} access for ${userName ? `"${userName}"` : "this user"}?`,
       confirmText: currentStatus ? "Yes, Deactivate" : "Yes, Activate",
       cancelText: "No, Cancel",
@@ -205,11 +216,11 @@ export default function UsersManagementPage() {
             <table className="min-w-full divide-y divide-[#7e2562]/10">
               <thead className="bg-[#faf6f9]/70">
                 <tr>
-                  <th className="px-6 py-3.5 text-left text-[11px] font-bold text-[#7e2562] uppercase tracking-wider whitespace-nowrap">Staff Member</th>
-                  <th className="px-6 py-3.5 text-left text-[11px] font-bold text-[#7e2562] uppercase tracking-wider whitespace-nowrap">Role</th>
-                  <th className="px-6 py-3.5 text-left text-[11px] font-bold text-[#7e2562] uppercase tracking-wider whitespace-nowrap">Branch</th>
-                  <th className="px-6 py-3.5 text-center text-[11px] font-bold text-[#7e2562] uppercase tracking-wider whitespace-nowrap">Status</th>
-                  <th className="px-6 py-3.5 text-right text-[11px] font-bold text-[#7e2562] uppercase tracking-wider whitespace-nowrap">Actions</th>
+                  <th className="px-6 py-3.5 text-left text-[11px] font-bold text-[#7e2562]   tracking-wider whitespace-nowrap">Staff Member</th>
+                  <th className="px-6 py-3.5 text-left text-[11px] font-bold text-[#7e2562]   tracking-wider whitespace-nowrap">Role</th>
+                  <th className="px-6 py-3.5 text-left text-[11px] font-bold text-[#7e2562]   tracking-wider whitespace-nowrap">Branch</th>
+                  <th className="px-6 py-3.5 text-center text-[11px] font-bold text-[#7e2562]   tracking-wider whitespace-nowrap">Status</th>
+                  <th className="px-6 py-3.5 text-right text-[11px] font-bold text-[#7e2562]   tracking-wider whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-neutral-100">
@@ -222,12 +233,12 @@ export default function UsersManagementPage() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex flex-wrap gap-1.5">
                         {(u.roles || []).map((r: any, idx: number) => (
-                          <span key={idx} className="inline-flex items-center px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wider bg-[#faedf5] text-[#7e2562] border border-[#7e2562]/20">
+                          <span key={idx} className="inline-flex items-center px-2 py-0.5 rounded-sm text-[10px] font-bold   tracking-wider bg-[#faedf5] text-[#7e2562] border border-[#7e2562]/20">
                             {(r.role || r).replace(/_/g, ' ')}
                           </span>
                         ))}
                         {!(u.roles || []).length && u.role && (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wider bg-[#faedf5] text-[#7e2562] border border-[#7e2562]/20">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-[10px] font-bold   tracking-wider bg-[#faedf5] text-[#7e2562] border border-[#7e2562]/20">
                             {u.role.replace(/_/g, ' ')}
                           </span>
                         )}
@@ -238,33 +249,52 @@ export default function UsersManagementPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">
                       {u.isActive ? (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wider bg-[#f0fbf5] text-[#3cb976] border border-[#3cb976]/20">
-                          <UserCheck className="w-3 h-3 mr-1"/> Active
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold   tracking-wider bg-[#f0fbf5] text-[#2e945c] border border-[#3cb976]/30 shadow-2xs">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#3cb976] mr-1.5"></span>
+                          Active
                         </span>
                       ) : (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wider bg-[#fef5f2] text-[#e45e34] border border-[#e45e34]/20">
-                          <UserX className="w-3 h-3 mr-1"/> Inactive
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold   tracking-wider bg-[#fef5f2] text-[#c7451e] border border-[#e45e34]/30 shadow-2xs">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#e45e34] mr-1.5"></span>
+                          Inactive
                         </span>
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-xs">
-                      <div className="flex justify-end items-center gap-3">
+                      <div className="flex justify-end items-center gap-2">
                         {u.id !== user?.id ? (
-                          <button 
-                            onClick={() => toggleStatus(u.id, u.isActive, u.name)} 
-                            className={`font-semibold text-xs transition-colors ${u.isActive ? "text-[#e45e34] hover:text-[#c7451e]" : "text-[#3cb976] hover:text-[#2fa264]"}`}
-                          >
-                            {u.isActive ? 'Deactivate' : 'Activate'}
-                          </button>
+                          u.isActive ? (
+                            <button 
+                              type="button"
+                              onClick={() => toggleStatus(u.id, u.isActive, u.name)} 
+                              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-[#c7451e] bg-[#fef5f2] hover:bg-[#fde8e1] border border-[#e45e34]/30 hover:border-[#e45e34]/60 rounded-sm transition-all shadow-2xs active:scale-95 cursor-pointer"
+                              title="Deactivate this user account"
+                            >
+                              <UserX className="w-3.5 h-3.5" />
+                              <span>Deactivate</span>
+                            </button>
+                          ) : (
+                            <button 
+                              type="button"
+                              onClick={() => toggleStatus(u.id, u.isActive, u.name)} 
+                              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-[#1f874c] bg-[#eefaf2] hover:bg-[#def5e6] border border-[#3cb976]/30 hover:border-[#3cb976]/60 rounded-sm transition-all shadow-2xs active:scale-95 cursor-pointer"
+                              title="Reactivate this user account"
+                            >
+                              <UserCheck className="w-3.5 h-3.5" />
+                              <span>Reactivate</span>
+                            </button>
+                          )
                         ) : (
-                          <span className="text-[10px] text-neutral-400 font-semibold uppercase tracking-wider bg-neutral-100 px-1.5 py-0.5 rounded-sm">You</span>
+                          <span className="text-[10px] text-neutral-400 font-semibold   tracking-wider bg-neutral-100 px-2 py-1 rounded-sm border border-neutral-200">You</span>
                         )}
                         <button 
+                          type="button"
                           onClick={() => openModal(u)} 
-                          className="text-neutral-400 hover:text-[#7e2562] p-1 transition-colors cursor-pointer"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-neutral-700 bg-neutral-50 hover:bg-[#faedf5] hover:text-[#7e2562] border border-neutral-200 hover:border-[#7e2562]/30 rounded-sm transition-all shadow-2xs active:scale-95 cursor-pointer"
                           title={u.id === user?.id ? "Edit your profile & password" : "Edit user details"}
                         >
-                          <Settings className="w-4 h-4"/>
+                          <Settings className="w-3.5 h-3.5"/>
+                          <span>Edit</span>
                         </button>
                       </div>
                     </td>
@@ -321,7 +351,7 @@ export default function UsersManagementPage() {
                 
                 <form onSubmit={handleSave} className="space-y-4">
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-neutral-600 mb-1">Full Name *</label>
+                    <label className="block text-xs font-bold   tracking-wider text-neutral-600 mb-1">Full Name *</label>
                     <input 
                       required 
                       type="text" 
@@ -331,7 +361,7 @@ export default function UsersManagementPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-neutral-600 mb-1">Email Address *</label>
+                    <label className="block text-xs font-bold   tracking-wider text-neutral-600 mb-1">Email Address *</label>
                     <input 
                       required 
                       type="email" 
@@ -343,7 +373,7 @@ export default function UsersManagementPage() {
 
                   {editingUser && (
                     <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-neutral-600 mb-1">
+                      <label className="block text-xs font-bold   tracking-wider text-neutral-600 mb-1">
                         New Password
                         <span className="text-[10px] font-normal lowercase text-neutral-400 ml-1.5">(optional — leave blank to keep unchanged)</span>
                       </label>
@@ -360,7 +390,7 @@ export default function UsersManagementPage() {
                   {/* Role selection is visible when provisioning or when an admin is editing */}
                   {(!editingUser || user?.roles?.includes('SUPER_ADMIN') || user?.roles?.includes('ADMIN') || user?.roles?.includes('BRANCH_MANAGER')) && (
                     <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-neutral-600 mb-1">System Role *</label>
+                      <label className="block text-xs font-bold   tracking-wider text-neutral-600 mb-1">System Role *</label>
                       <Dropdown
                         required
                         isMulti
@@ -373,7 +403,7 @@ export default function UsersManagementPage() {
 
                   {formData.roles.some(r => ['BRANCH_MANAGER', 'BRANCH_INVENTORY', 'BRANCH_FRONT_OFFICE'].includes(r)) && (!user?.roles?.includes('BRANCH_MANAGER')) && (
                     <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-neutral-600 mb-1">Assigned Branch *</label>
+                      <label className="block text-xs font-bold   tracking-wider text-neutral-600 mb-1">Assigned Branch *</label>
                       <Dropdown
                         required
                         value={formData.branchId}
@@ -388,8 +418,8 @@ export default function UsersManagementPage() {
                   )}
 
                   <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-neutral-100">
-                    <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-neutral-700 bg-white border border-neutral-300 rounded-sm hover:bg-neutral-50 transition-colors cursor-pointer">Cancel</button>
-                    <button type="submit" disabled={isSubmitting} className="flex items-center px-4 py-2 text-xs font-bold uppercase tracking-wider text-white bg-[#7e2562] rounded-sm hover:bg-[#681b50] disabled:opacity-50 transition-colors shadow-sm shadow-plum-sm cursor-pointer">
+                    <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-xs font-bold   tracking-wider text-neutral-700 bg-white border border-neutral-300 rounded-sm hover:bg-neutral-50 transition-colors cursor-pointer">Cancel</button>
+                    <button type="submit" disabled={isSubmitting} className="flex items-center px-4 py-2 text-xs font-bold   tracking-wider text-white bg-[#7e2562] rounded-sm hover:bg-[#681b50] disabled:opacity-50 transition-colors shadow-sm shadow-plum-sm cursor-pointer">
                       {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                       Save Changes
                     </button>

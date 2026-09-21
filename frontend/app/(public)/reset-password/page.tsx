@@ -141,7 +141,7 @@ function ResetPasswordForm() {
       </AnimatePresence>
 
       <div>
-        <label htmlFor="new-password" className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
+        <label htmlFor="new-password" className="block text-xs font-bold text-gray-700   tracking-wider mb-1.5">
           New Password
         </label>
         <div className="relative rounded-sm shadow-xs">
@@ -171,7 +171,7 @@ function ResetPasswordForm() {
       </div>
 
       <div>
-        <label htmlFor="confirm-password" className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
+        <label htmlFor="confirm-password" className="block text-xs font-bold text-gray-700   tracking-wider mb-1.5">
           Confirm New Password
         </label>
         <div className="relative rounded-sm shadow-xs">

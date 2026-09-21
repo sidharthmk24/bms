@@ -7,6 +7,14 @@ import { UserRole } from '@/lib/api-backend/users/enums/user-role.enum';
 const branchesService = new BranchesService();
 
 async function getBranchesHandler(req: AuthenticatedRequest) {
+  const url = new URL(req.url);
+  const withStats = url.searchParams.get('withStats') === 'true';
+
+  if (withStats) {
+    const branches = await branchesService.findAllWithStats();
+    return apiSuccess(branches);
+  }
+
   const branches = await branchesService.findAll();
   return apiSuccess(branches);
 }
