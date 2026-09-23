@@ -22,10 +22,19 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { Dropdown } from '@/components/Dropdown';
 
+export interface InitialBookInfo {
+  bookId?: string;
+  id?: string;
+  title: string;
+  isbn?: string;
+  quantity?: number;
+}
+
 interface CreateTransferModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: (newTransfer?: any) => void;
+  initialBook?: InitialBookInfo | null;
 }
 
 interface SelectedBook {
@@ -45,7 +54,7 @@ interface TransferItem {
   availableQuantity: number;
 }
 
-export default function CreateTransferModal({ isOpen, onClose, onSuccess }: CreateTransferModalProps) {
+export default function CreateTransferModal({ isOpen, onClose, onSuccess, initialBook }: CreateTransferModalProps) {
   const { user } = useAuth();
   
   // Branches list
@@ -81,6 +90,62 @@ export default function CreateTransferModal({ isOpen, onClose, onSuccess }: Crea
       setToBranchId(user.branchId);
     }
   }, [user, toBranchId]);
+
+  // Handle prefilled initialBook when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      if (initialBook) {
+        const targetBookId = initialBook.bookId || initialBook.id;
+        const reqQty = initialBook.quantity && initialBook.quantity > 0 ? initialBook.quantity : 5;
+
+        if (targetBookId) {
+          setItems([
+            {
+              bookId: targetBookId,
+              title: initialBook.title,
+              isbn: initialBook.isbn,
+              quantity: reqQty,
+              availableQuantity: 999,
+            },
+          ]);
+          setActiveBook(null);
+        } else {
+          const searchKey = initialBook.isbn || initialBook.title;
+          api.get(`/catalog/books?search=${encodeURIComponent(searchKey)}&limit=5`)
+            .then((res) => {
+              if (res.success && res.data) {
+                const list = res.data.items || res.data?.books || res.data;
+                const match = Array.isArray(list)
+                  ? list.find((b: any) => b.isbn === initialBook.isbn || b.title === initialBook.title) || list[0]
+                  : null;
+                if (match) {
+                  setItems([
+                    {
+                      bookId: match.id,
+                      title: match.title || initialBook.title,
+                      isbn: match.isbn || initialBook.isbn,
+                      quantity: reqQty,
+                      availableQuantity: 999,
+                    },
+                  ]);
+                  setActiveBook(null);
+                } else {
+                  setSearchQuery(initialBook.title);
+                }
+              }
+            })
+            .catch(() => {
+              setSearchQuery(initialBook.title);
+            });
+        }
+      }
+    } else {
+      setItems([]);
+      setActiveBook(null);
+      setSearchQuery('');
+      setError(null);
+    }
+  }, [isOpen, initialBook]);
 
   // Book search debounce
   useEffect(() => {

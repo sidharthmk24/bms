@@ -525,7 +525,7 @@ export default function CreditCopiesPage() {
                 <button
                   type="button"
                   onClick={() => handleAddAnotherForRecipient(editingCopy)}
-                  className="inline-flex items-center gap-1 text-[11px] font-bold text-[#7e2562] hover:underline cursor-pointer"
+                  className="inline-flex items-center gap-1.5 text-[11px] font-bold text-[#7e2562] bg-[#faedf5] hover:bg-[#f0d8ea] border border-[#7e2562]/25 px-2.5 py-1 rounded-sm transition-colors cursor-pointer"
                 >
                   <Plus className="w-3 h-3" /> Add another book for this recipient
                 </button>

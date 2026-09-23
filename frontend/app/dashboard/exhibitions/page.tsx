@@ -1,6 +1,6 @@
-"use client";
+﻿"use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useConfirm } from '@/contexts/ConfirmContext';
 import { useApiData } from '@/hooks/useApiData';
@@ -27,6 +27,167 @@ export interface ExhibitionBookItem {
   originalFromBranch?: number;
   originalFromCentral?: number;
   quantitySold?: number;
+}
+
+function MultiSelectBookDropdown({
+  books = [],
+  onSelectBook,
+  placeholder = "Type book title or ISBN to add...",
+  selectedIds = [],
+}: {
+  books: any[];
+  onSelectBook: (book: any) => void;
+  placeholder?: string;
+  selectedIds?: string[];
+}) {
+  const [search, setSearch] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searching, setSearching] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) {
+      document.addEventListener('mousedown', handleOutsideClick);
+    }
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [isOpen]);
+
+  // Debounced server search for query typed by user
+  useEffect(() => {
+    if (!search.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const res = await api.get(`/catalog/books?search=${encodeURIComponent(search.trim())}&limit=50`);
+        if (res.success && res.data) {
+          const list = res.data.items || res.data?.books || (Array.isArray(res.data) ? res.data : []);
+          setSearchResults(list);
+        }
+      } catch (err) {
+        console.error('Failed to search books:', err);
+      } finally {
+        setSearching(false);
+      }
+    }, 200);
+
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const safeBooks = Array.isArray(books) ? books : [];
+
+  // Combine dynamic search results with local catalog list
+  const displayList = search.trim() && searchResults.length > 0
+    ? searchResults
+    : safeBooks.filter((b) => {
+        if (!search.trim()) return true;
+        const q = search.toLowerCase().trim();
+        return (
+          (b.title && b.title.toLowerCase().includes(q)) ||
+          (b.name && b.name.toLowerCase().includes(q)) ||
+          (b.isbn && b.isbn.toLowerCase().includes(q)) ||
+          (b.authorName && b.authorName.toLowerCase().includes(q)) ||
+          (b.author?.name && b.author.name.toLowerCase().includes(q))
+        );
+      });
+
+  return (
+    <div className="relative w-full" ref={containerRef}>
+      <div className="relative">
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setIsOpen(true);
+          }}
+          onFocus={() => setIsOpen(true)}
+          placeholder={placeholder}
+          className="w-full px-3 py-2 text-xs border border-gray-300 rounded-sm focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562] bg-white text-gray-900 pr-8"
+        />
+        {searching && (
+          <div className="absolute right-2.5 top-2.5">
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-[#7e2562]" />
+          </div>
+        )}
+      </div>
+      {isOpen && (
+        <div className="absolute left-0 right-0 top-full mt-1 max-h-64 overflow-y-auto bg-white border border-gray-200 rounded-sm shadow-xl z-50 divide-y divide-gray-100">
+          {displayList.length === 0 ? (
+            <div className="px-3 py-3 text-xs text-gray-500 italic text-center">
+              {searching ? 'Searching catalog...' : 'No matching books found.'}
+            </div>
+          ) : (
+            displayList.slice(0, 50).map((b) => {
+              const isSelected = selectedIds.includes(b.id);
+              return (
+                <button
+                  key={b.id}
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onSelectBook(b);
+                    setIsOpen(true);
+                  }}
+                  className={`w-full text-left px-3 py-2 text-xs flex items-center gap-3 transition-colors ${
+                    isSelected
+                      ? 'bg-emerald-50/80 border-l-[3px] border-l-emerald-500 hover:bg-emerald-50'
+                      : 'hover:bg-[#faedf5]/40 border-l-[3px] border-l-transparent'
+                  }`}
+                >
+                  {/* Checkbox indicator */}
+                  <div className={`shrink-0 w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                    isSelected
+                      ? 'bg-emerald-500 border-emerald-500'
+                      : 'bg-white border-gray-300'
+                  }`}>
+                    {isSelected && (
+                      <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 12 12" fill="none">
+                        <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    )}
+                  </div>
+
+                  {/* Book info */}
+                  <div className="flex-1 min-w-0">
+                    <span className={`font-semibold truncate block ${isSelected ? 'text-emerald-800' : 'text-gray-900'}`}>
+                      {b.title || b.name}
+                    </span>
+                    <div className="flex items-center gap-2 text-[10px] text-gray-400 font-mono mt-0.5">
+                      {b.isbn && <span>ISBN: {b.isbn}</span>}
+                      {(b.author?.name || b.authorName) && (
+                        <span>â€¢ {b.author?.name || b.authorName}</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Action badge */}
+                  {isSelected ? (
+                    <span className="shrink-0 inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full">
+                      âœ“ Added
+                    </span>
+                  ) : (
+                    <span className="shrink-0 inline-flex items-center gap-1 text-[10px] font-bold text-[#7e2562] bg-[#faedf5] border border-[#7e2562]/20 px-2 py-0.5 rounded-full">
+                      + Add
+                    </span>
+                  )}
+                </button>
+              );
+            })
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function ExhibitionsPage() {
@@ -79,7 +240,7 @@ export default function ExhibitionsPage() {
   // Creation State
   const [isCreating, setIsCreating] = useState(false);
   const [editingExhibition, setEditingExhibition] = useState<any | null>(null);
-  const { data: catalog } = useApiData<any>(isCreating || editingExhibition ? '/catalog/books?limit=100' : null, []);
+  const { data: catalog } = useApiData<any>(isCreating || editingExhibition ? '/catalog/books?limit=10000' : null, []);
   const [eventName, setEventName] = useState('');
   const [location, setLocation] = useState('');
   const [createBranchId, setCreateBranchId] = useState('');
@@ -87,6 +248,30 @@ export default function ExhibitionsPage() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [cart, setCart] = useState<ExhibitionBookItem[]>([]);
+
+  const rawCatalogList = catalog?.data?.items || catalog?.data || catalog?.items || catalog;
+  const catalogBooks: any[] = Array.isArray(rawCatalogList) ? rawCatalogList : [];
+
+  const handleSelectBookForCreate = (book: any) => {
+    setCart((prev) => {
+      const exists = prev.some((i) => i.bookId === book.id);
+      if (exists) {
+        return prev.filter((i) => i.bookId !== book.id);
+      }
+      return [
+        ...prev,
+        {
+          bookId: book.id,
+          title: book.title || book.name,
+          isbn: book.isbn,
+          quantityRequested: 1,
+          sourceMode: 'SINGLE',
+          selectedSource: 'WAREHOUSE',
+          sourceSplits: { WAREHOUSE: 1 },
+        },
+      ];
+    });
+  };
   
   // Close/Reconciliation State
   const [closingExhibition, setClosingExhibition] = useState<any | null>(null);
@@ -950,7 +1135,7 @@ export default function ExhibitionsPage() {
                   >
                     {ex.name || ex.eventName}
                   </button>
-                  <div className="text-xs text-gray-500">{ex.location} • {ex.branch?.name}</div>
+                  <div className="text-xs text-gray-500">{ex.location} â€¢ {ex.branch?.name}</div>
                   {ex.assignedUser && <div className="text-xs text-[#7e2562] font-semibold mt-1">Assigned: {ex.assignedUser.name}</div>}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -1183,21 +1368,16 @@ export default function ExhibitionsPage() {
                       books={catalogBooks}
                       onSelectBook={handleSelectBookForCreate}
                       placeholder="Type book title or ISBN to add..."
-                      options={catalogBooks.map((b: any) => ({
-                        value: b.id,
-                        label: b.title,
-                        isbn: b.isbn,
-                        isSelected: cart.some((i) => i.bookId === b.id),
-                      }))}
+                      selectedIds={cart.map((i) => i.bookId)}
                     />
                   </div>
                 </div>
 
                 <div className="border border-[#7e2562]/10 rounded-sm max-h-80 overflow-y-auto overflow-x-auto mb-2 shadow-xs">
                   <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562]   tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap sticky top-0 z-10">
+                    <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562]   tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap ">
                       <tr>
-                        <th className={`px-4 py-2.5 text-left ${canManageStockSources ? 'w-1/4 min-w-[160px]' : 'w-1/2 min-w-[200px]'}`}>Book Title & ISBN</th>
+                        <th className={`px-4 py-2.5 text-left ${canManageStockSources ? 'w-1/4 min-w-[160px]' : 'w-1/2 min-w-[200px]'}`}>Book Title</th>
                         {canManageStockSources && (
                           <th className="px-4 py-2.5 text-left w-1/2 min-w-[260px]">Stock Source & Allocation</th>
                         )}
@@ -1297,23 +1477,23 @@ export default function ExhibitionsPage() {
                                             <span className="text-gray-700 font-normal">Sum: <strong className="text-[#7e2562]">{item.quantityRequested}</strong> copies</span>
                                           </div>
 
-                                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                          <div className="flex flex-col gap-2">
                                             {/* Warehouse */}
                                             {(() => {
                                               const wAvail = getCentralStockQty(item.bookId);
                                               const wVal = item.sourceSplits?.['WAREHOUSE'] ?? 0;
                                               const isOver = wVal > wAvail;
                                               return (
-                                                <div className={`flex items-center justify-between bg-white px-2.5 py-1.5 rounded-sm border ${
+                                                <div className={`flex items-center justify-between bg-white px-3 py-2 rounded-sm border ${
                                                   isOver ? 'border-red-300 bg-red-50/30' : 'border-gray-200'
                                                 }`}>
-                                                  <div className="flex items-center gap-1.5 min-w-0 pr-2">
-                                                    <Warehouse className={`w-3.5 h-3.5 shrink-0 ${isOver ? 'text-red-600' : 'text-blue-600'}`} />
-                                                    <div className="text-xs text-gray-800 font-medium truncate">
-                                                      Central Warehouse
-                                                      <span className={`text-[10px] block ${isOver ? 'text-red-600 font-bold' : 'text-gray-400'}`}>
-                                                        ({wAvail} avail)
-                                                      </span>
+                                                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                                                    <Warehouse className={`w-4 h-4 shrink-0 ${isOver ? 'text-red-600' : 'text-blue-600'}`} />
+                                                    <div className="min-w-0">
+                                                      <div className="text-xs text-gray-800 font-semibold">Central Warehouse</div>
+                                                      <div className={`text-[10px] ${isOver ? 'text-red-600 font-bold' : 'text-gray-400'}`}>
+                                                        {wAvail} available
+                                                      </div>
                                                     </div>
                                                   </div>
                                                   <input
@@ -1337,16 +1517,16 @@ export default function ExhibitionsPage() {
                                               const bVal = item.sourceSplits?.[`BRANCH_${b.id}`] ?? 0;
                                               const isOver = bVal > bAvail;
                                               return (
-                                                <div key={b.id} className={`flex items-center justify-between bg-white px-2.5 py-1.5 rounded-sm border ${
+                                                <div key={b.id} className={`flex items-center justify-between bg-white px-3 py-2.5 rounded-sm border ${
                                                   isOver ? 'border-red-300 bg-red-50/30' : 'border-gray-200'
                                                 }`}>
-                                                  <div className="flex items-center gap-1.5 min-w-0 pr-2">
-                                                    <Store className={`w-3.5 h-3.5 shrink-0 ${isOver ? 'text-red-600' : 'text-amber-600'}`} />
-                                                    <div className="text-xs text-gray-800 font-medium truncate">
-                                                      {b.name}
-                                                      <span className={`text-[10px] block ${isOver ? 'text-red-600 font-bold' : 'text-gray-400'}`}>
-                                                        ({bAvail} avail)
-                                                      </span>
+                                                  <div className="flex items-start gap-2 min-w-0 flex-1 pr-3">
+                                                    <Store className={`w-4 h-4 shrink-0 mt-0.5 ${isOver ? 'text-red-600' : 'text-amber-600'}`} />
+                                                    <div className="min-w-0">
+                                                      <div className="text-xs text-gray-800 font-semibold leading-snug">{b.name}</div>
+                                                      <div className={`text-[10px] mt-0.5 ${isOver ? 'text-red-600 font-bold' : 'text-gray-400'}`}>
+                                                        {bAvail} available
+                                                      </div>
                                                     </div>
                                                   </div>
                                                   <input
@@ -1354,7 +1534,7 @@ export default function ExhibitionsPage() {
                                                     min="0"
                                                     value={item.sourceSplits?.[`BRANCH_${b.id}`] ?? 0}
                                                     onChange={(e) => handleCreateSplitQtyChange(item.bookId, `BRANCH_${b.id}`, Number(e.target.value))}
-                                                    className={`w-16 px-1.5 py-1 text-center font-bold text-xs border rounded transition-colors ${
+                                                    className={`w-16 shrink-0 px-1.5 py-1 text-center font-bold text-xs border rounded transition-colors ${
                                                       isOver 
                                                         ? 'text-red-600 bg-red-50 border-red-400 focus:ring-1 focus:ring-red-500 focus:border-red-500' 
                                                         : 'text-gray-900 border-gray-300 focus:ring-1 focus:ring-[#7e2562]'
@@ -1385,7 +1565,7 @@ export default function ExhibitionsPage() {
                                       onClick={() => {
                                         const current = item.quantityRequested || 1;
                                         if (current > 1) {
-                                          handleCreateSingleQtyChange(item.bookId, current - 1);
+                                          handleCreateQuantityChange(item.bookId, current - 1);
                                         }
                                       }}
                                       className="w-7 h-7 rounded-sm border border-gray-300 bg-gray-50 hover:bg-gray-100 flex items-center justify-center font-bold text-gray-700"
@@ -1396,14 +1576,14 @@ export default function ExhibitionsPage() {
                                       type="number"
                                       min="1"
                                       value={item.quantityRequested}
-                                      onChange={(e) => handleCreateSingleQtyChange(item.bookId, Number(e.target.value))}
+                                      onChange={(e) => handleCreateQuantityChange(item.bookId, Number(e.target.value))}
                                       className="w-12 text-center text-xs font-bold border-0 focus:ring-0 py-1"
                                     />
                                     <button
                                       type="button"
                                       onClick={() => {
                                         const current = item.quantityRequested || 1;
-                                        handleCreateSingleQtyChange(item.bookId, current + 1);
+                                        handleCreateQuantityChange(item.bookId, current + 1);
                                       }}
                                       className="w-7 h-7 rounded-sm border border-gray-300 bg-gray-50 hover:bg-gray-100 flex items-center justify-center font-bold text-gray-700"
                                     >
@@ -1694,14 +1874,14 @@ export default function ExhibitionsPage() {
                         Allocated Books & Quantities
                       </h4>
                       <p className="text-xs text-gray-500">
-                        Total {editCart.length} titles • {editCart.reduce((acc, curr) => acc + (Number(curr.quantityRequested) || 0), 0)} copies allocated
+                        Total {editCart.length} titles â€¢ {editCart.reduce((acc, curr) => acc + (Number(curr.quantityRequested) || 0), 0)} copies allocated
                       </p>
                     </div>
                   </div>
 
                   <div className="border border-[#7e2562]/10 rounded-sm overflow-hidden shadow-xs max-h-80 overflow-y-auto overflow-x-auto">
                     <table className="min-w-[640px] w-full divide-y divide-gray-200">
-                      <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562]   tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap sticky top-0 z-10">
+                      <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562]   tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap ">
                         <tr>
                           <th className={`px-4 py-3 text-left ${canManageStockSources ? 'w-1/4 min-w-[160px]' : 'w-1/2 min-w-[200px]'}`}>Book Title & ISBN</th>
                           {canManageStockSources && (
@@ -1739,7 +1919,7 @@ export default function ExhibitionsPage() {
                                 )}
                                 {isSold && (
                                   <div className="text-[11px] text-amber-700 font-medium mt-1">
-                                    • {item.quantitySold} copies already sold (min required: {item.quantitySold})
+                                    â€¢ {item.quantitySold} copies already sold (min required: {item.quantitySold})
                                   </div>
                                 )}
                               </td>
@@ -1908,7 +2088,7 @@ export default function ExhibitionsPage() {
                                           const min = item.quantitySold || 1;
                                           const current = item.quantityRequested || 1;
                                           if (current > min) {
-                                            handleEditSingleQtyChange(item.bookId, current - 1);
+                                            handleEditQuantityChange(item.bookId, current - 1);
                                           }
                                         }}
                                         className="w-7 h-7 rounded-sm border border-gray-300 bg-gray-50 hover:bg-gray-100 flex items-center justify-center font-bold text-gray-700"
@@ -1919,14 +2099,14 @@ export default function ExhibitionsPage() {
                                         type="number"
                                         min={item.quantitySold || 1}
                                         value={item.quantityRequested}
-                                        onChange={(e) => handleEditSingleQtyChange(item.bookId, Number(e.target.value))}
+                                        onChange={(e) => handleEditQuantityChange(item.bookId, Number(e.target.value))}
                                         className="w-12 text-center text-xs font-bold border-0 focus:ring-0 py-1"
                                       />
                                       <button
                                         type="button"
                                         onClick={() => {
                                           const current = item.quantityRequested || 1;
-                                          handleEditSingleQtyChange(item.bookId, current + 1);
+                                          handleEditQuantityChange(item.bookId, current + 1);
                                         }}
                                         className="w-7 h-7 rounded-sm border border-gray-300 bg-gray-50 hover:bg-gray-100 flex items-center justify-center font-bold text-gray-700"
                                       >
@@ -2035,7 +2215,7 @@ export default function ExhibitionsPage() {
               {/* Footer */}
               <div className="px-4 py-3 sm:px-6 sm:py-4 border-t border-gray-200 bg-gray-50 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
                 <div className="text-xs text-gray-500 text-center sm:text-left">
-                  Total Titles: <strong className="text-gray-900">{editCart.length}</strong> • Total Copies: <strong className="text-gray-900">{editCart.reduce((acc, curr) => acc + (Number(curr.quantityRequested) || 0), 0)}</strong>
+                  Total Titles: <strong className="text-gray-900">{editCart.length}</strong> â€¢ Total Copies: <strong className="text-gray-900">{editCart.reduce((acc, curr) => acc + (Number(curr.quantityRequested) || 0), 0)}</strong>
                 </div>
 
                 <div className="flex items-center space-x-2 sm:space-x-3 w-full sm:w-auto justify-end">
@@ -2135,7 +2315,7 @@ export default function ExhibitionsPage() {
                 {/* Stock Allocation Table */}
                 <div className="border border-[#7e2562]/10 rounded-sm overflow-x-auto shadow-xs">
                   <table className="min-w-[650px] w-full divide-y divide-gray-200">
-                    <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562]   tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap sticky top-0 z-10">
+                    <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562]   tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap ">
                       <tr>
                         <th className="px-4 py-3 text-left w-1/4">Book Title & ISBN</th>
                         <th className="px-4 py-3 text-left w-1/2">Stock Source & Allocation</th>
@@ -2338,7 +2518,7 @@ export default function ExhibitionsPage() {
                                     </span>
                                   ) : isFulfilledOrExceeded ? (
                                     <span className="text-[10px] text-emerald-600 font-bold mt-1 inline-flex items-center gap-0.5 whitespace-nowrap">
-                                      ✓ {isExceeded ? `Exceeds req (${reqQty})` : `Fulfills req (${reqQty})`}
+                                      âœ“ {isExceeded ? `Exceeds req (${reqQty})` : `Fulfills req (${reqQty})`}
                                     </span>
                                   ) : (
                                     <span className="text-[10px] text-amber-600 font-semibold mt-1 whitespace-nowrap">
@@ -2383,7 +2563,7 @@ export default function ExhibitionsPage() {
                                     </span>
                                   ) : isFulfilledOrExceeded ? (
                                     <span className="text-[10px] text-emerald-600 font-bold mt-1 inline-flex items-center gap-0.5 whitespace-nowrap">
-                                      ✓ {isExceeded ? `Exceeds req (${reqQty})` : `Fulfills req (${reqQty})`}
+                                      âœ“ {isExceeded ? `Exceeds req (${reqQty})` : `Fulfills req (${reqQty})`}
                                     </span>
                                   ) : (
                                     <span className="text-[10px] text-amber-600 font-semibold mt-1 whitespace-nowrap">
@@ -2542,19 +2722,19 @@ export default function ExhibitionsPage() {
                     {viewingExhibitionHistory.name || viewingExhibitionHistory.eventName}
                   </h3>
                   <p className="text-xs text-gray-500 mt-1">
-                    Location: <strong className="text-gray-700">{viewingExhibitionHistory.location}</strong> • 
+                    Location: <strong className="text-gray-700">{viewingExhibitionHistory.location}</strong> â€¢ 
                     Source: <strong className="text-gray-700">{viewingExhibitionHistory.branch?.name || viewingExhibitionHistory.sourceBranchName}</strong>
                   </p>
                 </div>
                 <div className="flex items-center gap-2 self-end sm:self-auto">
-                  {viewingExhibitionHistory.status !== 'CLOSED' && viewingExhibitionHistory.status !== 'REJECTED' && (
+                  {/* {viewingExhibitionHistory.status !== 'CLOSED' && viewingExhibitionHistory.status !== 'REJECTED' && (
                     <button
                       onClick={() => handleOpenEdit(viewingExhibitionHistory)}
                       className="inline-flex items-center px-3 py-1.5 text-xs font-semibold text-[#7e2562] bg-[#faedf5] hover:bg-[#f6dbe9] border border-[#7e2562]/20 rounded-sm transition-colors shadow-xs"
                     >
                       <Pencil className="w-3.5 h-3.5 mr-1" /> Edit Exhibition & Stock
                     </button>
-                  )}
+                  )} */}
                   <button 
                     onClick={() => setViewingExhibitionHistory(null)}
                     className="p-1.5 hover:bg-slate-100 rounded-sm text-slate-400 hover:text-slate-600 transition"
@@ -2599,11 +2779,11 @@ export default function ExhibitionsPage() {
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                         <div className="bg-[#f0fbf5] border border-[#3cb976]/20 rounded-sm p-3 sm:p-4 flex flex-col">
                           <span className="text-[10px] font-bold text-[#3cb976]   tracking-wider">Total Cash/UPI Revenue</span>
-                          <strong className="text-lg sm:text-xl text-emerald-800 mt-1">₹{Number(historyData.metrics.totalRevenue).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
+                          <strong className="text-lg sm:text-xl text-emerald-800 mt-1">â‚¹{Number(historyData.metrics.totalRevenue).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
                         </div>
                         <div className="bg-amber-50/70 border border-amber-200 rounded-sm p-3 sm:p-4 flex flex-col">
                           <span className="text-[10px] font-bold text-amber-700   tracking-wider">Total Credit Sales Amount</span>
-                          <strong className="text-lg sm:text-xl text-amber-900 mt-1">₹{Number(historyData.metrics.totalCreditAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
+                          <strong className="text-lg sm:text-xl text-amber-900 mt-1">â‚¹{Number(historyData.metrics.totalCreditAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
                         </div>
                         <div className="bg-[#faedf5] border border-[#7e2562]/20 rounded-sm p-3 sm:p-4 flex flex-col">
                           <span className="text-[10px] font-bold text-[#7e2562]   tracking-wider">Books Sold (From Invoices)</span>
@@ -2688,7 +2868,7 @@ export default function ExhibitionsPage() {
                                        )}
                                      </td>
                                     <td className="px-4 py-2.5 text-slate-400">{new Date(bill.createdAt).toLocaleString()}</td>
-                                    <td className="px-4 py-2.5 text-right font-bold text-slate-800">₹{Number(bill.totalAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                    <td className="px-4 py-2.5 text-right font-bold text-slate-800">â‚¹{Number(bill.totalAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
                                   </tr>
                                 ))}
                               </tbody>
@@ -2768,4 +2948,5 @@ export default function ExhibitionsPage() {
     </div>
   );
 }
+
 
