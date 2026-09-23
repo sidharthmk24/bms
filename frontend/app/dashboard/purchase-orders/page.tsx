@@ -253,6 +253,13 @@ export default function PurchaseOrdersPage() {
       return;
     }
 
+    for (const item of cart) {
+      if (item.isPmsBook && item.pmsTitle?.printQuantity > 0 && item.quantity > item.pmsTitle.printQuantity) {
+        alert("You can't select more than the printed quantity");
+        return;
+      }
+    }
+
     const totalQty = cart.reduce((acc, i) => acc + i.quantity, 0);
     const totalEstCost = cart.reduce((acc, i) => acc + (i.quantity * i.unitCost), 0);
     const isEdit = !!editingPO;
@@ -1212,7 +1219,10 @@ export default function PurchaseOrdersPage() {
                           if (isKairaliSupplier) {
                             const pmsBook = (pmsTitles || []).find((b: any) => b.pmsTitleId === val);
                             if (pmsBook) {
-                              setCostInput(pmsBook.costPrice || 0);
+                              setCostInput(pmsBook.price || pmsBook.costPrice || 0);
+                              if (pmsBook.printQuantity > 0) {
+                                setQtyInput(pmsBook.printQuantity);
+                              }
                             } else {
                               setCostInput(0);
                             }
@@ -1235,7 +1245,7 @@ export default function PurchaseOrdersPage() {
                               label: b.title + (b.titleMl ? ` (${b.titleMl})` : ''),
                               isbn: b.isbn,
                               barcode: b.isbn,
-                              sublabel: `Author: ${b.authorName || 'N/A'} • ISBN: ${b.isbn || 'N/A'} • MRP: ₹${b.price} • Print Cost: ₹${b.costPrice} • Printed Stock: ${b.pmsStock}`,
+                              sublabel: `Author: ${b.authorName || 'N/A'} • ISBN: ${b.isbn || 'N/A'} • Agreed Contract MRP: ₹${b.price} • PMS Print Run: ${b.printQuantity ? `${b.printQuantity.toLocaleString()} copies` : 'Pending'} • Stock: ${b.pmsStock}`,
                             };
                           }
                           return {
@@ -1247,10 +1257,61 @@ export default function PurchaseOrdersPage() {
                           };
                         })}
                       />
+                      {isKairaliSupplier && bookInput && (() => {
+                        const pmsBook = (pmsTitles || []).find((b: any) => b.pmsTitleId === bookInput);
+                        if (!pmsBook) return null;
+                        return (
+                          <div className="mt-2 flex items-center justify-between gap-2 p-2 rounded-sm bg-[#faedf5] border border-[#7e2562]/20 text-xs text-[#7e2562]">
+                            <div className="flex items-center gap-1.5">
+                              <PackageCheck className="w-3.5 h-3.5 text-[#7e2562] shrink-0" />
+                              <span>
+                                <strong>PMS Print Run Quantity:</strong> {pmsBook.printQuantity ? `${pmsBook.printQuantity.toLocaleString()} copies` : 'Pending in PMS'}
+                                {pmsBook.authorCopiesQty > 0 ? ` (Author Free Copies: ${pmsBook.authorCopiesQty})` : ''}
+                              </span>
+                            </div>
+                            {pmsBook.printQuantity > 0 && qtyInput !== pmsBook.printQuantity && (
+                              <button
+                                type="button"
+                                onClick={() => setQtyInput(pmsBook.printQuantity)}
+                                className="px-2 py-0.5 text-[10px] font-bold text-white bg-[#7e2562] hover:bg-[#681b50] rounded-sm transition-all cursor-pointer shrink-0"
+                              >
+                                Set {pmsBook.printQuantity} Copies
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                     <div>
-                      <label className="block text-xs font-bold   tracking-wider text-neutral-600 mb-1">Quantity</label>
-                      <input type="number" min="1" value={qtyInput} onChange={e => setQtyInput(Number(e.target.value))} placeholder="e.g. 50" className="w-28 block px-3 py-2 border border-[#7e2562]/20 rounded-sm text-xs text-neutral-900 bg-white focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562] outline-none font-semibold" />
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-bold tracking-wider text-neutral-600">Quantity</label>
+                      </div>
+                      <input 
+                        type="number" 
+                        min="1" 
+                        value={qtyInput} 
+                        onChange={e => setQtyInput(Number(e.target.value))} 
+                        placeholder="e.g. 50" 
+                        className={`w-28 block px-3 py-2 border rounded-sm text-xs font-semibold outline-none ${
+                          isKairaliSupplier && bookInput && (() => {
+                            const pmsBook = (pmsTitles || []).find((b: any) => b.pmsTitleId === bookInput);
+                            return pmsBook?.printQuantity > 0 && qtyInput > pmsBook.printQuantity;
+                          })()
+                            ? "border-red-500 bg-red-50 text-red-900 focus:ring-1 focus:ring-red-500"
+                            : "border-[#7e2562]/20 text-neutral-900 bg-white focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]"
+                        }`} 
+                      />
+                      {isKairaliSupplier && bookInput && (() => {
+                        const pmsBook = (pmsTitles || []).find((b: any) => b.pmsTitleId === bookInput);
+                        if (pmsBook?.printQuantity > 0 && qtyInput > pmsBook.printQuantity) {
+                          return (
+                            <p className="text-[11px] font-bold text-red-600 mt-1 animate-pulse">
+                              You can't select more than the printed quantity
+                            </p>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
                     <div>
                       <div className="flex items-center justify-between mb-1">
@@ -1262,17 +1323,32 @@ export default function PurchaseOrdersPage() {
                         readOnly 
                         disabled 
                         value={`₹ ${Number(costInput).toFixed(2)}`} 
-                        title={isKairaliSupplier ? "Unit cost is fixed to PMS printing unit cost" : "Unit cost is fixed to this book's catalog cost price"}
+                        title={isKairaliSupplier ? "Unit cost is set to agreed Book MRP from PMS contract" : "Unit cost is fixed to this book's catalog cost price"}
                         className="w-32 block px-3 py-2 border border-[#7e2562]/15 rounded-sm text-xs text-neutral-700 bg-neutral-100 cursor-not-allowed font-semibold outline-none select-none font-mono" 
                       />
                     </div>
                     <button 
                       type="button"
-                      disabled={!bookInput || qtyInput <= 0}
+                      disabled={
+                        !bookInput || 
+                        qtyInput <= 0 || 
+                        Boolean(
+                          isKairaliSupplier && 
+                          bookInput && 
+                          (() => {
+                            const pmsBook = (pmsTitles || []).find((b: any) => b.pmsTitleId === bookInput);
+                            return pmsBook?.printQuantity > 0 && qtyInput > pmsBook.printQuantity;
+                          })()
+                        )
+                      }
                       onClick={() => {
                         if (bookInput && qtyInput > 0) {
                           if (isKairaliSupplier) {
                             const pmsBook = (pmsTitles || []).find((b: any) => b.pmsTitleId === bookInput);
+                            if (pmsBook && pmsBook.printQuantity > 0 && qtyInput > pmsBook.printQuantity) {
+                              alert("You can't select more than the printed quantity");
+                              return;
+                            }
                             setCart([...cart, { 
                               isPmsBook: true,
                               pmsTitle: pmsBook,
@@ -1503,8 +1579,15 @@ export default function PurchaseOrdersPage() {
                               </span>
                             )}
                           </div>
-                          {item.pmsTitle?.isbn && (
-                            <div className="text-[11px] text-[#3cb976] font-mono">ISBN: {item.pmsTitle.isbn} • Author: {item.pmsTitle.authorName}</div>
+                          {item.pmsTitle && (
+                            <div className="text-[11px] text-[#3cb976] font-mono">
+                              ISBN: {item.pmsTitle.isbn || 'N/A'} • Author: {item.pmsTitle.authorName || 'N/A'}
+                              {item.pmsTitle.printQuantity > 0 && (
+                                <span className="ml-2 text-[#7e2562] font-bold">
+                                  • PMS Print Run: {item.pmsTitle.printQuantity.toLocaleString()} copies
+                                </span>
+                              )}
+                            </div>
                           )}
                           {item.newBook?.isbn && (
                             <div className="text-[11px] text-neutral-500 font-mono">ISBN: {item.newBook.isbn}</div>

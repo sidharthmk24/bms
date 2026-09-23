@@ -1,4 +1,5 @@
 import 'server-only';
+// @ts-ignore
 import { Pool } from 'pg';
 
 export interface PmsTitle {
@@ -15,6 +16,8 @@ export interface PmsTitle {
   binding: string | null;
   authorName: string | null;
   pmsStock: number;
+  printQuantity: number;
+  authorCopiesQty: number;
   productionStatus: string | null;
   warehouseReceivedQty: number;
   printCompletedAt: string | null;
@@ -59,17 +62,18 @@ export class PmsIntegrationService {
           a.name AS author_name,
           p.status AS production_status,
           COALESCE(p.warehouse_received_qty, 0) AS warehouse_received_qty,
+          COALESCE((SELECT pj.qty FROM kairali_pms.print_jobs pj WHERE pj.id = p.print_job_id OR pj.title_id = t.id ORDER BY pj.created_at DESC LIMIT 1), 0) AS print_quantity,
+          COALESCE(p.author_copies_qty, 0) AS author_copies_qty,
           p.print_completed_at
         FROM kairali_pms.titles t
         LEFT JOIN kairali_pms.authors a ON t.author_id = a.id
         LEFT JOIN kairali_pms.production_projects p ON p.title_id = t.id
-        WHERE p.status = 'completed' OR t.status = 'active'
         ORDER BY t.created_at DESC
       `;
 
       const res = await client.query(query);
 
-      return res.rows.map((row) => {
+      return res.rows.map((row: any) => {
         const mrp = Number(row.mrp_paise || 0) / 100;
         let cost = Number(row.unit_cost_paise || 0) / 100;
         if (!cost && mrp > 0) {
@@ -90,6 +94,8 @@ export class PmsIntegrationService {
           binding: row.binding || 'Paperback',
           authorName: row.author_name || 'Unknown',
           pmsStock: Number(row.pms_stock || 0),
+          printQuantity: Number(row.print_quantity || 0),
+          authorCopiesQty: Number(row.author_copies_qty || 0),
           productionStatus: row.production_status || null,
           warehouseReceivedQty: Number(row.warehouse_received_qty || 0),
           printCompletedAt: row.print_completed_at || null,
