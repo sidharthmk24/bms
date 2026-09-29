@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Tent, Calendar, MapPin, Search, Package, Book, CheckCircle, XCircle, Eye, ArchiveRestore, Pencil } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
 
 export function BranchInventoryExhibitionsView({ 
   exhibitions, 
@@ -12,6 +13,7 @@ export function BranchInventoryExhibitionsView({
   user: any,
   onEditExhibition?: (ex: any) => void 
 }) {
+  const { enterExhibitionMode } = useAuth();
   const [viewingExhibition, setViewingExhibition] = useState<any | null>(null);
   const [activeTab, setActiveTab] = useState<'ACTIVE' | 'PAST'>('ACTIVE');
 
@@ -192,26 +194,44 @@ export function BranchInventoryExhibitionsView({
                 </div>
                 <div className="flex space-x-3 items-center">
                   {(ex.status === 'ONGOING' || ex.status === 'OVERDUE') && (
-                    <button 
-                      onClick={(e) => { 
-                        e.stopPropagation(); 
-                        setClosingExhibition(ex);
-                        setReconciliation(ex.stock.map((s: any) => ({
-                          stockId: s.id,
-                          title: s.book?.title,
-                          quantityTaken: s.quantityTaken,
-                          quantitySold: s.quantityTaken, // Default assume all sold
-                          quantityReturned: 0,
-                          quantityDamaged: 0,
-                          quantityLost: 0,
-                          quantityCredit: 0
-                        })));
-                      }} 
-                      className="inline-flex items-center px-3 py-1.5 text-xs font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-sm shadow-xs transition-colors active:scale-95 ml-3"
-                    >
-                      <ArchiveRestore className="w-3.5 h-3.5 mr-1.5" />
-                      Close & Reconcile
-                    </button>
+                    <>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          enterExhibitionMode({
+                            id: ex.id,
+                            name: ex.name || ex.eventName,
+                            location: ex.location,
+                            role: ex.assignments?.find((a: any) => a.userId === user?.id)?.role || 'LEAD',
+                          });
+                          window.location.href = `/dashboard/exhibitions/${ex.id}`;
+                        }}
+                        className="inline-flex items-center px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-sm shadow-xs transition-all active:scale-95"
+                      >
+                        <Tent className="w-3.5 h-3.5 mr-1.5" />
+                        Open Live Workspace
+                      </button>
+                      <button 
+                        onClick={(e) => { 
+                          e.stopPropagation(); 
+                          setClosingExhibition(ex);
+                          setReconciliation(ex.stock.map((s: any) => ({
+                            stockId: s.id,
+                            title: s.book?.title,
+                            quantityTaken: s.quantityTaken,
+                            quantitySold: s.quantityTaken, // Default assume all sold
+                            quantityReturned: 0,
+                            quantityDamaged: 0,
+                            quantityLost: 0,
+                            quantityCredit: 0
+                          })));
+                        }} 
+                        className="inline-flex items-center px-3 py-1.5 text-xs font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-sm shadow-xs transition-colors active:scale-95"
+                      >
+                        <ArchiveRestore className="w-3.5 h-3.5 mr-1.5" />
+                        Close & Reconcile
+                      </button>
+                    </>
                   )}
                   {ex.status !== 'REQUESTED' && ex.status !== 'ONGOING' && <span className="text-gray-400 text-xs">ID: {ex.id.substring(0, 8)}</span>}
                 </div>

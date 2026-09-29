@@ -20,7 +20,7 @@ import { DataSource } from 'typeorm';
  */
 export async function generateBillNumber(
   dataSource: DataSource,
-  branchCode: string,
+  codeOrPrefix: string,
   transactionManager?: any,
 ): Promise<string> {
   const today = new Date();
@@ -30,16 +30,13 @@ export async function generateBillNumber(
   const day = String(today.getUTCDate()).padStart(2, '0');
   
   const dateStr = `${year}${month}${day}`;
-  const prefix = `${branchCode}-${dateStr}-`;
+  const prefix = `${codeOrPrefix}-${dateStr}-`;
 
-  // Count bills for this specific prefix. This is 100% robust against DB timezone 
-  // differences because we only care about how many bills have this exact prefix.
+  // Count bills with this specific prefix for today
   const manager = transactionManager || dataSource.manager;
   const [{ count }] = await manager.query(
-    `SELECT COUNT(*) AS count FROM bill
-     WHERE branch_id = (SELECT id FROM branch WHERE code = ? LIMIT 1)
-       AND bill_number LIKE ?`,
-    [branchCode, `${prefix}%`],
+    `SELECT COUNT(*) AS count FROM bill WHERE bill_number LIKE ?`,
+    [`${prefix}%`],
   );
 
   const sequence = String(Number(count) + 1).padStart(4, '0');

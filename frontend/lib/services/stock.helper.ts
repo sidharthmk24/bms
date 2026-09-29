@@ -10,6 +10,8 @@ export type StockMovementType =
   | 'TRANSFER_IN'
   | 'EXHIBITION_OUT'
   | 'EXHIBITION_RETURN'
+  | 'EXHIBITION_TOP_UP'
+  | 'EXHIBITION_CREDIT'
   | 'PURCHASE_RECEIPT'
   | 'ADJUSTMENT'
   | 'CREDIT_OUT';
@@ -154,6 +156,74 @@ export async function incrementCentralStock(
   );
 }
 
+export async function decrementExhibitionStock(
+  queryRunner: QueryRunner,
+  exhibitionId: string,
+  bookId: string,
+  quantity: number,
+): Promise<void> {
+  const result = await queryRunner.manager.query(
+    `UPDATE exhibition_stock
+     SET quantity_sold = quantity_sold + ?
+     WHERE exhibition_id = ? AND book_id = ? 
+       AND (quantity_taken + quantity_top_up - quantity_sold - quantity_credit - quantity_returned - quantity_damaged - quantity_lost) >= ?`,
+    [quantity, exhibitionId, bookId, quantity],
+  );
+
+  const header = Array.isArray(result) ? result[0] : result;
+  if (!header || header.affectedRows === 0) {
+    throw new ConflictException('INSUFFICIENT_STOCK');
+  }
+}
+
+export async function restoreExhibitionStock(
+  queryRunner: QueryRunner,
+  exhibitionId: string,
+  bookId: string,
+  quantity: number,
+): Promise<void> {
+  await queryRunner.manager.query(
+    `UPDATE exhibition_stock
+     SET quantity_sold = GREATEST(0, quantity_sold - ?)
+     WHERE exhibition_id = ? AND book_id = ?`,
+    [quantity, exhibitionId, bookId],
+  );
+}
+
+export async function decrementExhibitionCreditStock(
+  queryRunner: QueryRunner,
+  exhibitionId: string,
+  bookId: string,
+  quantity: number,
+): Promise<void> {
+  const result = await queryRunner.manager.query(
+    `UPDATE exhibition_stock
+     SET quantity_credit = quantity_credit + ?
+     WHERE exhibition_id = ? AND book_id = ? 
+       AND (quantity_taken + quantity_top_up - quantity_sold - quantity_credit - quantity_returned - quantity_damaged - quantity_lost) >= ?`,
+    [quantity, exhibitionId, bookId, quantity],
+  );
+
+  const header = Array.isArray(result) ? result[0] : result;
+  if (!header || header.affectedRows === 0) {
+    throw new ConflictException('INSUFFICIENT_STOCK');
+  }
+}
+
+export async function restoreExhibitionCreditStock(
+  queryRunner: QueryRunner,
+  exhibitionId: string,
+  bookId: string,
+  quantity: number,
+): Promise<void> {
+  await queryRunner.manager.query(
+    `UPDATE exhibition_stock
+     SET quantity_credit = GREATEST(0, quantity_credit - ?)
+     WHERE exhibition_id = ? AND book_id = ?`,
+    [quantity, exhibitionId, bookId],
+  );
+}
+
 export async function writeStockMovement(
   queryRunner: QueryRunner,
   opts: {
@@ -189,3 +259,4 @@ export async function writeStockMovement(
     ],
   );
 }
+

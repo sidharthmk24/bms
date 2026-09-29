@@ -12,6 +12,11 @@ import { BookEnquiry } from "../api-backend/enquiries/entities/book-enquiry.enti
 import { NewTitleRequest } from "../api-backend/enquiries/entities/new-title-request.entity";
 import { ExhibitionStock } from "../api-backend/exhibitions/entities/exhibition-stock.entity";
 import { Exhibition } from "../api-backend/exhibitions/entities/exhibition.entity";
+import { ExhibitionAssignment } from "../api-backend/exhibitions/entities/exhibition-assignment.entity";
+import { ExhibitionStockSource } from "../api-backend/exhibitions/entities/exhibition-stock-source.entity";
+import { ExhibitionStockRequest } from "../api-backend/exhibitions/entities/exhibition-stock-request.entity";
+import { ExhibitionStockRequestItem } from "../api-backend/exhibitions/entities/exhibition-stock-request-item.entity";
+import { ExhibitionDayClose } from "../api-backend/exhibitions/entities/exhibition-day-close.entity";
 import { CashReconciliation } from "../api-backend/finance/entities/cash-reconciliation.entity";
 import { ExpenseRevision } from "../api-backend/finance/entities/expense-revision.entity";
 import { Expense } from "../api-backend/finance/entities/expense.entity";
@@ -47,6 +52,11 @@ export const entities = [
   NewTitleRequest,
   ExhibitionStock,
   Exhibition,
+  ExhibitionAssignment,
+  ExhibitionStockSource,
+  ExhibitionStockRequest,
+  ExhibitionStockRequestItem,
+  ExhibitionDayClose,
   CashReconciliation,
   ExpenseRevision,
   Expense,

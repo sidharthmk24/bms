@@ -21,9 +21,16 @@ import { JwtPayload } from '../auth/jwt';
 import { UserRole } from '../api-backend/users/enums/user-role.enum';
 import { NotificationsService } from './notifications.service';
 import { generateBillNumber } from '../api-backend/common/helpers/bill-number.helper';
+import { CreditCopy, CreditCopyReason } from '../api-backend/credit-copies/entities/credit-copy.entity';
+import { ExhibitionDayClose } from '../api-backend/exhibitions/entities/exhibition-day-close.entity';
+import { canAccessExhibition } from './exhibition-access.helper';
 import {
   decrementBranchStock,
   incrementBranchStock,
+  decrementExhibitionStock,
+  restoreExhibitionStock,
+  decrementExhibitionCreditStock,
+  restoreExhibitionCreditStock,
   writeStockMovement,
 } from './stock.helper';
 
@@ -69,21 +76,30 @@ export class BillingService {
     currentUser: JwtPayload,
     ipAddress: string,
   ): Promise<Bill> {
-    // 1. Resolve branch context (must be branch scoped for front-office/manager)
-    const branchId = currentUser.branchId;
-    if (!branchId) {
-      throw new BadRequestException(
-        'Chain-wide roles must perform transactions under a specific branch scope (branchId context is missing).',
-      );
+    if (dto.items.length === 0) {
+      throw new BadRequestException('Checkout must contain at least one item');
     }
 
     const { branchRepository, dataSource } = await this.getRepos();
 
-    const branch = await branchRepository.findOne({ where: { id: branchId } });
-    if (!branch) throw new NotFoundException(`Branch with ID ${branchId} not found`);
+    let exhibitionAccess: any = null;
+    let branchId = currentUser.branchId;
 
-    if (dto.items.length === 0) {
-      throw new BadRequestException('Checkout must contain at least one item');
+    if (dto.exhibitionId) {
+      exhibitionAccess = await canAccessExhibition(currentUser, dto.exhibitionId, dataSource);
+      const exh = exhibitionAccess.exhibition;
+      if (['CLOSED', 'CANCELLED', 'REJECTED'].includes(exh.status)) {
+        throw new BadRequestException(`Cannot create bill for exhibition in ${exh.status} status`);
+      }
+      branchId = branchId || exh.sourceBranchId;
+    } else {
+      if (!branchId) {
+        throw new BadRequestException(
+          'Chain-wide roles must perform transactions under a specific branch scope (branchId context is missing).',
+        );
+      }
+      const branch = await branchRepository.findOne({ where: { id: branchId } });
+      if (!branch) throw new NotFoundException(`Branch with ID ${branchId} not found`);
     }
 
     const queryRunner = dataSource.createQueryRunner();
@@ -91,40 +107,89 @@ export class BillingService {
     await queryRunner.startTransaction();
 
     try {
-      // Generate daily unique bill number inside transaction for safety
-      const billNumber = await generateBillNumber(dataSource, branch.code, queryRunner.manager);
+      // Determine bill prefix: EXH01 for exhibition, branch code for store
+      let codeOrPrefix = 'EXH01';
+      if (!dto.exhibitionId && branchId) {
+        const branch = await queryRunner.manager.findOne(Branch, { where: { id: branchId } });
+        codeOrPrefix = branch?.code || 'BR01';
+      }
+
+      const billNumber = await generateBillNumber(dataSource, codeOrPrefix, queryRunner.manager);
+
+      // Fetch threshold for credit copies
+      let threshold = 3;
+      try {
+        const thresholdRow = await queryRunner.manager.query(
+          `SELECT setting_value FROM setting WHERE setting_key = 'exhibition_credit_copy_approval_threshold' LIMIT 1`
+        );
+        if (thresholdRow && thresholdRow.length > 0) {
+          threshold = parseInt(thresholdRow[0].setting_value, 10) || 3;
+        }
+      } catch (err) {
+        // Fallback default
+      }
 
       let subTotal = 0;
       let totalCost = 0;
-      const billItemsToSave: Partial<BillItem>[] = [];
+      const preparedItems: {
+        itemDto: typeof dto.items[0];
+        book: Book;
+        unitPrice: number;
+        unitCost: number;
+        lineTotal: number;
+        isCreditCopy: boolean;
+      }[] = [];
 
-      // Validate stock availability and calculate prices
       for (const item of dto.items) {
-        // Load book inside transaction to ensure price accuracy
         const book = await queryRunner.manager.findOne(Book, {
           where: { id: item.bookId },
         }) as any;
         if (!book) throw new NotFoundException(`Book with ID ${item.bookId} not found`);
 
-        // Atomically decrement stock. Will throw INSUFFICIENT_STOCK if stock is too low.
-        await decrementBranchStock(queryRunner, branchId, item.bookId, item.quantity);
-
-        const lineTotal = Number(book.price) * item.quantity;
-        subTotal += lineTotal;
-
+        const isCredit = !!item.isCreditCopy;
         const unitCost = Number(book.costPrice || 0);
-        totalCost += unitCost * item.quantity;
 
-        billItemsToSave.push({
-          bookId: item.bookId,
-          quantity: item.quantity,
-          unitPrice: book.price,
-          unitCost: unitCost,
-          lineTotal,
-        });
+        if (isCredit) {
+          if (!item.recipient || !item.recipient.trim() || !item.reason) {
+            throw new BadRequestException('Credit copy requires recipient and reason');
+          }
+          if (item.quantity > threshold) {
+            const isLeadOrAdmin =
+              exhibitionAccess?.isLead ||
+              exhibitionAccess?.isBranchManager ||
+              exhibitionAccess?.isAdmin ||
+              hasRole(currentUser, UserRole.ADMIN) ||
+              hasRole(currentUser, UserRole.SUPER_ADMIN);
+            if (!isLeadOrAdmin) {
+              throw new ForbiddenException(
+                `Credit copy quantity (${item.quantity}) exceeds threshold (${threshold}) and requires LEAD approval`,
+              );
+            }
+          }
+          if (dto.exhibitionId) {
+            await decrementExhibitionCreditStock(queryRunner, dto.exhibitionId, item.bookId, item.quantity);
+          } else {
+            await decrementBranchStock(queryRunner, branchId!, item.bookId, item.quantity);
+          }
+
+          const lineTotal = 0;
+          subTotal += lineTotal;
+          totalCost += unitCost * item.quantity;
+          preparedItems.push({ itemDto: item, book, unitPrice: Number(book.price), unitCost, lineTotal, isCreditCopy: true });
+        } else {
+          if (dto.exhibitionId) {
+            await decrementExhibitionStock(queryRunner, dto.exhibitionId, item.bookId, item.quantity);
+          } else {
+            await decrementBranchStock(queryRunner, branchId!, item.bookId, item.quantity);
+          }
+
+          const lineTotal = Number(book.price) * item.quantity;
+          subTotal += lineTotal;
+          totalCost += unitCost * item.quantity;
+          preparedItems.push({ itemDto: item, book, unitPrice: Number(book.price), unitCost, lineTotal, isCreditCopy: false });
+        }
       }
 
-      // Validate discount
       const discount = dto.discount || 0;
       if (discount < 0) throw new BadRequestException('Discount cannot be negative');
       if (discount > subTotal) {
@@ -133,7 +198,6 @@ export class BillingService {
 
       const totalAmount = subTotal - discount;
 
-      // 2. Save Bill entity
       const newBill = queryRunner.manager.create(Bill, {
         billNumber,
         branchId,
@@ -152,28 +216,54 @@ export class BillingService {
 
       const savedBill = await queryRunner.manager.save(Bill, newBill) as any;
 
-      // 3. Save Bill Items and Stock Movements
-      for (const itemDraft of billItemsToSave) {
-        // Save item
-        const item = queryRunner.manager.create(BillItem, {
-          ...itemDraft,
+      for (const prep of preparedItems) {
+        const itemEntity = queryRunner.manager.create(BillItem, {
           billId: savedBill.id,
+          bookId: prep.itemDto.bookId,
+          quantity: prep.itemDto.quantity,
+          unitPrice: prep.unitPrice,
+          unitCost: prep.unitCost,
+          lineTotal: prep.lineTotal,
+          isCreditCopy: prep.isCreditCopy,
         }) as any;
-        await queryRunner.manager.save(BillItem, item);
+        const savedItem = await queryRunner.manager.save(BillItem, itemEntity);
 
-        // Write append-only stock movement
-        await writeStockMovement(queryRunner, {
-          bookId: item.bookId,
-          branchId,
-          type: 'SALE',
-          quantity: -item.quantity!, // negative for sale out
-          performedById: currentUser.userId,
-          referenceType: 'BILL',
-          referenceId: savedBill.id,
-        });
+        if (prep.isCreditCopy) {
+          await writeStockMovement(queryRunner, {
+            bookId: prep.itemDto.bookId,
+            branchId: dto.exhibitionId ? null : branchId,
+            type: dto.exhibitionId ? 'EXHIBITION_CREDIT' : 'CREDIT_OUT',
+            quantity: -prep.itemDto.quantity,
+            performedById: currentUser.userId,
+            referenceType: 'BILL',
+            referenceId: savedBill.id,
+          });
+
+          const creditCopyRecord = queryRunner.manager.create(CreditCopy, {
+            billItemId: savedItem.id,
+            exhibitionId: dto.exhibitionId || null,
+            branchId: branchId,
+            bookId: prep.itemDto.bookId,
+            quantity: prep.itemDto.quantity,
+            recipientName: prep.itemDto.recipient!,
+            reason: prep.itemDto.reason as CreditCopyReason,
+            issuedById: currentUser.userId,
+            approvedById: prep.itemDto.quantity > threshold ? currentUser.userId : null,
+          });
+          await queryRunner.manager.save(CreditCopy, creditCopyRecord);
+        } else {
+          await writeStockMovement(queryRunner, {
+            bookId: prep.itemDto.bookId,
+            branchId: dto.exhibitionId ? null : branchId,
+            type: 'SALE',
+            quantity: -prep.itemDto.quantity,
+            performedById: currentUser.userId,
+            referenceType: 'BILL',
+            referenceId: savedBill.id,
+          });
+        }
       }
 
-      // 4. Save Audit Log
       await queryRunner.manager.save(AuditLog, {
         userId: currentUser.userId,
         action: 'BILL_CHECKOUT',
@@ -186,11 +276,9 @@ export class BillingService {
 
       await queryRunner.commitTransaction();
 
-      // Trigger SSE signals
       this.notificationsService.triggerRefresh('stock_changed');
       this.notificationsService.triggerRefresh('bill_created');
 
-      // Fetch the full bill with items and book details to return
       const { billRepository } = await this.getRepos();
       const fullBill = await billRepository.findOne({
         where: { id: savedBill.id },
@@ -311,7 +399,25 @@ export class BillingService {
 
     if (!bill) throw new NotFoundException(`Bill with ID ${id} not found`);
 
-    this.checkBranchAccess(currentUser, bill.branchId);
+    if (bill.exhibitionId) {
+      await canAccessExhibition(currentUser, bill.exhibitionId, dataSource);
+
+      // Check if day is closed for this exhibition on date of bill
+      const billDateStr = new Date(bill.createdAt).toISOString().split('T')[0];
+      const dayCloseRows = await dataSource.query(
+        `SELECT * FROM exhibition_day_close WHERE exhibition_id = ? AND close_date = ?`,
+        [bill.exhibitionId, billDateStr],
+      );
+
+      if (dayCloseRows && dayCloseRows.length > 0) {
+        const isAdmin = hasRole(currentUser, UserRole.SUPER_ADMIN) || hasRole(currentUser, UserRole.ADMIN);
+        if (!isAdmin) {
+          throw new ForbiddenException('This exhibition day is already closed. Voiding requires Admin approval.');
+        }
+      }
+    } else {
+      this.checkBranchAccess(currentUser, bill.branchId);
+    }
 
     if (bill.status === BillStatus.VOIDED) {
       throw new ConflictException('This bill is already voided');
@@ -328,7 +434,6 @@ export class BillingService {
     try {
       const beforeState = { ...bill };
 
-      // 1. Mark bill status as VOIDED
       bill.status = BillStatus.VOIDED;
       bill.voidReason = voidReason;
       bill.voidedById = currentUser.userId;
@@ -336,15 +441,20 @@ export class BillingService {
 
       const saved = await queryRunner.manager.save(Bill, bill);
 
-      // 2. Return quantities to branch stock and append stock movements
       for (const item of bill.items) {
-        // Atomic increment
-        await incrementBranchStock(queryRunner, bill.branchId, item.bookId, item.quantity);
+        if (bill.exhibitionId) {
+          if (item.isCreditCopy) {
+            await restoreExhibitionCreditStock(queryRunner, bill.exhibitionId, item.bookId, item.quantity);
+          } else {
+            await restoreExhibitionStock(queryRunner, bill.exhibitionId, item.bookId, item.quantity);
+          }
+        } else {
+          await incrementBranchStock(queryRunner, bill.branchId, item.bookId, item.quantity);
+        }
 
-        // Write StockMovement SALE_VOID (positive quantity returned to shelf)
         await writeStockMovement(queryRunner, {
           bookId: item.bookId,
-          branchId: bill.branchId,
+          branchId: bill.exhibitionId ? null : bill.branchId,
           type: 'SALE_VOID',
           quantity: item.quantity,
           performedById: currentUser.userId,
@@ -353,7 +463,6 @@ export class BillingService {
         });
       }
 
-      // 3. Write Audit Log
       await queryRunner.manager.save(AuditLog, {
         userId: currentUser.userId,
         action: 'BILL_VOIDED',
@@ -366,7 +475,6 @@ export class BillingService {
 
       await queryRunner.commitTransaction();
 
-      // Trigger SSE signals
       this.notificationsService.triggerRefresh('stock_changed');
       this.notificationsService.triggerRefresh('bill_created');
 

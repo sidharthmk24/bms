@@ -15,15 +15,24 @@ import { Type } from 'class-transformer';
 import { PaymentStatus, PaymentMode } from '../entities/bill.entity';
 
 export class BillItemDto {
-  
   @IsUUID(4)
   @IsNotEmpty()
   bookId: string;
 
-  
   @IsInt()
   @Min(1, { message: 'Quantity must be at least 1' })
   quantity: number;
+
+  @IsOptional()
+  isCreditCopy?: boolean;
+
+  @IsString()
+  @IsOptional()
+  recipient?: string;
+
+  @IsString()
+  @IsOptional()
+  reason?: string;
 }
 
 export class CreateBillDto {

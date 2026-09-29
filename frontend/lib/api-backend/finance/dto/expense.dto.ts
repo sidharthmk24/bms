@@ -10,6 +10,10 @@ export class CreateExpenseDto {
   @IsUUID()
   branchId?: string;
 
+  @IsOptional()
+  @IsUUID()
+  exhibitionId?: string;
+
   @IsEnum(ExpenseCategory)
   category: ExpenseCategory;
 

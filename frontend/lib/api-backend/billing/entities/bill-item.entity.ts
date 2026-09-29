@@ -39,6 +39,9 @@ export class BillItem {
   @Column({ type: 'decimal', precision: 10, scale: 2, transformer: DecimalTransformer })
   lineTotal: number;
 
+  @Column({ type: 'boolean', default: false, name: 'is_credit_copy' })
+  isCreditCopy: boolean;
+
   @CreateDateColumn()
   createdAt: Date;
 }

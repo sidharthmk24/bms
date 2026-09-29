@@ -33,10 +33,13 @@ export class AuthService {
 
   async validateUser(email: string, pass: string): Promise<any> {
     const { userRepo } = await this.getRepos();
-    const user = await userRepo.findOne({
-      where: { email, isActive: true },
-      relations: ['branch', 'roles'],
-    });
+    const cleanEmail = String(email || '').trim().toLowerCase();
+    const user = await userRepo
+      .createQueryBuilder('u')
+      .leftJoinAndSelect('u.branch', 'branch')
+      .leftJoinAndSelect('u.roles', 'roles')
+      .where('LOWER(u.email) = :email AND u.isActive = :isActive', { email: cleanEmail, isActive: true })
+      .getOne();
 
     if (user && user.passwordHash && user.passwordHash !== 'PENDING_SETUP' && bcrypt.compareSync(pass, user.passwordHash)) {
       const { passwordHash, ...result } = user;
@@ -47,12 +50,18 @@ export class AuthService {
 
   async verifyEmail(email: string) {
     const { userRepo } = await this.getRepos();
-    const user = await userRepo.findOne({
-      where: { email, isActive: true },
-    });
+    const cleanEmail = String(email || '').trim().toLowerCase();
+    const user = await userRepo
+      .createQueryBuilder('u')
+      .where('LOWER(u.email) = :email', { email: cleanEmail })
+      .getOne();
 
     if (!user) {
       throw new NotFoundException('Account not found with this email address.');
+    }
+
+    if (!user.isActive) {
+      throw new BadRequestException('Your account is deactivated. Please contact an administrator.');
     }
 
     return {

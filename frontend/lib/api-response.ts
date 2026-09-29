@@ -14,15 +14,22 @@ export function apiSuccess<T>(data: T, message?: string, statusCode = 200) {
 }
 
 export function apiError(error: unknown) {
-  if (error instanceof HttpError) {
+  const isHttpErr =
+    error instanceof HttpError ||
+    (error && typeof error === 'object' && 'statusCode' in error && typeof (error as any).statusCode === 'number');
+
+  if (isHttpErr) {
+    const errObj = error as any;
+    const statusCode = errObj.statusCode || 500;
+    const name = errObj.name || 'HttpError';
     return NextResponse.json(
       {
         success: false,
-        statusCode: error.statusCode,
-        message: error.message,
-        error: error.name.replace('Exception', ''),
+        statusCode,
+        message: errObj.message,
+        error: name.replace('Exception', ''),
       },
-      { status: error.statusCode }
+      { status: statusCode }
     );
   }
 

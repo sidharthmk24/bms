@@ -1,16 +1,17 @@
 import {
   Entity, PrimaryGeneratedColumn, Column,
   CreateDateColumn, UpdateDateColumn,
-  ManyToOne, JoinColumn, Unique,
+  ManyToOne, JoinColumn, Unique, OneToMany,
 } from 'typeorm';
-import { Exhibition } from './exhibition.entity';
+import type { Exhibition } from './exhibition.entity';
 import { Book } from '../../catalog/entities/book.entity';
+import type { ExhibitionStockSource } from './exhibition-stock-source.entity';
 
 /**
  * ExhibitionStock — tracks each book taken to an exhibition.
  *
  * Reconciliation rule enforced at close:
- *   quantityTaken = quantitySold + quantityReturned + quantityDamaged + quantityLost + quantityCredit
+ *   quantityTaken + quantityTopUp = quantitySold + quantityReturned + quantityDamaged + quantityLost + quantityCredit
  *
  * The service rejects the close request if this doesn't balance.
  */
@@ -23,7 +24,7 @@ export class ExhibitionStock {
   @Column({ type: 'varchar', length: 36 })
   exhibitionId: string;
 
-  @ManyToOne(() => Exhibition, (e) => e.stock, { onDelete: 'CASCADE' })
+  @ManyToOne('Exhibition', (e: any) => e.stock, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'exhibition_id' })
   exhibition: Exhibition;
 
@@ -36,6 +37,9 @@ export class ExhibitionStock {
 
   @Column({ type: 'int' })
   quantityTaken: number;
+
+  @Column({ type: 'int', default: 0 })
+  quantityTopUp: number;
 
   @Column({ type: 'int', default: 0 })
   quantityFromBranch: number;
@@ -61,9 +65,13 @@ export class ExhibitionStock {
   @Column({ type: 'json', nullable: true })
   sourceSplits: Record<string, number> | null;
 
+  @OneToMany('ExhibitionStockSource', (src: any) => src.exhibitionStock)
+  sources: ExhibitionStockSource[];
+
   @CreateDateColumn()
   createdAt: Date;
 
   @UpdateDateColumn()
   updatedAt: Date;
 }
+

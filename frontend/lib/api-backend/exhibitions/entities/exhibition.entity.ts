@@ -5,14 +5,20 @@ import {
 } from 'typeorm';
 import { Branch } from '../../branches/entities/branch.entity';
 import { User } from '../../users/entities/user.entity';
-import { ExhibitionStock } from './exhibition-stock.entity';
+import type { ExhibitionStock } from './exhibition-stock.entity';
+import type { ExhibitionAssignment } from './exhibition-assignment.entity';
+import type { ExhibitionDayClose } from './exhibition-day-close.entity';
+import type { ExhibitionStockRequest } from './exhibition-stock-request.entity';
 
 export enum ExhibitionStatus {
+  DRAFT = 'DRAFT',
   REQUESTED = 'REQUESTED',
   APPROVED = 'APPROVED',
-  REJECTED = 'REJECTED',
+  DISPATCHED = 'DISPATCHED',
   ONGOING = 'ONGOING',
   CLOSED = 'CLOSED',
+  REJECTED = 'REJECTED',
+  CANCELLED = 'CANCELLED',
   OVERDUE = 'OVERDUE',
   EXPIRED = 'EXPIRED',
 }
@@ -45,6 +51,12 @@ export class Exhibition {
   @Column({ type: 'enum', enum: ExhibitionStatus, default: ExhibitionStatus.REQUESTED })
   status: ExhibitionStatus;
 
+  @Column({ type: 'boolean', default: false, name: 'is_overdue' })
+  isOverdue: boolean;
+
+  @Column({ type: 'boolean', default: false, name: 'is_stale' })
+  isStale: boolean;
+
   @Column({ type: 'varchar', length: 36 })
   requestedById: string;
 
@@ -69,8 +81,17 @@ export class Exhibition {
   @Column({ type: 'varchar', length: 500, nullable: true })
   rejectionReason: string | null;
 
-  @OneToMany(() => ExhibitionStock, (s) => s.exhibition)
+  @OneToMany('ExhibitionStock', (s: any) => s.exhibition)
   stock: ExhibitionStock[];
+
+  @OneToMany('ExhibitionAssignment', (a: any) => a.exhibition)
+  assignments: ExhibitionAssignment[];
+
+  @OneToMany('ExhibitionDayClose', (c: any) => c.exhibition)
+  dayCloses: ExhibitionDayClose[];
+
+  @OneToMany('ExhibitionStockRequest', (r: any) => r.exhibition)
+  stockRequests: ExhibitionStockRequest[];
 
   @CreateDateColumn()
   createdAt: Date;
@@ -78,3 +99,4 @@ export class Exhibition {
   @UpdateDateColumn()
   updatedAt: Date;
 }
+

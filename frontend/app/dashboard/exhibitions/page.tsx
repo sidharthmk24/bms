@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -10,6 +10,7 @@ import {
   AlertCircle, AlertTriangle, Eye, Pencil, Trash2, BookOpen, Warehouse, Store, Layers, GitFork, Building2,
   ChevronDown, ChevronUp
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Dropdown } from '@/components/Dropdown';
 import { BranchInventoryExhibitionsView } from './BranchInventoryExhibitionsView';
@@ -173,7 +174,7 @@ function MultiSelectBookDropdown({
                   {/* Action badge */}
                   {isSelected ? (
                     <span className="shrink-0 inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-full">
-                      âœ“ Added
+                      Added
                     </span>
                   ) : (
                     <span className="shrink-0 inline-flex items-center gap-1 text-[10px] font-bold text-[#7e2562] bg-[#faedf5] border border-[#7e2562]/20 px-2 py-0.5 rounded-full">
@@ -191,6 +192,7 @@ function MultiSelectBookDropdown({
 }
 
 export default function ExhibitionsPage() {
+  const router = useRouter();
   const { user } = useAuth();
   const confirm = useConfirm();
   const checkHasRole = (r: string) => {
@@ -1191,6 +1193,15 @@ export default function ExhibitionsPage() {
                           className="inline-flex items-center px-2.5 py-1.5 text-xs font-semibold text-white bg-[#7e2562] hover:bg-[#681b50] rounded-sm transition-colors shadow-xs"
                         >
                           <Send className="w-3.5 h-3.5 mr-1" /> Dispatch Stock
+                        </button>
+                      )}
+
+                      {(ex.status === 'ONGOING' || ex.status === 'DISPATCHED' || ex.status === 'OVERDUE') && (
+                        <button 
+                          onClick={() => router.push(`/dashboard/exhibitions/${ex.id}`)}
+                          className="inline-flex items-center px-2.5 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-sm transition-colors shadow-xs"
+                        >
+                          <Tent className="w-3.5 h-3.5 mr-1" /> Open Live Workspace
                         </button>
                       )}
 

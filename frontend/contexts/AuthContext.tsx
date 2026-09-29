@@ -4,6 +4,15 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { useRouter, usePathname } from 'next/navigation';
 
+export interface ActiveExhibition {
+  id: string;
+  name: string;
+  location: string;
+  role: 'LEAD' | 'STAFF';
+  startDate?: string;
+  endDate?: string;
+}
+
 export interface User {
   id: string;
   name: string;
@@ -26,26 +35,33 @@ export interface User {
 interface AuthContextType {
   user: User | null;
   token: string | null;
+  activeExhibition: ActiveExhibition | null;
   isLoading: boolean;
   login: (token: string) => Promise<void>;
   logout: () => void;
   impersonate: (role: string, branchId?: string) => Promise<void>;
   refreshUser: () => Promise<void>;
+  enterExhibitionMode: (exhibition: ActiveExhibition) => void;
+  exitExhibitionMode: () => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   token: null,
+  activeExhibition: null,
   isLoading: true,
   login: async () => {},
   logout: () => {},
   impersonate: async () => {},
   refreshUser: async () => {},
+  enterExhibitionMode: () => {},
+  exitExhibitionMode: () => {},
 });
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const [activeExhibition, setActiveExhibition] = useState<ActiveExhibition | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
@@ -61,12 +77,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  // Run ONCE on mount only — pathname must NOT be a dependency here.
-  // Including pathname causes initializeAuth to re-run on every navigation,
-  // which triggers a fresh /auth/me call and can race-condition the user back to /login.
   useEffect(() => {
     const initializeAuth = async () => {
       const storedToken = localStorage.getItem('token');
+      const storedExhibition = localStorage.getItem('activeExhibition');
+      if (storedExhibition) {
+        try {
+          setActiveExhibition(JSON.parse(storedExhibition));
+        } catch (_) {}
+      }
+
       if (storedToken) {
         try {
           const res = await api.get('/auth/me');
@@ -81,8 +101,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           // Token is stale — clear it NOW so the login page starts fresh
           localStorage.removeItem('token');
           localStorage.removeItem('refreshToken');
+          localStorage.removeItem('activeExhibition');
           setToken(null);
           setUser(null);
+          setActiveExhibition(null);
           if (window.location.pathname !== '/login') {
             router.push('/login');
           }
@@ -97,7 +119,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     initializeAuth();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Empty deps = run once on mount only
+  }, []);
 
   const login = async (newToken: string) => {
     localStorage.setItem('token', newToken);
@@ -120,10 +142,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       // Ignore errors on logout
     } finally {
       localStorage.removeItem('token');
+      localStorage.removeItem('activeExhibition');
       setToken(null);
       setUser(null);
+      setActiveExhibition(null);
       router.push('/login');
     }
+  };
+
+  const enterExhibitionMode = (exhibition: ActiveExhibition) => {
+    setActiveExhibition(exhibition);
+    localStorage.setItem('activeExhibition', JSON.stringify(exhibition));
+  };
+
+  const exitExhibitionMode = () => {
+    setActiveExhibition(null);
+    localStorage.removeItem('activeExhibition');
   };
 
   const impersonate = async (role: string, branchId?: string) => {
@@ -155,7 +189,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, login, logout, impersonate, refreshUser }}>
+    <AuthContext.Provider value={{
+      user, token, activeExhibition, isLoading,
+      login, logout, impersonate, refreshUser,
+      enterExhibitionMode, exitExhibitionMode
+    }}>
       {children}
     </AuthContext.Provider>
   );

@@ -99,30 +99,27 @@ export default function TransferDetailsModal({ transferId, isOpen, onClose, onSu
           try {
             const res = await api.get(`/transfers/stock-by-book?bookId=${bId}`);
             if (res.success && res.data) {
-              stocksMap[bId] = res.data;
+              const list = Array.isArray(res.data) ? res.data : (res.data.items || []);
+              stocksMap[bId] = list;
 
-              // Pre-fill allocation for current source branch or available warehouse
-              const availableSources = (res.data || []).filter((s: any) => s.branchId !== currentTransfer?.toBranchId);
-              const currentSrc = availableSources.find((s: any) => s.branchId === currentTransfer?.fromBranchId);
-              const initBranchMap: { [bId: string]: number } = {};
-
-              if (currentSrc && currentSrc.quantity > 0) {
-                initBranchMap[currentSrc.branchId] = Math.min(reqQty, currentSrc.quantity);
-              } else if (availableSources.length === 1) {
-                initBranchMap[availableSources[0].branchId] = Math.min(reqQty, availableSources[0].quantity);
+              // Pre-fill allocation for primary source branch if stock is available
+              allocationsMap[bId] = {};
+              const sourceBranchId = currentTransfer.fromBranchId;
+              const sourceStockObj = list.find((s: any) => s.branchId === sourceBranchId);
+              if (sourceStockObj && sourceStockObj.quantity > 0) {
+                allocationsMap[bId][sourceBranchId] = Math.min(sourceStockObj.quantity, reqQty);
               }
-              allocationsMap[bId] = initBranchMap;
             }
           } catch (e) {
-            console.error(`Failed to fetch stock for book ${bId}:`, e);
+            console.error(`Failed stock check for book ${bId}`, e);
           }
         })
       );
 
       setBookStocks(stocksMap);
       setSplitAllocations(allocationsMap);
-    } catch (e) {
-      console.error('Failed to fetch routing stock for items:', e);
+    } catch (err) {
+      console.error('Failed to fetch stocks for routing', err);
     } finally {
       setLoadingRoutingStocks(false);
     }
@@ -130,91 +127,88 @@ export default function TransferDetailsModal({ transferId, isOpen, onClose, onSu
 
   useEffect(() => {
     if (isOpen && transferId) {
+      fetchTransferDetails();
+      fetchBranches();
       setRejectMode(false);
       setRejectionNote('');
       setIsRoutingOpen(false);
-      setSplitAllocations({});
-      fetchBranches();
-      fetchTransferDetails();
+      setFulfillmentMode('FULL');
+    } else {
+      setTransfer(null);
     }
   }, [isOpen, transferId]);
 
-  const handleSaveRoute = async () => {
-    if (!selectedRouteSource || !transfer) return;
-    if (selectedRouteSource === transfer.toBranchId) {
-      setError('Source branch cannot be the same as destination branch.');
-      return;
-    }
-
-    setActionLoading(true);
-    setError(null);
-
-    try {
-      const res = await api.patch(`/transfers/${transfer.id}`, {
-        fromBranchId: selectedRouteSource,
-      });
-      if (res.success && res.data) {
-        setTransfer(res.data);
-        onSuccess(res.data);
-        setIsRoutingOpen(false);
-      }
-    } catch (err: any) {
-      setError(err.response?.data?.message || err.message || 'Failed to re-route transfer source.');
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleSplitSubmit = async (dispatchNow = false) => {
+  // Submit Multi-Source Stock Allocation
+  const handleSplitSubmit = async (overrideConfirm = false) => {
     if (!transfer) return;
 
-    const allocations: Array<{ branchId: string; quantity: number; bookId: string }> = [];
-    Object.entries(splitAllocations).forEach(([bId, branchMap]) => {
-      Object.entries(branchMap || {}).forEach(([branchId, qty]) => {
-        if (branchId !== transfer.toBranchId && Number(qty) > 0) {
-          allocations.push({
-            branchId,
-            quantity: Number(qty),
-            bookId: bId,
-          });
-        }
+    const allocationsList: { bookId: string; allocations: { branchId: string; quantity: number }[] }[] = [];
+    let grandTotalAllocated = 0;
+    let totalRequestedAcrossAll = 0;
+
+    transfer.items?.forEach((item: any) => {
+      const reqQty = Number(item.quantityRequested || 0);
+      totalRequestedAcrossAll += reqQty;
+      const bAllocMap = splitAllocations[item.bookId] || {};
+      
+      const allocArr = Object.entries(bAllocMap)
+        .filter(([bId, q]) => bId !== transfer.toBranchId && Number(q) > 0)
+        .map(([bId, q]) => {
+          const qty = Number(q);
+          grandTotalAllocated += qty;
+          return { branchId: bId, quantity: qty };
+        });
+
+      allocationsList.push({
+        bookId: item.bookId,
+        allocations: allocArr
       });
     });
 
-    if (allocations.length === 0) {
-      setError('Please allocate at least 1 copy from an available branch or warehouse.');
+    if (grandTotalAllocated === 0) {
+      setError('Please allocate stock from at least one source branch.');
       return;
     }
 
-    const totalAlloc = allocations.reduce((sum, a) => sum + a.quantity, 0);
+    const isPartialAllocation = grandTotalAllocated < totalRequestedAcrossAll;
 
-    const ok = await confirm({
-      title: dispatchNow ? "Confirm Multi-Branch Stock Dispatch" : "Confirm Multi-Branch Allocation",
-      message: dispatchNow
-        ? `Dispatch ${totalAlloc} copies across ${allocations.length} source allocation(s) to "${transfer.toBranch?.name}"? Stock will be deducted immediately from each source inventory.`
-        : `Save allocation for ${totalAlloc} copies across ${allocations.length} source allocation(s)?`,
-      confirmText: dispatchNow ? "Yes, Dispatch from Selected Branches" : "Yes, Save Allocation",
-      cancelText: "No, Cancel",
-      variant: "primary",
-    });
-    if (!ok) return;
+    if (!overrideConfirm) {
+      const ok = await confirm({
+        title: isPartialAllocation ? "Confirm Partial Dispatch" : "Confirm Multi-Source Allocation & Dispatch",
+        message: isPartialAllocation
+          ? `You are dispatching ${grandTotalAllocated} of ${totalRequestedAcrossAll} requested copies across selected source branches. Proceed with partial dispatch?`
+          : `Dispatch ${grandTotalAllocated} copies across selected source branches to fulfill transfer #${transfer.transferNumber}?`,
+        confirmText: isPartialAllocation ? "Yes, Dispatch Partial Stock" : "Yes, Dispatch Stock",
+        cancelText: "Cancel",
+        variant: "primary",
+      });
+      if (!ok) return;
+    }
 
     setActionLoading(true);
     setError(null);
 
+    const optimistic = { ...transfer, status: 'DISPATCHED' };
+    setTransfer(optimistic);
+    onSuccess(optimistic);
+
     try {
-      const res = await api.post(`/transfers/${transfer.id}/split`, {
-        allocations,
-        dispatchNow,
+      const response = await api.post(`/transfers/${transfer.id}/split`, {
+        items: allocationsList
       });
-      if (res.success && res.data) {
-        const primary = Array.isArray(res.data) ? res.data[0] : res.data;
-        setTransfer(primary);
-        onSuccess(primary);
+
+      if (response.success) {
+        const updated = response.data || optimistic;
+        setTransfer(updated);
+        onSuccess(updated);
         setTimeout(() => onClose(), 400);
+      } else {
+        setTransfer(transfer);
+        setError(response.message || 'Failed to dispatch multi-source transfer.');
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || err.message || 'Failed to split transfer.');
+      setTransfer(transfer);
+      setError(err.response?.data?.message || err.message || 'Failed to dispatch multi-source transfer.');
     } finally {
       setActionLoading(false);
     }
@@ -223,11 +217,19 @@ export default function TransferDetailsModal({ transferId, isOpen, onClose, onSu
   const handleDispatch = async () => {
     if (!transfer) return;
 
+    // If splitAllocations are populated, use handleSplitSubmit instead
+    const hasSplitAllocations = Object.values(splitAllocations).some((bMap) =>
+      Object.values(bMap || {}).some((q) => Number(q) > 0)
+    );
+    if (hasSplitAllocations) {
+      return handleSplitSubmit();
+    }
+
     const ok = await confirm({
-      title: "Confirm Stock Dispatch",
-      message: `Are you sure you want to dispatch transfer #${transfer.transferNumber || transfer.id.slice(0, 8)} to ${transfer.toBranch?.name || 'destination branch'}?`,
+      title: "Confirm Dispatch",
+      message: `Are you sure you want to dispatch stock for transfer #${transfer.transferNumber || transfer.id.slice(0, 8)}?`,
       confirmText: "Yes, Dispatch Stock",
-      cancelText: "No, Cancel",
+      cancelText: "Cancel",
       variant: "primary",
     });
     if (!ok) return;
@@ -235,15 +237,7 @@ export default function TransferDetailsModal({ transferId, isOpen, onClose, onSu
     setActionLoading(true);
     setError(null);
 
-    // Instant optimistic update
-    const optimistic = {
-      ...transfer,
-      status: 'DISPATCHED',
-      items: transfer.items?.map((i: any) => ({
-        ...i,
-        quantityDispatched: i.quantityRequested
-      }))
-    };
+    const optimistic = { ...transfer, status: 'DISPATCHED' };
     setTransfer(optimistic);
     onSuccess(optimistic);
 
@@ -432,8 +426,6 @@ export default function TransferDetailsModal({ transferId, isOpen, onClose, onSu
     }
   };
 
-  const router = typeof window !== 'undefined' ? require('next/navigation').useRouter?.() : null;
-
   const handleCreatePo = (bookId: string, qty: number) => {
     onClose();
     if (typeof window !== 'undefined') {
@@ -447,11 +439,6 @@ export default function TransferDetailsModal({ transferId, isOpen, onClose, onSu
   const isPartiallyFulfilled = transfer?.status === 'RECEIVED' && (
     totalReceivedQty < totalRequestedQty || (totalDispatchedQty > 0 && totalReceivedQty < totalDispatchedQty)
   );
-  const firstBook = transfer?.items?.[0];
-  const totalChainStock = Object.values(bookStocks).reduce(
-    (sum, list) => sum + (list || []).reduce((s: number, it: any) => s + Number(it.quantity || 0), 0),
-    0
-  );
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs">
@@ -460,37 +447,71 @@ export default function TransferDetailsModal({ transferId, isOpen, onClose, onSu
           initial={{ opacity: 0, scale: 0.95, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 15 }}
-          className="bg-white rounded-sm shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[92dvh] border border-[#7e2562]/15"
+          className="bg-white rounded-sm shadow-xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[92dvh] border border-[#7e2562]/15"
         >
-          {/* Header */}
-          <div className="p-4 sm:px-6 sm:py-4 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-[#faedf5]/60 to-[#faf6f9] shrink-0">
-            <div className="min-w-0 pr-2">
-              <h3 className="text-base sm:text-lg font-bold text-gray-900 flex items-center gap-2 truncate">
-                <span>Transfer Details</span>
+          {/* Header with Route & Metadata Included */}
+          <div className="p-4 sm:px-6 sm:py-4 border-b border-[#7e2562]/15 bg-[#faf6f9] shrink-0 space-y-2.5">
+            {/* Top Row: Title & Status */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <h3 className="text-base sm:text-lg font-bold text-gray-900 tracking-tight">
+                  Transfer Details
+                </h3>
+                {transfer && (
+                  <span className="text-xs font-mono font-bold text-[#7e2562] bg-white px-2 py-0.5 rounded-sm border border-[#7e2562]/20">
+                    {transfer.transferNumber}
+                  </span>
+                )}
                 {transfer && (
                   isPartiallyFulfilled ? (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 border text-xs font-bold rounded-sm bg-amber-50 text-amber-800 border-amber-300 shadow-2xs">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 border text-xs font-bold rounded-sm bg-amber-50 text-amber-800 border-amber-300">
                       <Zap className="w-3 h-3 text-amber-600" />
                       <span>Partially Fulfilled ({totalReceivedQty}/{totalRequestedQty})</span>
                     </span>
                   ) : (
-                    <span className={`px-2 py-0.5 border text-xs font-bold rounded-sm ${getStatusBadge(transfer.status)}`}>
+                    <span className={`px-2.5 py-0.5 border text-xs font-bold rounded-sm ${getStatusBadge(transfer.status)}`}>
                       {transfer.status}
                     </span>
                   )
                 )}
-              </h3>
-              {transfer && <p className="text-xs font-mono text-gray-500 mt-0.5">{transfer.transferNumber}</p>}
+              </div>
+              <button
+                onClick={onClose}
+                className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-[#faedf5] rounded-sm transition shrink-0 cursor-pointer"
+                title="Close modal"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
-            <button
-              onClick={onClose}
-              className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-[#faedf5] rounded-sm transition shrink-0 cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
+
+            {transfer && (
+              <div className="space-y-1.5 text-xs">
+                {/* Simplified Route Line */}
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-gray-700">
+                  <span className="font-semibold text-gray-500">From:</span>
+                  <strong className="text-gray-900 font-bold">{transfer.fromBranch?.name}</strong>
+                  <span className="text-gray-400 font-mono text-[11px]">({transfer.fromBranch?.code})</span>
+
+                  <ArrowRight className="w-3.5 h-3.5 text-[#7e2562] mx-1 shrink-0 inline" />
+
+                  <span className="font-semibold text-gray-500">To:</span>
+                  <strong className="text-gray-900 font-bold">{transfer.toBranch?.name}</strong>
+                  <span className="text-gray-400 font-mono text-[11px]">({transfer.toBranch?.code})</span>
+                </div>
+
+                {/* Simplified Metadata Line */}
+                <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-gray-600 text-[11.5px]">
+                  <span>Requested By: <strong className="text-gray-900">{transfer.requestedBy?.name || 'Super Admin'}</strong></span>
+                  <span className="text-gray-300">•</span>
+                  <span>Date: <strong className="text-gray-900">{new Date(transfer.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</strong></span>
+                  <span className="text-gray-300">•</span>
+                  <span>Total: <strong className="text-[#7e2562]">{transfer.items?.length} titles ({totalRequestedQty} copies)</strong></span>
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Content */}
+          {/* Body Content */}
           <div className="p-4 sm:p-6 flex-1 overflow-y-auto space-y-4 sm:space-y-5">
             {loading ? (
               <div className="py-20 flex flex-col items-center justify-center space-y-3 text-gray-400 font-medium">
@@ -504,43 +525,6 @@ export default function TransferDetailsModal({ transferId, isOpen, onClose, onSu
               </div>
             ) : transfer ? (
               <div className="space-y-4 sm:space-y-5">
-                {/* Branch route mapping */}
-                <div className="p-3 sm:p-4 bg-[#faf6f9]/60 border border-[#7e2562]/10 rounded-sm flex items-center justify-between gap-2">
-                  <div className="flex-1 text-center pr-2">
-                    <p className="text-[10px] font-bold text-[#7e2562]   tracking-wider">Fulfillment Source (From)</p>
-                    <p className="text-xs sm:text-sm font-bold text-gray-900 mt-0.5 truncate">{transfer.fromBranch?.name}</p>
-                    <span className="text-[11px] text-gray-400 font-mono">({transfer.fromBranch?.code})</span>
-                  </div>
-                  
-                  <div className="p-2 bg-[#faedf5] border border-[#7e2562]/20 rounded-sm shrink-0">
-                    <ArrowRight className="w-4 h-4 text-[#7e2562]" />
-                  </div>
-
-                  <div className="flex-1 text-center pl-2">
-                    <p className="text-[10px] font-bold text-[#7e2562]   tracking-wider">Requesting Branch (To)</p>
-                    <p className="text-xs sm:text-sm font-bold text-gray-900 mt-0.5 truncate">{transfer.toBranch?.name}</p>
-                    <span className="text-[11px] text-gray-400 font-mono">({transfer.toBranch?.code})</span>
-                  </div>
-                </div>
-
-                {/* Transfer metadata */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs bg-gray-50/70 p-3 rounded-sm border border-gray-200/70">
-                  <div>
-                    <span className="text-gray-400 block font-semibold   tracking-wider text-[10px]">Requested By</span>
-                    <span className="font-bold text-gray-900 mt-0.5 block">{transfer.requestedBy?.name || 'Branch Manager'}</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-400 block font-semibold   tracking-wider text-[10px]">Requested Date</span>
-                    <span className="font-bold text-gray-900 mt-0.5 block">
-                      {new Date(transfer.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                    </span>
-                  </div>
-                  <div className="col-span-2 sm:col-span-1">
-                    <span className="text-gray-400 block font-semibold   tracking-wider text-[10px]">Total Books</span>
-                    <span className="font-bold text-[#7e2562] mt-0.5 block">{transfer.items?.length} titles ({totalRequestedQty} copies)</span>
-                  </div>
-                </div>
-
                 {/* LINKED PURCHASE ORDER CARD (IF PO CREATED) */}
                 {transfer.purchaseOrder && (
                   <div className={`p-3.5 rounded-sm border ${
@@ -557,7 +541,7 @@ export default function TransferDetailsModal({ transferId, isOpen, onClose, onSu
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold   tracking-wider">
+                            <span className="text-xs font-bold tracking-wider">
                               Procurement Linked: PO #{transfer.purchaseOrder.orderNumber}
                             </span>
                             <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full border ${
@@ -572,17 +556,9 @@ export default function TransferDetailsModal({ transferId, isOpen, onClose, onSu
                           </div>
                           <p className="text-xs text-gray-600 mt-0.5">
                             Supplier: <strong>{transfer.purchaseOrder.supplier?.name || 'Kairali Books'}</strong>
-                            
                           </p>
                         </div>
                       </div>
-
-                      {/* <a
-                        href="/dashboard/purchase-orders"
-                        className="text-xs font-bold text-[#7e2562] hover:underline self-end sm:self-auto"
-                      >
-                        View in PO Section →
-                      </a> */}
                     </div>
 
                     {transfer.purchaseOrder.status === 'RECEIVED' && (
@@ -607,24 +583,25 @@ export default function TransferDetailsModal({ transferId, isOpen, onClose, onSu
                   }, 0);
 
                   return (
-                    <div className="p-3.5 sm:p-4 bg-[#faf6f9] border border-[#7e2562]/20 rounded-sm space-y-3.5 shadow-2xs">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#7e2562]/10 pb-2.5">
+                    <div className="space-y-4">
+                      {/* Section Header with Mode Switcher */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-[#7e2562]/10">
                         <div className="flex items-center space-x-2">
                           <Layers className="w-4 h-4 text-[#7e2562]" />
-                          <span className="text-xs font-bold text-[#7e2562] tracking-wider">
+                          <span className="text-xs font-bold text-[#7e2562] uppercase tracking-wider">
                             Central Stock Allocation & Sourcing
                           </span>
                         </div>
                         
                         {/* Full vs Partial Fulfillment Mode Toggle */}
-                        <div className="flex items-center bg-white p-0.5 border border-[#7e2562]/20 rounded-sm shadow-2xs self-start sm:self-auto">
+                        <div className="flex items-center bg-gray-100 p-0.5 rounded-sm border border-gray-200 self-start sm:self-auto">
                           <button
                             type="button"
                             onClick={() => setFulfillmentMode('FULL')}
-                            className={`px-2.5 py-1 text-[11px] font-bold rounded-sm transition cursor-pointer ${
+                            className={`px-3 py-1 text-[11px] font-bold rounded-sm transition cursor-pointer ${
                               fulfillmentMode === 'FULL'
                                 ? 'bg-[#7e2562] text-white shadow-2xs'
-                                : 'text-gray-600 hover:text-gray-900 hover:bg-[#faedf5]'
+                                : 'text-gray-600 hover:text-gray-900'
                             }`}
                           >
                             Full Fulfillment
@@ -632,10 +609,10 @@ export default function TransferDetailsModal({ transferId, isOpen, onClose, onSu
                           <button
                             type="button"
                             onClick={() => setFulfillmentMode('PARTIAL')}
-                            className={`px-2.5 py-1 text-[11px] font-bold rounded-sm transition cursor-pointer ${
+                            className={`px-3 py-1 text-[11px] font-bold rounded-sm transition cursor-pointer ${
                               fulfillmentMode === 'PARTIAL'
                                 ? 'bg-[#7e2562] text-white shadow-2xs'
-                                : 'text-gray-600 hover:text-gray-900 hover:bg-[#faedf5]'
+                                : 'text-gray-600 hover:text-gray-900'
                             }`}
                           >
                             Partial Fulfillment
@@ -643,15 +620,17 @@ export default function TransferDetailsModal({ transferId, isOpen, onClose, onSu
                         </div>
                       </div>
 
-                      {/* MULTI-BOOK TABS (IF MULTIPLE BOOKS IN TRANSFER) */}
-                      {transfer.items && transfer.items.length > 1 && (
-                        <div className="space-y-1.5">
-                          <label className="text-[12px] font-normal  tracking-wider text-gray-500 block">
-                            Select Book to View Stock & Allocate Sources ({transfer.items.length} titles requested):
+                      {/* PROMINENT BOOK SELECTION TABS WITH MERGED REQUEST & CHAIN STOCK INFO */}
+                      {transfer.items && transfer.items.length > 0 && (
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-gray-700 block">
+                            Select Book to View Stock & Allocate Sources ({transfer.items.length} {transfer.items.length === 1 ? 'title' : 'titles'}):
                           </label>
-                          <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+                          <div className="flex items-center gap-2 overflow-x-auto pb-1.5">
                             {transfer.items.map((item: any) => {
                               const isSelected = item.bookId === selectedBookId;
+                              const itemRoutingList = bookStocks[item.bookId] || [];
+                              const itemChainStock = itemRoutingList.reduce((acc: number, s: any) => acc + (s.quantity || 0), 0);
                               const itemAllocated = Object.entries(splitAllocations[item.bookId] || {}).reduce(
                                 (s, [bId, q]) => (bId === transfer.toBranchId ? s : s + (Number(q) || 0)),
                                 0
@@ -663,27 +642,35 @@ export default function TransferDetailsModal({ transferId, isOpen, onClose, onSu
                                   key={item.bookId}
                                   type="button"
                                   onClick={() => setSelectedBookId(item.bookId)}
-                                  className={`flex items-center gap-2 px-3 py-1.5 rounded-sm border text-xs font-bold transition cursor-pointer shrink-0 ${
+                                  className={`px-3.5 py-2.5 rounded-sm border text-xs transition cursor-pointer shrink-0 flex items-center gap-3 text-left ${
                                     isSelected
-                                      ? 'bg-[#7e2562] text-white border-[#7e2562] shadow-2xs'
-                                      : 'bg-white text-gray-700 border-gray-200 hover:border-[#7e2562]/30 hover:bg-[#faedf5]/40'
+                                      ? 'bg-[#7e2562] text-white border-[#7e2562] shadow-xs'
+                                      : 'bg-white text-gray-800 border-gray-200 hover:border-[#7e2562]/40 hover:bg-[#faedf5]/30'
                                   }`}
                                 >
-                                  <BookOpen className={`w-3.5 h-3.5 ${isSelected ? 'text-white' : 'text-[#7e2562]'}`} />
-                                  <span className="truncate max-w-[140px] sm:max-w-[200px]">{item.book?.title}</span>
-                                  <span
-                                    className={`px-1.5 py-0.2 rounded-xs text-[10px] font-mono ${
-                                      isSelected
-                                        ? isComplete
-                                          ? 'bg-emerald-600 text-white'
-                                          : 'bg-white/20 text-white'
-                                        : isComplete
-                                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                          : 'bg-gray-100 text-gray-600'
-                                    }`}
-                                  >
-                                    {itemAllocated}/{item.quantityRequested}
-                                  </span>
+                                  <BookOpen className={`w-4 h-4 shrink-0 ${isSelected ? 'text-white' : 'text-[#7e2562]'}`} />
+                                  <div>
+                                    <div className="font-bold truncate max-w-[160px] sm:max-w-[220px]">
+                                      {item.book?.title}
+                                    </div>
+                                    <div className="flex items-center gap-2 text-[10px] mt-0.5">
+                                      <span className={isSelected ? 'text-white/80' : 'text-gray-500'}>
+                                        Req: <strong>{item.quantityRequested}</strong>
+                                      </span>
+                                      <span className={isSelected ? 'text-white/40' : 'text-gray-300'}>•</span>
+                                      <span className={isSelected ? 'text-emerald-200' : 'text-[#3cb976] font-bold'}>
+                                        Chain: <strong>{itemChainStock}</strong>
+                                      </span>
+                                      <span className={isSelected ? 'text-white/40' : 'text-gray-300'}>•</span>
+                                      <span className={`font-mono px-1 py-0.2 rounded-xs ${
+                                        isSelected
+                                          ? isComplete ? 'bg-emerald-600 text-white' : 'bg-white/20 text-white'
+                                          : isComplete ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-700'
+                                      }`}>
+                                        Allocated: {itemAllocated}/{item.quantityRequested}
+                                      </span>
+                                    </div>
+                                  </div>
                                 </button>
                               );
                             })}
@@ -691,189 +678,170 @@ export default function TransferDetailsModal({ transferId, isOpen, onClose, onSu
                         </div>
                       )}
 
-                      {/* ACTIVE BOOK OVERVIEW CARD */}
-                      {activeItem && (
-                        <div className="p-3 bg-white rounded-sm border border-[#7e2562]/20 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                          <div className="min-w-0">
-                            <span className="text-[10px] font-bold  text-[#7e2562] tracking-wider block">
-                              Active Book Sourcing Context
-                            </span>
-                            <h4 className="text-xs font-bold text-gray-900 truncate mt-0.5">
-                              {activeItem.book?.title}
-                            </h4>
-                            {/* <div className="flex items-center gap-2 text-[11px] text-gray-500 mt-0.5">
-                              <span>Author: <strong>{activeItem.book?.author?.name || 'N/A'}</strong></span>
-                              <span>•</span>
-                              <span>ISBN: <strong className="font-mono text-gray-700">{activeItem.book?.isbn || 'N/A'}</strong></span>
-                            </div> */}
-                          </div>
-
-                          <div className="flex items-center gap-2 shrink-0 text-xs self-start sm:self-auto">
-                            <div className="px-2.5 py-1 bg-[#faedf5] border border-[#7e2562]/20 rounded-sm text-center">
-                              <span className="text-[10px] text-gray-500 block">Requested</span>
-                              <span className="font-bold text-[#7e2562]">{activeBookRequested} copies</span>
-                            </div>
-                            <div className="px-2.5 py-1 bg-emerald-50 border border-emerald-200 rounded-sm text-center">
-                              <span className="text-[10px] text-gray-500 block">Chain Stock</span>
-                              <span className="font-bold text-[#3cb976]">{activeBookTotalChainStock} copies</span>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Stock across branches preview & allocation */}
+                      {/* BRANCH SOURCING LISTED ONE BY ONE IN TABLE FORMAT */}
                       {loadingRoutingStocks ? (
                         <div className="py-6 flex items-center justify-center text-xs text-gray-500">
                           <Loader2 className="w-4 h-4 animate-spin text-[#7e2562] mr-2" />
                           Fetching real-time chain inventory for requested titles...
                         </div>
                       ) : (
-                        <div className="space-y-3">
-                          <p className="text-[11px] text-gray-500">
+                        <div className="space-y-2.5">
+                          <p className="text-xs font-semibold text-gray-700">
                             {fulfillmentMode === 'FULL'
                               ? `Select source branch(es) to fulfill all ${activeBookRequested} requested copies of "${activeItem?.book?.title}":`
                               : `Select source branch(es) to fulfill a partial allocation for "${activeItem?.book?.title}":`}
                           </p>
 
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                            {activeRoutingStocks.length === 0 ? (
-                              <div className="col-span-2 p-3 bg-amber-50 border border-amber-200 rounded-sm text-amber-900 flex items-center justify-between">
-                                <span className="text-xs font-medium">
-                                  ⚠ <strong>"{activeItem?.book?.title}"</strong> is currently <strong>out of stock</strong> across all retail branches and Central Warehouse.
-                                </span>
-                              </div>
-                            ) : (
-                              activeRoutingStocks.map((s: any) => {
-                                const isDestination = s.branchId === transfer.toBranchId;
-                                const allocatedQty = activeAllocations[s.branchId] || 0;
+                          {activeRoutingStocks.length === 0 ? (
+                            <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-sm text-amber-900 text-xs font-medium">
+                              ⚠ <strong>"{activeItem?.book?.title}"</strong> is currently <strong>out of stock</strong> across all retail branches and Central Warehouse.
+                            </div>
+                          ) : (
+                            <div className="border border-[#7e2562]/15 rounded-sm overflow-x-auto bg-white shadow-xs">
+                              <table className="min-w-[500px] w-full text-left text-xs">
+                                <thead className="bg-[#faf6f9] text-[11px] font-bold text-[#7e2562] uppercase tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
+                                  <tr>
+                                    <th className="px-4 py-2.5">Source Branch & Code</th>
+                                    <th className="px-4 py-2.5 text-center">Available Stock</th>
+                                    <th className="px-4 py-2.5 text-center">Allocate Copies</th>
+                                    <th className="px-4 py-2.5 text-right">Quick Fill</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                  {activeRoutingStocks.map((s: any) => {
+                                    const isDestination = s.branchId === transfer.toBranchId;
+                                    const allocatedQty = activeAllocations[s.branchId] || 0;
 
-                                return (
-                                  <div
-                                    key={s.branchId}
-                                    className={`p-2.5 rounded-sm border transition-all ${
-                                      isDestination
-                                        ? 'bg-gray-100/70 border-gray-200 text-gray-400 opacity-60'
-                                        : allocatedQty > 0
-                                          ? 'bg-white border-[#7e2562] shadow-xs ring-1 ring-[#7e2562]/30'
-                                          : 'bg-white border-gray-200 hover:border-gray-300 text-gray-800'
-                                    }`}
-                                  >
-                                    <div className="flex items-center justify-between gap-2">
-                                      <div className="min-w-0 pr-1">
-                                        <div className="font-bold truncate text-xs text-gray-900">
-                                          {s.branchName}
-                                          {isDestination && ' (Destination)'}
-                                        </div>
-                                        <div className="flex items-center gap-1.5 text-[10px] text-gray-500 mt-0.5">
-                                          <span className="font-mono text-gray-400">{s.branchCode}</span>
-                                          <span>•</span>
-                                          <span>
-                                            In stock: <strong className="text-[#3cb976] font-bold">{s.quantity}</strong> copies
-                                          </span>
-                                        </div>
-                                      </div>
-
-                                      {!isDestination && (
-                                        <div className="flex items-center gap-1.5 shrink-0">
-                                          <div className="flex items-center border border-[#7e2562]/25 rounded-sm overflow-hidden bg-white shadow-2xs h-7">
-                                            <button
-                                              type="button"
-                                              onClick={() => {
-                                                const current = activeAllocations[s.branchId] || 0;
-                                                const updated = Math.max(0, current - 1);
-                                                setSplitAllocations((prev) => ({
-                                                  ...prev,
-                                                  [activeBookId]: {
-                                                    ...(prev[activeBookId] || {}),
-                                                    [s.branchId]: updated,
-                                                  },
-                                                }));
-                                              }}
-                                              disabled={allocatedQty <= 0}
-                                              className="px-2 h-full hover:bg-[#faedf5] text-gray-700 text-xs font-bold border-r border-[#7e2562]/20 disabled:opacity-30 cursor-pointer"
-                                            >
-                                              -
-                                            </button>
-                                            <input
-                                              type="number"
-                                              min={0}
-                                              max={s.quantity}
-                                              value={allocatedQty === 0 ? '' : allocatedQty}
-                                              placeholder="0"
-                                              onChange={(e) => {
-                                                const val = e.target.value === '' ? 0 : parseInt(e.target.value, 10);
-                                                if (isNaN(val)) return;
-                                                const clamped = Math.max(0, Math.min(s.quantity, val));
-                                                setSplitAllocations((prev) => ({
-                                                  ...prev,
-                                                  [activeBookId]: {
-                                                    ...(prev[activeBookId] || {}),
-                                                    [s.branchId]: clamped,
-                                                  },
-                                                }));
-                                              }}
-                                              className="w-10 text-center text-xs font-bold text-gray-900 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none bg-transparent"
-                                            />
-                                            <button
-                                              type="button"
-                                              onClick={() => {
-                                                const current = activeAllocations[s.branchId] || 0;
-                                                const updated = Math.min(s.quantity, current + 1);
-                                                setSplitAllocations((prev) => ({
-                                                  ...prev,
-                                                  [activeBookId]: {
-                                                    ...(prev[activeBookId] || {}),
-                                                    [s.branchId]: updated,
-                                                  },
-                                                }));
-                                              }}
-                                              disabled={allocatedQty >= s.quantity}
-                                              className="px-2 h-full hover:bg-[#faedf5] text-gray-700 text-xs font-bold border-l border-[#7e2562]/20 disabled:opacity-30 cursor-pointer"
-                                            >
-                                              +
-                                            </button>
+                                    return (
+                                      <tr
+                                        key={s.branchId}
+                                        className={
+                                          isDestination
+                                            ? 'bg-gray-50/60 opacity-50'
+                                            : allocatedQty > 0
+                                              ? 'bg-emerald-50/30 font-semibold'
+                                              : 'hover:bg-[#faedf5]/20 transition-colors'
+                                        }
+                                      >
+                                        <td className="px-4 py-3">
+                                          <div className="font-bold text-gray-900">
+                                            {s.branchName}
+                                            {isDestination && <span className="ml-1 text-[10px] text-gray-400 font-normal">(Destination)</span>}
                                           </div>
+                                          <div className="text-[10px] text-gray-400 font-mono mt-0.5">{s.branchCode}</div>
+                                        </td>
 
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              const otherAllocated = Object.entries(activeAllocations).reduce(
-                                                (sum, [bId, q]) => {
-                                                  if (bId === s.branchId || bId === transfer.toBranchId) return sum;
-                                                  return sum + (Number(q) || 0);
-                                                },
-                                                0
-                                              );
-                                              const needed = Math.max(0, activeBookRequested - otherAllocated);
-                                              const fillQty = Math.min(s.quantity, needed > 0 ? needed : s.quantity);
-                                              setSplitAllocations((prev) => ({
-                                                ...prev,
-                                                [activeBookId]: {
-                                                  ...(prev[activeBookId] || {}),
-                                                  [s.branchId]: fillQty,
-                                                },
-                                              }));
-                                            }}
-                                            className={`px-2 py-1 text-[10px] font-bold rounded-sm border transition-all cursor-pointer ${
-                                              allocatedQty > 0
-                                                ? 'bg-[#faedf5] text-[#7e2562] border-[#7e2562]/30 hover:bg-[#7e2562] hover:text-white'
-                                                : 'bg-gray-100 text-gray-600 border-gray-200 hover:bg-[#faedf5] hover:text-[#7e2562]'
-                                            }`}
-                                            title="Fill copies from this branch"
-                                          >
-                                            {allocatedQty > 0 ? 'Max' : 'Fill'}
-                                          </button>
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                );
-                              })
-                            )}
-                          </div>
+                                        <td className="px-4 py-3 text-center">
+                                          <span className="font-bold text-[#3cb976]">{s.quantity}</span> copies
+                                        </td>
+
+                                        <td className="px-4 py-3 text-center">
+                                          {!isDestination ? (
+                                            <div className="inline-flex items-center border border-[#7e2562]/20 rounded-sm overflow-hidden h-7 bg-white shadow-2xs">
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  const current = activeAllocations[s.branchId] || 0;
+                                                  const updated = Math.max(0, current - 1);
+                                                  setSplitAllocations((prev) => ({
+                                                    ...prev,
+                                                    [activeBookId]: {
+                                                      ...(prev[activeBookId] || {}),
+                                                      [s.branchId]: updated,
+                                                    },
+                                                  }));
+                                                }}
+                                                disabled={allocatedQty <= 0}
+                                                className="px-2 h-full hover:bg-[#faedf5] text-gray-700 text-xs font-bold border-r border-[#7e2562]/20 disabled:opacity-30 cursor-pointer"
+                                              >
+                                                -
+                                              </button>
+                                              <input
+                                                type="number"
+                                                min={0}
+                                                max={s.quantity}
+                                                value={allocatedQty === 0 ? '' : allocatedQty}
+                                                placeholder="0"
+                                                onChange={(e) => {
+                                                  const val = e.target.value === '' ? 0 : parseInt(e.target.value, 10);
+                                                  if (isNaN(val)) return;
+                                                  const clamped = Math.max(0, Math.min(s.quantity, val));
+                                                  setSplitAllocations((prev) => ({
+                                                    ...prev,
+                                                    [activeBookId]: {
+                                                      ...(prev[activeBookId] || {}),
+                                                      [s.branchId]: clamped,
+                                                    },
+                                                  }));
+                                                }}
+                                                className="w-10 text-center text-xs font-bold text-gray-900 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none bg-transparent"
+                                              />
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  const current = activeAllocations[s.branchId] || 0;
+                                                  const updated = Math.min(s.quantity, current + 1);
+                                                  setSplitAllocations((prev) => ({
+                                                    ...prev,
+                                                    [activeBookId]: {
+                                                      ...(prev[activeBookId] || {}),
+                                                      [s.branchId]: updated,
+                                                    },
+                                                  }));
+                                                }}
+                                                disabled={allocatedQty >= s.quantity}
+                                                className="px-2 h-full hover:bg-[#faedf5] text-gray-700 text-xs font-bold border-l border-[#7e2562]/20 disabled:opacity-30 cursor-pointer"
+                                              >
+                                                +
+                                              </button>
+                                            </div>
+                                          ) : (
+                                            <span className="text-gray-400 text-[11px] italic">N/A</span>
+                                          )}
+                                        </td>
+
+                                        <td className="px-4 py-3 text-right">
+                                          {!isDestination && (
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                const otherAllocated = Object.entries(activeAllocations).reduce(
+                                                  (sum, [bId, q]) => {
+                                                    if (bId === s.branchId || bId === transfer.toBranchId) return sum;
+                                                    return sum + (Number(q) || 0);
+                                                  },
+                                                  0
+                                                );
+                                                const needed = Math.max(0, activeBookRequested - otherAllocated);
+                                                const fillQty = Math.min(s.quantity, needed > 0 ? needed : s.quantity);
+                                                setSplitAllocations((prev) => ({
+                                                  ...prev,
+                                                  [activeBookId]: {
+                                                    ...(prev[activeBookId] || {}),
+                                                    [s.branchId]: fillQty,
+                                                  },
+                                                }));
+                                              }}
+                                              className={`px-2.5 py-1 text-[11px] font-bold rounded-sm border transition-all cursor-pointer ${
+                                                allocatedQty > 0
+                                                  ? 'bg-[#faedf5] text-[#7e2562] border-[#7e2562]/30 hover:bg-[#7e2562] hover:text-white'
+                                                  : 'bg-gray-100 text-gray-600 border-gray-200 hover:bg-[#faedf5] hover:text-[#7e2562]'
+                                              }`}
+                                            >
+                                              {allocatedQty > 0 ? 'Max' : 'Fill'}
+                                            </button>
+                                          )}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
 
                           {/* ALLOCATION SUMMARY BAR */}
-                          <div className="p-2.5 bg-white border border-[#7e2562]/15 rounded-sm flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                          <div className="p-3 bg-[#faf6f9] border border-[#7e2562]/15 rounded-sm flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs mt-2">
                             <div className="flex flex-wrap items-center gap-2">
                               <span className="text-gray-600 font-semibold">
                                 Book: <strong className="text-gray-900 font-bold font-mono text-sm">{activeBookAllocated}</strong> / <span className="font-bold">{activeBookRequested} copies</span>
@@ -900,7 +868,7 @@ export default function TransferDetailsModal({ transferId, isOpen, onClose, onSu
                                 </span>
                               )}
                               {transfer.items?.length > 1 && (
-                                <span className="text-gray-400 text-[11px] font-medium border-l border-gray-200 pl-2">
+                                <span className="text-gray-500 text-[11px] font-medium border-l border-gray-300 pl-2">
                                   Total: <strong>{totalAllocatedAcrossAll}/{totalRequestedQty}</strong> copies
                                 </span>
                               )}
@@ -911,7 +879,7 @@ export default function TransferDetailsModal({ transferId, isOpen, onClose, onSu
                                 type="button"
                                 onClick={() => handleSplitSubmit(true)}
                                 disabled={actionLoading || totalAllocatedAcrossAll === 0}
-                                className="px-3.5 py-1.5 bg-[#7e2562] hover:bg-[#681b50] text-white text-xs font-bold rounded-sm shadow-xs transition disabled:opacity-50 inline-flex items-center justify-center gap-1.5 cursor-pointer"
+                                className="px-4 py-1.5 bg-[#7e2562] hover:bg-[#681b50] text-white text-xs font-bold rounded-sm shadow-xs transition disabled:opacity-50 inline-flex items-center justify-center gap-1.5 cursor-pointer"
                               >
                                 {actionLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Clipboard className="w-3.5 h-3.5" />}
                                 <span>
@@ -925,7 +893,7 @@ export default function TransferDetailsModal({ transferId, isOpen, onClose, onSu
 
                           {/* OUT OF STOCK OR NEED REORDER: CREATE PURCHASE ORDER BUTTON */}
                           {!transfer.purchaseOrder && (
-                            <div className="pt-2 flex justify-end border-t border-[#7e2562]/10">
+                            <div className="pt-2 flex justify-end">
                               <button
                                 type="button"
                                 onClick={() => {
@@ -945,42 +913,42 @@ export default function TransferDetailsModal({ transferId, isOpen, onClose, onSu
                   );
                 })()}
 
-                {/* Items List Table */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-[#7e2562]   tracking-wider block">Requested Books</label>
-                    {canReceive && (
+                {/* RECEIVING VERIFICATION PANEL (FOR DESTINATION BRANCH MANAGER / STAFF RECEIVING DISPATCHED STOCK) */}
+                {canReceive && (
+                  <div className="space-y-3 pt-2 border-t border-gray-200">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-[#3cb976] uppercase tracking-wider block">
+                        Verify Received Books
+                      </label>
                       <span className="text-[10px] font-bold text-[#3cb976] bg-[#f0fbf5] px-2 py-0.5 border border-[#3cb976]/30 rounded-sm">
                         Verify & Adjust Received Quantities Below
                       </span>
-                    )}
-                  </div>
+                    </div>
 
-                  <div className="border border-[#7e2562]/15 rounded-sm overflow-x-auto bg-white shadow-xs">
-                    <table className="min-w-[480px] w-full text-left text-xs">
-                      <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562]   tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
-                        <tr>
-                          <th className="px-4 py-2.5">Book Details</th>
-                          <th className="px-4 py-2.5 text-center">Requested</th>
-                          <th className="px-4 py-2.5 text-center">Dispatched</th>
-                          <th className="px-4 py-2.5 text-center">{canReceive ? 'Received (Verify)' : 'Received'}</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {transfer.items.map((item: any) => {
-                          const maxReceivable = item.quantityDispatched || item.quantityRequested;
-                          const curReceived = receiveQuantities[item.bookId] !== undefined ? receiveQuantities[item.bookId] : maxReceivable;
+                    <div className="border border-[#3cb976]/30 rounded-sm overflow-x-auto bg-white shadow-xs">
+                      <table className="min-w-[480px] w-full text-left text-xs">
+                        <thead className="bg-[#f0fbf5] text-[11px] font-bold text-[#3cb976] uppercase tracking-wider border-b border-[#3cb976]/20 whitespace-nowrap">
+                          <tr>
+                            <th className="px-4 py-2.5">Book Details</th>
+                            <th className="px-4 py-2.5 text-center">Requested</th>
+                            <th className="px-4 py-2.5 text-center">Dispatched</th>
+                            <th className="px-4 py-2.5 text-center">Received (Verify)</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {transfer.items.map((item: any) => {
+                            const maxReceivable = item.quantityDispatched || item.quantityRequested;
+                            const curReceived = receiveQuantities[item.bookId] !== undefined ? receiveQuantities[item.bookId] : maxReceivable;
 
-                          return (
-                            <tr key={item.id} className="hover:bg-[#faf6f9]/30 transition-colors">
-                              <td className="px-4 py-3 min-w-0">
-                                <p className="font-bold text-gray-900 truncate">{item.book.title}</p>
-                                <p className="text-[11px] text-gray-400 font-mono mt-0.5">{item.book.isbn}</p>
-                              </td>
-                              <td className="px-4 py-3 text-center font-bold text-gray-900">{item.quantityRequested}</td>
-                              <td className="px-4 py-3 text-center font-bold text-[#7e2562]">{item.quantityDispatched}</td>
-                              <td className="px-4 py-3 text-center font-bold">
-                                {canReceive ? (
+                            return (
+                              <tr key={item.id} className="hover:bg-emerald-50/20 transition-colors">
+                                <td className="px-4 py-3 min-w-0">
+                                  <p className="font-bold text-gray-900 truncate">{item.book.title}</p>
+                                  <p className="text-[11px] text-gray-400 font-mono mt-0.5">{item.book.isbn}</p>
+                                </td>
+                                <td className="px-4 py-3 text-center font-bold text-gray-900">{item.quantityRequested}</td>
+                                <td className="px-4 py-3 text-center font-bold text-[#7e2562]">{item.quantityDispatched}</td>
+                                <td className="px-4 py-3 text-center font-bold">
                                   <div className="flex items-center justify-center gap-1">
                                     <div className="flex items-center border border-[#3cb976]/40 rounded-sm overflow-hidden bg-white shadow-2xs h-7">
                                       <button
@@ -1019,33 +987,31 @@ export default function TransferDetailsModal({ transferId, isOpen, onClose, onSu
                                       </button>
                                     </div>
                                   </div>
-                                ) : (
-                                  <span className="text-[#3cb976]">{item.quantityReceived}</span>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {/* Partial Receipt Discrepancy Note */}
-                  {canReceive && transfer.items.some((i: any) => (receiveQuantities[i.bookId] ?? (i.quantityDispatched || i.quantityRequested)) < (i.quantityDispatched || i.quantityRequested)) && (
-                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-sm space-y-1 text-xs">
-                      <label className="text-[10px] font-bold text-amber-900   tracking-wider block">
-                        Partial Receipt Discrepancy Note (Optional)
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="e.g. 1 copy damaged in transit, box was torn..."
-                        value={receiptDiscrepancyNote}
-                        onChange={(e) => setReceiptDiscrepancyNote(e.target.value)}
-                        className="w-full px-2.5 py-1.5 text-xs border border-amber-300 rounded-sm bg-white focus:outline-none focus:ring-1 focus:ring-amber-500"
-                      />
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     </div>
-                  )}
-                </div>
+
+                    {/* Partial Receipt Discrepancy Note */}
+                    {transfer.items.some((i: any) => (receiveQuantities[i.bookId] ?? (i.quantityDispatched || i.quantityRequested)) < (i.quantityDispatched || i.quantityRequested)) && (
+                      <div className="p-3 bg-amber-50 border border-amber-200 rounded-sm space-y-1 text-xs">
+                        <label className="text-[10px] font-bold text-amber-900 uppercase tracking-wider block">
+                          Partial Receipt Discrepancy Note (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. 1 copy damaged in transit, box was torn..."
+                          value={receiptDiscrepancyNote}
+                          onChange={(e) => setReceiptDiscrepancyNote(e.target.value)}
+                          className="w-full px-2.5 py-1.5 text-xs border border-amber-300 rounded-sm bg-white focus:outline-none focus:ring-1 focus:ring-amber-500"
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Partially Fulfilled Indicator Banner */}
                 {isPartiallyFulfilled && (
@@ -1097,7 +1063,7 @@ export default function TransferDetailsModal({ transferId, isOpen, onClose, onSu
                 {/* Rejection input field */}
                 {rejectMode && (
                   <div className="space-y-2 p-3 sm:p-4 bg-[#fef5f2] border border-[#e45e34]/20 rounded-sm">
-                    <label className="text-xs font-bold text-[#e45e34] block   tracking-wider">Rejection Reason</label>
+                    <label className="text-xs font-bold text-[#e45e34] block uppercase tracking-wider">Rejection Reason</label>
                     <input
                       type="text"
                       placeholder="Why is this transfer being rejected?"
@@ -1108,14 +1074,14 @@ export default function TransferDetailsModal({ transferId, isOpen, onClose, onSu
                     <div className="flex justify-end space-x-2 mt-2">
                       <button
                         onClick={() => setRejectMode(false)}
-                        className="px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-white rounded-sm border border-gray-200"
+                        className="px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-white rounded-sm border border-gray-200 cursor-pointer"
                       >
                         Cancel
                       </button>
                       <button
                         onClick={handleReject}
                         disabled={!rejectionNote.trim() || actionLoading}
-                        className="px-3 py-1.5 text-xs font-bold bg-[#e45e34] hover:bg-[#d04e26] text-white rounded-sm shadow-xs disabled:opacity-50"
+                        className="px-3 py-1.5 text-xs font-bold bg-[#e45e34] hover:bg-[#d04e26] text-white rounded-sm shadow-xs disabled:opacity-50 cursor-pointer"
                       >
                         Confirm Reject
                       </button>
@@ -1148,7 +1114,7 @@ export default function TransferDetailsModal({ transferId, isOpen, onClose, onSu
                   <button
                     onClick={handleCancel}
                     disabled={actionLoading}
-                    className="w-full sm:w-auto px-4 py-2 border border-[#e45e34]/30 text-[#e45e34] hover:bg-[#fef5f2] text-xs font-bold rounded-sm transition flex items-center justify-center space-x-1"
+                    className="w-full sm:w-auto px-4 py-2 border border-[#e45e34]/30 text-[#e45e34] hover:bg-[#fef5f2] text-xs font-bold rounded-sm transition flex items-center justify-center space-x-1 cursor-pointer"
                   >
                     <Ban className="w-3.5 h-3.5" />
                     <span>Cancel Request</span>
@@ -1160,7 +1126,7 @@ export default function TransferDetailsModal({ transferId, isOpen, onClose, onSu
                 <button
                   onClick={onClose}
                   disabled={actionLoading}
-                  className="w-full sm:w-auto px-4 py-2 border border-gray-200 hover:bg-white text-gray-700 text-xs font-semibold rounded-sm transition text-center"
+                  className="w-full sm:w-auto px-4 py-2 border border-gray-200 hover:bg-white text-gray-700 text-xs font-semibold rounded-sm transition text-center cursor-pointer"
                 >
                   Close
                 </button>
@@ -1170,7 +1136,7 @@ export default function TransferDetailsModal({ transferId, isOpen, onClose, onSu
                   <button
                     onClick={() => setRejectMode(true)}
                     disabled={actionLoading}
-                    className="w-full sm:w-auto px-4 py-2 bg-[#fef5f2] border border-[#e45e34]/30 text-[#e45e34] hover:bg-[#fef5f2]/80 text-xs font-bold rounded-sm transition text-center"
+                    className="w-full sm:w-auto px-4 py-2 bg-[#fef5f2] border border-[#e45e34]/30 text-[#e45e34] hover:bg-[#fef5f2]/80 text-xs font-bold rounded-sm transition text-center cursor-pointer"
                   >
                     Reject
                   </button>
@@ -1181,7 +1147,7 @@ export default function TransferDetailsModal({ transferId, isOpen, onClose, onSu
                   <button
                     onClick={handleDispatch}
                     disabled={actionLoading}
-                    className="w-full sm:w-auto px-5 py-2 bg-[#7e2562] hover:bg-[#681b50] text-white text-xs font-bold rounded-sm shadow-xs flex items-center justify-center space-x-1.5 transition"
+                    className="w-full sm:w-auto px-5 py-2 bg-[#7e2562] hover:bg-[#681b50] text-white text-xs font-bold rounded-sm shadow-xs flex items-center justify-center space-x-1.5 transition cursor-pointer"
                   >
                     {actionLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Clipboard className="w-3.5 h-3.5" />}
                     <span>Dispatch Stock to {transfer.toBranch?.name}</span>

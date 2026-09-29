@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, 
   Users, 
@@ -20,18 +20,144 @@ import {
   ArrowLeftRight,
   MessageSquare,
   Receipt,
+  IndianRupee,
   BarChart2,
-  Menu
+  PanelLeftClose,
+  PanelLeftOpen
 } from 'lucide-react';
 import Image from 'next/image';
 
 import { getHighestPriorityRole } from '@/lib/api-backend/users/enums/user-role.enum';
+import { Tent } from 'lucide-react';
+import { api } from '@/lib/api';
+
+import { useSearchParams } from 'next/navigation';
+import { LogOut, Clock, Send } from 'lucide-react';
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { user } = useAuth();
+  const [activeExhibition, setActiveExhibition] = useState<any | null>(null);
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  // Detect if user is inside an Exhibition Live Workspace (e.g. /dashboard/exhibitions/[id])
+  const isExhibitionMode = pathname.startsWith('/dashboard/exhibitions/') && pathname !== '/dashboard/exhibitions';
+  const currentExhibitionId = isExhibitionMode ? pathname.split('/dashboard/exhibitions/')[1] : null;
+  const currentTab = searchParams ? searchParams.get('tab') || 'POS' : 'POS';
+
+  useEffect(() => {
+    if (!user) return;
+    const fetchActiveExhibition = async () => {
+      try {
+        const res = await api.get('/exhibitions');
+        if (res.success && Array.isArray(res.data)) {
+          const now = new Date();
+          const year = now.getFullYear();
+          const month = String(now.getMonth() + 1).padStart(2, '0');
+          const day = String(now.getDate()).padStart(2, '0');
+          const todayStr = `${year}-${month}-${day}`;
+
+          // Find active exhibition where today is between startDate and endDate (inclusive of endDate)
+          const active = res.data.find((e: any) => {
+            if (['CLOSED', 'REJECTED', 'CANCELLED'].includes(e.status)) return false;
+
+            const startStr = e.startDate ? String(e.startDate).split('T')[0] : '';
+            const endStr = e.endDate ? String(e.endDate).split('T')[0] : '';
+
+            // Tab stays visible from startDate through endDate (disappears the day after endDate)
+            const isWithinDates = todayStr >= startStr && todayStr <= endStr;
+            const isAssigned = 
+              e.assignedUserId === user.id || 
+              e.assignments?.some((a: any) => a.userId === user.id) ||
+              ['SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER'].includes(user.role || '');
+
+            return isWithinDates && isAssigned;
+          });
+          if (active) setActiveExhibition(active);
+          else setActiveExhibition(null);
+        }
+      } catch (err) {
+        // Silent catch for background nav check
+      }
+    };
+    fetchActiveExhibition();
+  }, [user]);
 
   if (!user) return null;
+
+  if (isExhibitionMode) {
+    const exhibitionNavLinks = [
+      { name: 'Live POS Billing', tab: 'POS', icon: ShoppingCart },
+      { name: 'Venue Book Stock', tab: 'STOCK', icon: Boxes },
+      { name: 'Sales & Bills', tab: 'BILLS', icon: Receipt },
+      { name: 'Mid-Event TopUp', tab: 'TOPUP', icon: Send },
+      { name: 'Credit Copies', tab: 'CREDIT', icon: FileText },
+      { name: 'End of Day Close', tab: 'DAY_CLOSE', icon: Clock },
+    ];
+
+    return (
+      <div className={`flex flex-col shrink-0 ${isCollapsed ? 'w-20' : 'w-72'} bg-slate-900 text-white border-r border-emerald-500/20 h-full overflow-y-auto backdrop-blur-2xl shadow-xl transition-all duration-300 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']`}>
+        {/* Header / Logo */}
+        <div className={`flex items-center border-b border-emerald-500/20 shrink-0 ${isCollapsed ? 'h-20 justify-center px-4' : 'h-20 px-6 justify-between'}`}>
+          {!isCollapsed && (
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[10px] font-black uppercase text-emerald-400 tracking-wider flex items-center gap-1.5 animate-pulse">
+                <span className="w-2 h-2 rounded-full bg-emerald-400"></span> EXHIBITION MODE
+              </span>
+              <h2 className="text-xs font-bold text-slate-300 truncate max-w-[180px]">
+                {activeExhibition?.name || 'Venue Operating Surface'}
+              </h2>
+            </div>
+          )}
+          <button 
+            onClick={() => setIsCollapsed(!isCollapsed)} 
+            className="p-2 text-emerald-300 hover:text-white rounded-sm hover:bg-emerald-800/40 transition shrink-0 cursor-pointer"
+          >
+            {isCollapsed ? <PanelLeftOpen className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
+          </button>
+        </div>
+
+        {/* Navigation */}
+        <div className="p-3 flex-1 flex flex-col justify-between gap-4">
+          <nav className="space-y-1.5 flex-1">
+            {!isCollapsed && <div className="px-3 text-[10px] font-bold text-emerald-400/70 tracking-wider mb-2 uppercase">Venue Operations</div>}
+            {exhibitionNavLinks.map((link) => {
+              const Icon = link.icon;
+              const isActive = currentTab === link.tab;
+              return (
+                <Link
+                  key={link.name}
+                  href={`/dashboard/exhibitions/${currentExhibitionId}?tab=${link.tab}`}
+                  className={`apple-button group flex items-center justify-between rounded-lg px-3.5 py-2.5 text-xs font-bold transition-all relative overflow-hidden ${
+                    isActive 
+                      ? 'bg-emerald-600 text-white shadow-md font-extrabold' 
+                      : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                  } ${isCollapsed ? 'justify-center px-0' : ''}`}
+                >
+                  <span className="flex items-center gap-3 relative z-10">
+                    <Icon className="h-4 w-4 shrink-0 text-emerald-300" />
+                    {!isCollapsed && <span className="truncate">{link.name}</span>}
+                  </span>
+                </Link>
+              );
+            })}
+          </nav>
+
+          {/* Exit Exhibition Mode */}
+          <div className="pt-3 border-t border-emerald-500/20">
+            <Link
+              href="/dashboard"
+              className="flex items-center gap-2.5 rounded-lg px-3.5 py-2.5 text-xs font-bold text-red-300 bg-red-950/40 hover:bg-red-900/60 border border-red-800/30 transition shadow-sm"
+            >
+              <LogOut className="h-4 w-4 shrink-0 text-red-400" />
+              {!isCollapsed && <span>Exit Exhibition Mode</span>}
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const getDashboardLink = () => {
     const isImpersonating = !!user.originalRoles;
@@ -60,7 +186,7 @@ export default function Sidebar() {
   const links = [
     { name: 'Dashboard', href: getDashboardLink(), icon: LayoutDashboard, roles: ['*'] },
     { name: 'Billing', href: '/dashboard/billing', icon: ShoppingCart, roles: ['BRANCH_FRONT_OFFICE', 'BRANCH_MANAGER'] },
-    { name: 'All Bills', href: '/dashboard/bills', icon: Receipt, roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE', 'BRANCH_MANAGER', 'BRANCH_FRONT_OFFICE'] },
+    { name: 'All Bills', href: '/dashboard/bills', icon: IndianRupee, roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE', 'BRANCH_MANAGER', 'BRANCH_FRONT_OFFICE'] },
     // { name: 'EOD Sales', href: '/dashboard/eod-sales', icon: BarChart2, roles: ['SUPER_ADMIN', 'ADMIN', 'FINANCE'] },
     { name: 'Inventory', href: '/dashboard/inventory', icon: Boxes, roles: ['BRANCH_INVENTORY', 'BRANCH_MANAGER', 'SUPER_ADMIN', 'ADMIN', 'BRANCH_FRONT_OFFICE', 'CENTRAL_INVENTORY_MANAGER'] },
     { name: 'Warehouse Stock', href: '/dashboard/central-stock', icon: Store, roles: ['CENTRAL_INVENTORY_MANAGER', 'SUPER_ADMIN', 'ADMIN'] },
@@ -90,8 +216,6 @@ export default function Sidebar() {
     return link.roles.some(r => effectiveRoles.includes(r));
   });
 
-  const [isCollapsed, setIsCollapsed] = useState(false);
-
   return (
     <div className={`flex flex-col shrink-0 ${isCollapsed ? 'w-20' : 'w-72'} bg-white/95 border-r border-[#7e2562]/10 h-full overflow-y-auto backdrop-blur-2xl shadow-plum-sm transition-all duration-300 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']`}>
       {/* Header / Logo */}
@@ -106,7 +230,7 @@ export default function Sidebar() {
           onClick={() => setIsCollapsed(!isCollapsed)} 
           className="p-2 text-muted-foreground hover:text-foreground rounded-sm hover:bg-[#faedf5] transition-colors shrink-0 cursor-pointer"
         >
-          <Menu className="w-5 h-5" />
+          {isCollapsed ? <PanelLeftOpen className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
         </button>
       </div>
       
@@ -114,6 +238,31 @@ export default function Sidebar() {
         {/* Navigation */}
         <nav className="space-y-1.5 flex-1">
           {!isCollapsed && <div className="px-3 text-[11px] font-bold text-[#7e2562]/70   tracking-wider mb-2">Main Menu</div>}
+
+          {/* Active Exhibition Live Operating Surface Banner Tab */}
+          {activeExhibition && (
+            <Link
+              href={`/dashboard/exhibitions/${activeExhibition.id}`}
+              className="group flex items-center justify-between rounded-lg px-3.5 py-3 text-[13px] font-bold bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow-md hover:shadow-lg transition-all duration-200 relative overflow-hidden mb-3 animate-pulse border border-emerald-400"
+            >
+              <span className="flex items-center gap-2.5 relative z-10">
+                <Tent className="h-5 w-5 text-emerald-200 shrink-0" />
+                {!isCollapsed && (
+                  <div className="flex flex-col min-w-0">
+                    <span className="truncate text-xs font-black tracking-wide text-white">
+                      LIVE: {activeExhibition.name || activeExhibition.eventName}
+                    </span>
+                    <span className="text-[10px] text-emerald-100 font-normal">Active Venue Workspace</span>
+                  </div>
+                )}
+              </span>
+              {!isCollapsed && (
+                <span className="relative z-10 text-[9px] font-extrabold bg-white/20 text-white px-2 py-0.5 rounded-full uppercase">
+                  OPEN
+                </span>
+              )}
+            </Link>
+          )}
           {visibleLinks.map((link) => {
             const Icon = link.icon;
             const isActive = pathname === link.href || pathname.startsWith(`${link.href}/`);

@@ -13,7 +13,6 @@ export async function POST(req: NextRequest) {
     const result = await authService.verifyEmail(email);
     return apiSuccess(result);
   } catch (error: any) {
-    const status = error.statusCode || 500;
-    return apiError(new HttpError(status, error.message || 'Internal Server Error'));
+    return apiError(error);
   }
 }
