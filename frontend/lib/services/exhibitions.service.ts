@@ -156,6 +156,14 @@ export class ExhibitionsService {
     user: JwtPayload,
     ipAddress: string,
   ): Promise<Exhibition> {
+    const isAdmin = hasRole(user, UserRole.SUPER_ADMIN) || hasRole(user, UserRole.ADMIN);
+    const isBranchManager = hasRole(user, UserRole.BRANCH_MANAGER);
+    const isCentralInventory = hasRole(user, UserRole.CENTRAL_INVENTORY_MANAGER);
+
+    if (isCentralInventory && !isAdmin && !isBranchManager) {
+      throw new ForbiddenException('Central Inventory Managers cannot create exhibitions. Exhibitions must be requested by Branch Managers or created by Admins.');
+    }
+
     const branchId = dto.sourceBranchId || user.branchId;
     if (!branchId) {
       throw new ForbiddenException('Exhibitions must be requested with a branch context');

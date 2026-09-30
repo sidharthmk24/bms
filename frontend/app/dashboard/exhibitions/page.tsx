@@ -1250,7 +1250,7 @@ export default function ExhibitionsPage() {
               <h2 className="text-2xl font-bold tracking-tight text-gray-900">Exhibitions & Events</h2>
               <p className="text-sm text-gray-500">Manage off-site book sales events.</p>
             </div>
-            {(isBranch || isAdmin || isCentralManager) && (
+            {(isBranch || isAdmin) && (
               <button
                 onClick={() => setIsCreating(true)}
                 className="flex items-center px-4 py-2 text-sm font-semibold text-white bg-[#7e2562] hover:bg-[#681b50] rounded-sm shadow-xs transition-all active:scale-[0.98]"
