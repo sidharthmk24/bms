@@ -6,7 +6,7 @@ import RealTimeSync from '@/components/RealTimeSync';
 import RoleSwitcher from '@/components/RoleSwitcher';
 import NotificationDropdown from '@/components/NotificationDropdown';
 import { Loader2, Calendar, MapPin, LogOut } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
 
@@ -17,6 +17,9 @@ export default function DashboardLayout({
 }) {
   const { user, isLoading, activeExhibition, exitExhibitionMode } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+
+  const isExhibitionView = pathname ? (pathname.startsWith('/dashboard/exhibitions/') && pathname !== '/dashboard/exhibitions') : false;
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -44,8 +47,8 @@ export default function DashboardLayout({
       <RealTimeSync />
       <Sidebar />
       <main className="flex-1 flex flex-col h-full overflow-y-auto min-w-0">
-        {/* Exhibition Mode Persistent Banner */}
-        {activeExhibition && (
+        {/* Exhibition Mode Persistent Banner - only show when inside an exhibition view */}
+        {activeExhibition && isExhibitionView && (
           <div className="bg-gradient-to-r from-[#7e2562] via-[#681b50] to-[#52133e] text-white px-6 py-3 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-md shrink-0 z-20">
             <div className="flex items-center gap-4 flex-wrap">
               <div>
@@ -97,7 +100,7 @@ export default function DashboardLayout({
             <span className="text-[#7e2562] font-bold">Kairali Books</span>
             <span>/</span>
             <span className="capitalize">{((user.role || user.primaryRole || '').replace(/_/g, ' ').toLowerCase())} workspace</span>
-            {activeExhibition && (
+            {activeExhibition && isExhibitionView && (
               <>
                 <span>/</span>
                 <span className="text-[#7e2562] font-semibold">{activeExhibition.name}</span>

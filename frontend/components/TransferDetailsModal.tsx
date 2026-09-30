@@ -142,7 +142,7 @@ export default function TransferDetailsModal({ transferId, isOpen, onClose, onSu
   const handleSplitSubmit = async (overrideConfirm = false) => {
     if (!transfer) return;
 
-    const allocationsList: { bookId: string; allocations: { branchId: string; quantity: number }[] }[] = [];
+    const flatAllocations: { branchId: string; quantity: number; bookId?: string }[] = [];
     let grandTotalAllocated = 0;
     let totalRequestedAcrossAll = 0;
 
@@ -151,18 +151,17 @@ export default function TransferDetailsModal({ transferId, isOpen, onClose, onSu
       totalRequestedAcrossAll += reqQty;
       const bAllocMap = splitAllocations[item.bookId] || {};
       
-      const allocArr = Object.entries(bAllocMap)
+      Object.entries(bAllocMap)
         .filter(([bId, q]) => bId !== transfer.toBranchId && Number(q) > 0)
-        .map(([bId, q]) => {
+        .forEach(([bId, q]) => {
           const qty = Number(q);
           grandTotalAllocated += qty;
-          return { branchId: bId, quantity: qty };
+          flatAllocations.push({
+            branchId: bId,
+            quantity: qty,
+            bookId: item.bookId,
+          });
         });
-
-      allocationsList.push({
-        bookId: item.bookId,
-        allocations: allocArr
-      });
     });
 
     if (grandTotalAllocated === 0) {
@@ -194,11 +193,12 @@ export default function TransferDetailsModal({ transferId, isOpen, onClose, onSu
 
     try {
       const response = await api.post(`/transfers/${transfer.id}/split`, {
-        items: allocationsList
+        allocations: flatAllocations,
+        dispatchNow: true,
       });
 
       if (response.success) {
-        const updated = response.data || optimistic;
+        const updated = Array.isArray(response.data) ? response.data[0] : (response.data || optimistic);
         setTransfer(updated);
         onSuccess(updated);
         setTimeout(() => onClose(), 400);
@@ -388,11 +388,8 @@ export default function TransferDetailsModal({ transferId, isOpen, onClose, onSu
   const isSourceBranchUser = user?.branchId === transfer?.fromBranchId;
   const isDestBranchUser = user?.branchId === transfer?.toBranchId;
 
-  // Actions visibility
-  const canDispatch = transfer?.status === 'PENDING' && (
-    (isFromWarehouse && (isCentralInventory || isAdmin || isSuperAdmin || isSourceBranchUser)) ||
-    (!isFromWarehouse && (isSourceBranchUser || isAdmin || isSuperAdmin))
-  );
+  // Actions visibility - Only Central Inventory Manager, Admin, or Super Admin can dispatch stock transfers
+  const canDispatch = transfer?.status === 'PENDING' && (isCentralInventory || isAdmin || isSuperAdmin);
 
   const canReceive = transfer?.status === 'DISPATCHED' && (
     (isToWarehouse && (isCentralInventory || isAdmin || isSuperAdmin || isDestBranchUser)) ||
@@ -874,21 +871,6 @@ export default function TransferDetailsModal({ transferId, isOpen, onClose, onSu
                               )}
                             </div>
 
-                            <div className="flex items-center gap-2 self-end sm:self-auto">
-                              <button
-                                type="button"
-                                onClick={() => handleSplitSubmit(true)}
-                                disabled={actionLoading || totalAllocatedAcrossAll === 0}
-                                className="px-4 py-1.5 bg-[#7e2562] hover:bg-[#681b50] text-white text-xs font-bold rounded-sm shadow-xs transition disabled:opacity-50 inline-flex items-center justify-center gap-1.5 cursor-pointer"
-                              >
-                                {actionLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Clipboard className="w-3.5 h-3.5" />}
-                                <span>
-                                  {fulfillmentMode === 'PARTIAL' && totalAllocatedAcrossAll < totalRequestedQty
-                                    ? `Dispatch Partial Stock (${totalAllocatedAcrossAll} copies)`
-                                    : 'Dispatch from Selected Branches'}
-                                </span>
-                              </button>
-                            </div>
                           </div>
 
                           {/* OUT OF STOCK OR NEED REORDER: CREATE PURCHASE ORDER BUTTON */}

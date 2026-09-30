@@ -309,23 +309,13 @@ export class TransfersService {
       throw new ConflictException('Only pending transfers can be dispatched');
     }
 
-    // Permission check:
-    // If from warehouse: Central Inventory Manager, Admin, or Super Admin can dispatch
-    // If from retail branch: Branch Manager of that branch (or Admin/Super Admin) can dispatch
-    const isFromWarehouse = transfer.fromBranch?.type === 'WAREHOUSE';
+    // Permission check: Only Central Inventory Manager, Admin, or Super Admin can dispatch stock transfers
     const isCentralInventory = hasRole(currentUser, UserRole.CENTRAL_INVENTORY_MANAGER);
     const isSuperAdmin = hasRole(currentUser, UserRole.SUPER_ADMIN);
     const isAdmin = hasRole(currentUser, UserRole.ADMIN);
-    const isSourceBranchUser = currentUser.branchId === transfer.fromBranchId;
 
-    if (isFromWarehouse) {
-      if (!isCentralInventory && !isAdmin && !isSuperAdmin && !isSourceBranchUser) {
-        throw new ForbiddenException('Only warehouse staff can dispatch transfers from the central warehouse');
-      }
-    } else {
-      if (!isSourceBranchUser && !isAdmin && !isSuperAdmin) {
-        throw new ForbiddenException(`Only the source branch manager (${transfer.fromBranch.name}) can dispatch this transfer`);
-      }
+    if (!isCentralInventory && !isAdmin && !isSuperAdmin) {
+      throw new ForbiddenException('Only Central Inventory Manager, Admin, or Super Admin can dispatch stock transfers');
     }
 
     const { dataSource } = await this.getRepos();

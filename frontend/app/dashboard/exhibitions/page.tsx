@@ -221,7 +221,14 @@ export default function ExhibitionsPage() {
   const isBranch = (isBranchManager || isBranchInventory || isBranchFrontOffice) && !isAdmin;
   const canManageStockSources = isAdmin || isCentralManager;
 
-  const { data: exhibitions, loading, error } = useApiData<any[]>('/exhibitions', []);
+  const { data: exhibitions, loading, error, refetch: refetchExhibitions } = useApiData<any[]>('/exhibitions', []);
+
+  const notifyMutated = () => {
+    refetchExhibitions();
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('app:data-mutated'));
+    }
+  };
   const { data: usersResponse } = useApiData<any>('/users', []);
   const { data: branchesResponse } = useApiData<any>('/branches', []);
   
@@ -1061,6 +1068,7 @@ export default function ExhibitionsPage() {
       setIsSubmitting(true);
       await api.patch(`/exhibitions/${assigningExhibition.id}`, { assignedUserId: assignUserId || null });
       setAssigningExhibition(null);
+      notifyMutated();
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to assign user');
     } finally {
@@ -1105,6 +1113,7 @@ export default function ExhibitionsPage() {
       setIsCreating(false);
       setCart([]);
       setEventName(''); setLocation(''); setStartDate(''); setEndDate(''); setAssignedUserId(''); setCreateBranchId('');
+      notifyMutated();
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to request exhibition');
     } finally {
@@ -1127,6 +1136,7 @@ export default function ExhibitionsPage() {
       await api.post(`/exhibitions/${id}/review`, { 
         status: action === 'approve' ? 'APPROVED' : 'REJECTED' 
       });
+      notifyMutated();
     } catch (err: any) {
       alert(err.response?.data?.message || `Failed to ${action}`);
     } finally {
@@ -1147,6 +1157,7 @@ export default function ExhibitionsPage() {
     try {
       setIsSubmitting(true);
       await api.post(`/exhibitions/${id}/dispatch`);
+      notifyMutated();
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to dispatch');
     } finally {
@@ -1189,7 +1200,7 @@ export default function ExhibitionsPage() {
         }))
       });
       setClosingExhibition(null);
-      window.location.reload();
+      notifyMutated();
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to close exhibition');
     } finally {
