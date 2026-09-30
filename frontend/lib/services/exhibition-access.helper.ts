@@ -67,13 +67,12 @@ export async function canAccessExhibition(
   const hasAccess =
     isAdmin ||
     isFinance ||
-    isCentralManager ||
     isBranchManager ||
     isAssigned;
 
   if (!hasAccess) {
     throw new ForbiddenException(
-      `Access denied. You are not assigned to exhibition "${exhibition.name}" and do not have governing branch or central administrative permissions.`,
+      `Access denied. You are not assigned to exhibition "${exhibition.name}". Central Inventory Managers cannot access live exhibition workspaces or perform day-close reconciliations.`,
     );
   }
 

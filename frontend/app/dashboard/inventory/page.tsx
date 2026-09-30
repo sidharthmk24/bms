@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useConfirm } from '@/contexts/ConfirmContext';
+import { MultiSelectBookDropdown } from '@/components/MultiSelectBookDropdown';
 import { api } from '@/lib/api';
 import {
   Loader2,
@@ -109,8 +110,7 @@ function BranchInventoryInner() {
   // Modal State - Request Stock from Central Warehouse
   const [isRequestingStock, setIsRequestingStock] = useState(false);
   const { data: catalog } = useApiData<any>(isRequestingStock ? '/catalog/books?limit=100' : null, []);
-  const [requestStockBook, setRequestStockBook] = useState<any>(null);
-  const [requestStockQuantity, setRequestStockQuantity] = useState(10);
+  const [requestCart, setRequestCart] = useState<{ bookId: string; title: string; authorName?: string; isbn?: string; quantity: number }[]>([]);
   const [transferNote, setTransferNote] = useState('');
   const [isSubmittingStockRequest, setIsSubmittingStockRequest] = useState(false);
 
@@ -177,41 +177,28 @@ function BranchInventoryInner() {
 
   const handleRequestStockSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const bookId = requestStockBook?.id;
-    if (!bookId || requestStockQuantity <= 0) return;
-    if (!selectedBranchId) {
-      alert('Destination branch is required. Please select a branch first.');
+    if (!selectedBranchId || requestCart.length === 0) {
+      alert('Please select at least one book title to request stock');
       return;
     }
 
-    const ok = await confirm({
-      title: 'Create Stock Transfer Request',
-      message: `Create a stock transfer for ${requestStockQuantity} unit(s) of "${requestStockBook.title}" to ${branchName}?`,
-      confirmText: 'Yes, Create Transfer',
-      cancelText: 'No, Cancel',
-      variant: 'primary',
-    });
-    if (!ok) return;
-
     try {
       setIsSubmittingStockRequest(true);
-      const payloadNote =
-        transferNote.trim() ||
-        `Stock transfer request for "${requestStockBook.title}" (${requestStockQuantity} units) to ${branchName}`;
+      const payloadNote = transferNote.trim() || `Stock transfer request for ${branchName}`;
 
       const res = await api.post('/transfers', {
         toBranchId: selectedBranchId,
-        items: [{ bookId, quantity: requestStockQuantity }],
+        items: requestCart.map((i) => ({ bookId: i.bookId, quantity: i.quantity })),
         note: payloadNote,
       });
 
       if (res.success || res.data) {
         const transferNum = res.data?.transferNumber || '';
-        setNotifiedItems((prev) => ({ ...prev, [bookId]: true }));
         setIsRequestingStock(false);
+        setRequestCart([]);
         setTransferNote('');
         alert(
-          `Stock transfer ${transferNum ? `[${transferNum}] ` : ''}created successfully!\nDestination: ${branchName}\nQuantity: ${requestStockQuantity} copies of "${requestStockBook.title}"`
+          `Stock transfer ${transferNum ? `[${transferNum}] ` : ''}created successfully!\nDestination: ${branchName}\nTitles: ${requestCart.length} books requested`
         );
       }
     } catch (err: any) {
@@ -288,8 +275,8 @@ function BranchInventoryInner() {
           {selectedBranchId && (
             <button
               onClick={() => {
-                setRequestStockBook(null);
-                setRequestStockQuantity(10);
+                setRequestCart([]);
+                setTransferNote('');
                 setIsRequestingStock(true);
               }}
               className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-[#7e2562] hover:bg-[#681b50] rounded-sm shadow-sm shadow-plum-sm transition-all shrink-0 cursor-pointer active:scale-95"
@@ -746,7 +733,7 @@ function BranchInventoryInner() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-sm shadow-2xl border border-[#7e2562]/25 w-full max-w-lg p-5"
+              className="bg-white rounded-sm shadow-2xl border border-[#7e2562]/25 w-full max-w-4xl p-5"
             >
               <div className="flex items-center justify-between pb-3 border-b border-neutral-100">
                 <div className="flex items-center gap-2">
@@ -756,7 +743,7 @@ function BranchInventoryInner() {
                   <div>
                     <h3 className="text-sm font-bold text-neutral-900">Request Stock Transfer</h3>
                     <p className="text-[11px] text-neutral-500">
-                      Create transfer order from Central Warehouse to {branchName}
+                      Create multi-title transfer request from Central Warehouse to {branchName}
                     </p>
                   </div>
                 </div>
@@ -785,61 +772,82 @@ function BranchInventoryInner() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-neutral-700 mb-1">Select Book Title</label>
-                  {requestStockBook ? (
-                    <div className="p-3 bg-white rounded-sm border border-[#7e2562]/30 flex items-center justify-between shadow-2xs">
-                      <div>
-                        <div className="text-xs font-bold text-neutral-900">{requestStockBook.title}</div>
-                        <div className="text-[11px] text-neutral-500 mt-0.5">
-                          {requestStockBook.author?.name || 'Author N/A'} • ISBN: {requestStockBook.isbn || 'N/A'}
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setRequestStockBook(null)}
-                        className="text-xs text-[#7e2562] hover:underline font-bold ml-2 cursor-pointer"
-                      >
-                        Change
-                      </button>
-                    </div>
-                  ) : (
-                    <Dropdown
-                      searchable
-                      value={requestStockBook?.id || ''}
-                      onChange={(val) => {
-                        const bookList =
-                          catalog?.books || catalog?.items || catalog?.data || (Array.isArray(catalog) ? catalog : []);
-                        const b = bookList.find((item: any) => item.id === val);
-                        setRequestStockBook(b || null);
-                      }}
-                      placeholder="Search books by title, author, ISBN..."
-                      options={(
-                        catalog?.books ||
-                        catalog?.items ||
-                        catalog?.data ||
-                        (Array.isArray(catalog) ? catalog : [])
-                      ).map((b: any) => ({
-                        value: b.id,
-                        label: b.title,
-                        sublabel: `${b.author?.name || ''} • ISBN: ${b.isbn || 'N/A'}`,
-                      }))}
-                    />
-                  )}
+                  <label className="block text-xs font-bold text-neutral-700 mb-1">Select Book Titles</label>
+                  <MultiSelectBookDropdown
+                    books={catalog?.books || catalog?.items || catalog?.data || (Array.isArray(catalog) ? catalog : [])}
+                    selectedIds={requestCart.map((i) => i.bookId)}
+                    selectedBranchName="Central Warehouse"
+                    placeholder="Search titles by name, author, or ISBN to add multiple..."
+                    onSelectBook={(book: any) => {
+                      const bookId = book.id || book.bookId;
+                      if (!bookId) return;
+
+                      if (requestCart.some((i) => i.bookId === bookId)) {
+                        setRequestCart((prev) => prev.filter((i) => i.bookId !== bookId));
+                      } else {
+                        setRequestCart((prev) => [
+                          ...prev,
+                          {
+                            bookId,
+                            title: book.title || book.name || 'Selected Book',
+                            authorName: book.authorName || book.author?.name || '',
+                            isbn: book.isbn || '',
+                            quantity: 10,
+                          },
+                        ]);
+                      }
+                    }}
+                  />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-neutral-700 mb-1">
-                    Quantity to Transfer (Units) *
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    required
-                    value={requestStockQuantity}
-                    onChange={(e) => setRequestStockQuantity(Math.max(1, Number(e.target.value)))}
-                    className="block w-full px-3 py-2 border border-neutral-300 rounded-sm text-sm font-bold focus:outline-none focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]"
-                    placeholder="e.g. 10"
-                  />
+                {/* Requested Titles List */}
+                <div className="border border-[#7e2562]/15 rounded-sm overflow-hidden bg-white">
+                  <div className="bg-[#faf6f9]/70 px-4 py-2 border-b border-[#7e2562]/10 font-bold text-[#7e2562] flex justify-between items-center text-[11px]">
+                    <span>Requested Book Titles ({requestCart.length})</span>
+                    <span>Total Units: {requestCart.reduce((acc, i) => acc + (Number(i.quantity) || 0), 0)}</span>
+                  </div>
+
+                  <div className="max-h-60 overflow-y-auto divide-y divide-gray-100">
+                    {requestCart.length === 0 ? (
+                      <div className="p-6 text-center text-gray-400 italic">
+                        No books selected yet. Search and add books using the dropdown above.
+                      </div>
+                    ) : (
+                      requestCart.map((item, idx) => (
+                        <div key={item.bookId} className="px-4 py-2.5 flex items-center justify-between gap-3 hover:bg-[#faf6f9]/40">
+                          <div className="min-w-0 flex-1">
+                            <div className="font-bold text-gray-900 truncate">{item.title}</div>
+                            <div className="text-[11px] text-gray-500 truncate">
+                              {item.authorName ? `${item.authorName} • ` : ''}ISBN: {item.isbn || 'N/A'}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <label className="text-[11px] font-semibold text-gray-600">Qty:</label>
+                            <input
+                              type="number"
+                              min="1"
+                              value={item.quantity}
+                              onChange={(e) => {
+                                const val = Math.max(1, Number(e.target.value) || 1);
+                                setRequestCart((prev) =>
+                                  prev.map((i) => (i.bookId === item.bookId ? { ...i, quantity: val } : i))
+                                );
+                              }}
+                              className="w-20 px-2 py-1 text-center font-bold text-xs border border-gray-300 rounded-sm focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setRequestCart((prev) => prev.filter((i) => i.bookId !== item.bookId))}
+                              className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-sm"
+                              title="Remove item"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
 
                 <div>
@@ -868,7 +876,7 @@ function BranchInventoryInner() {
                   </button>
                   <button
                     type="submit"
-                    disabled={isSubmittingStockRequest || !requestStockBook?.id || requestStockQuantity <= 0}
+                    disabled={isSubmittingStockRequest || requestCart.length === 0}
                     className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-[#7e2562] rounded-sm hover:bg-[#681b50] disabled:opacity-50 transition-colors shadow-sm shadow-plum-sm cursor-pointer"
                   >
                     {isSubmittingStockRequest ? (
@@ -879,7 +887,7 @@ function BranchInventoryInner() {
                     ) : (
                       <>
                         <TrendingUp className="w-3.5 h-3.5 text-white" />
-                        <span>Create Stock Transfer</span>
+                        <span>Create Stock Transfer ({requestCart.length} titles)</span>
                       </>
                     )}
                   </button>

@@ -15,6 +15,7 @@ export interface DropdownOption {
   badgeClassName?: string;
   icon?: React.ReactNode;
   isSelected?: boolean;
+  disabled?: boolean;
 }
 
 interface DropdownProps {
@@ -83,19 +84,45 @@ export function Dropdown({
     ? options.filter((opt) => (value as unknown as string[])?.includes(opt.value))
     : options.filter((opt) => String(opt.value) === String(value));
   
-  const handleToggle = () => {
-    if (!isOpen && containerRef.current) {
+  const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({});
+
+  const updatePosition = () => {
+    if (containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
       const spaceBelow = window.innerHeight - rect.bottom;
-      // If there is less than 320px space below, and more space above, open upwards
-      if (spaceBelow < 320 && rect.top > spaceBelow) {
-        setDropdownPosition('top');
-      } else {
-        setDropdownPosition('bottom');
-      }
+      const openUp = spaceBelow < 250 && rect.top > spaceBelow;
+      setDropdownPosition(openUp ? 'top' : 'bottom');
+      setMenuStyle({
+        position: 'fixed',
+        left: `${rect.left}px`,
+        width: `${rect.width}px`,
+        minWidth: '220px',
+        top: openUp ? 'auto' : `${rect.bottom + 4}px`,
+        bottom: openUp ? `${window.innerHeight - rect.top + 4}px` : 'auto',
+        maxHeight: openUp ? `${Math.min(rect.top - 16, 320)}px` : `${Math.min(spaceBelow - 16, 320)}px`,
+        zIndex: 9999,
+      });
+    }
+  };
+
+  const handleToggle = () => {
+    if (!isOpen) {
+      updatePosition();
     }
     setIsOpen((prev) => !prev);
   };
+
+  useEffect(() => {
+    if (!isOpen) return;
+    updatePosition();
+    const handleScrollResize = () => updatePosition();
+    window.addEventListener('scroll', handleScrollResize, true);
+    window.addEventListener('resize', handleScrollResize);
+    return () => {
+      window.removeEventListener('scroll', handleScrollResize, true);
+      window.removeEventListener('resize', handleScrollResize);
+    };
+  }, [isOpen]);
 
   const handleSelect = (newValue: string) => {
     const targetOpt = options.find((o) => o.value === newValue);
@@ -206,9 +233,8 @@ export function Dropdown({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: dropdownPosition === 'top' ? 8 : -8 }}
             transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-            className={`absolute z-[100] w-full bg-white border border-[#7e2562]/20 rounded-sm shadow-xl max-h-96 md:max-h-[380px] overflow-auto focus:outline-none ${
-              dropdownPosition === 'top' ? 'bottom-full mb-1' : 'top-full mt-1'
-            } ${menuClassName}`}
+            style={menuStyle}
+            className={`bg-white border border-[#7e2562]/20 rounded-sm shadow-xl overflow-auto focus:outline-none ${menuClassName}`}
           >
             {searchable && (
               <div className="p-2 border-b border-[#7e2562]/10 sticky top-0 bg-white z-10">
@@ -253,10 +279,15 @@ export function Dropdown({
                       key={opt.value}
                       onClick={(e) => {
                         e.stopPropagation();
+                        if (opt.disabled) return;
                         handleSelect(opt.value);
                       }}
-                      className={`flex items-center justify-between px-3 py-2 text-xs cursor-pointer transition-colors ${
-                        isItemActive ? 'bg-[#faedf5]/70 text-[#7e2562]' : 'text-neutral-800 hover:bg-[#faf6f9] hover:text-[#7e2562]'
+                      className={`flex items-center justify-between px-3 py-2 text-xs transition-colors ${
+                        opt.disabled
+                          ? 'opacity-50 cursor-not-allowed bg-gray-50 text-gray-400'
+                          : isItemActive
+                          ? 'bg-[#faedf5]/70 text-[#7e2562] cursor-pointer'
+                          : 'text-neutral-800 hover:bg-[#faf6f9] hover:text-[#7e2562] cursor-pointer'
                       }`}
                     >
                       <div className="flex items-start flex-1 min-w-0 mr-3">

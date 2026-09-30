@@ -23,6 +23,8 @@ import { User } from '../api-backend/users/entities/user.entity';
 import { Notification } from '../api-backend/notifications/entities/notification.entity';
 import { ExhibitionStockRequest, ExhibitionStockRequestStatus } from '../api-backend/exhibitions/entities/exhibition-stock-request.entity';
 import { ExhibitionStockRequestItem } from '../api-backend/exhibitions/entities/exhibition-stock-request-item.entity';
+import { StockTransfer, StockTransferStatus } from '../api-backend/transfers/entities/stock-transfer.entity';
+import { StockTransferItem } from '../api-backend/transfers/entities/stock-transfer-item.entity';
 import { ExhibitionDayClose } from '../api-backend/exhibitions/entities/exhibition-day-close.entity';
 import { AuditLog } from '../api-backend/audit/entities/audit-log.entity';
 import { CreateExhibitionDto } from '../api-backend/exhibitions/dto/create-exhibition.dto';
@@ -956,8 +958,10 @@ export class ExhibitionsService {
       // 1. Date checks
       const startDateObj = new Date(exhibition.startDate);
       const endDateObj = new Date(exhibition.endDate);
-      if (endDateObj <= startDateObj) {
-        throw new BadRequestException('Pre-flight check failed: End date must be after start date');
+      startDateObj.setHours(0, 0, 0, 0);
+      endDateObj.setHours(23, 59, 59, 999);
+      if (endDateObj < startDateObj) {
+        throw new BadRequestException('Pre-flight check failed: End date cannot be before start date');
       }
 
       // 2. Check at least one LEAD is assigned
@@ -1562,6 +1566,59 @@ export class ExhibitionsService {
     );
     await itemRepo.save(itemsToSave);
 
+    // Also create companion StockTransfer record so Central Inventory Manager sees it in /dashboard/transfers & /dashboard/central-inventory
+    try {
+      const transferRepo = ds.getRepository(StockTransfer);
+      const transferItemRepo = ds.getRepository(StockTransferItem);
+      const branchRepo = ds.getRepository(Branch);
+
+      const branches = await branchRepo.find();
+      const warehouse = branches.find((b: any) => b.type === 'WAREHOUSE') || branches[0];
+
+      let fromBranchId = warehouse ? warehouse.id : (dto.sourceBranchId || access.exhibition.sourceBranchId);
+      let toBranchId = access.exhibition.sourceBranchId || (dto.sourceBranchId || fromBranchId);
+
+      // Ensure fromBranchId != toBranchId for foreign key constraint
+      if (fromBranchId === toBranchId && branches.length > 1) {
+        const otherBranch = branches.find((b: any) => b.id !== fromBranchId);
+        if (otherBranch) {
+          toBranchId = otherBranch.id;
+        }
+      }
+
+      const todayStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      const [countResult] = await ds.query(
+        `SELECT COUNT(*) as count FROM stock_transfer WHERE transfer_number LIKE ?`,
+        [`TR-${todayStr}-%`]
+      );
+      const count = Number(countResult?.count || 0) + 1;
+      const transferNumber = `TR-${todayStr}-${String(count).padStart(4, '0')}`;
+
+      const transfer = transferRepo.create({
+        transferNumber,
+        fromBranchId,
+        toBranchId,
+        requestedById: user.userId,
+        status: StockTransferStatus.PENDING,
+        note: `[EXHIBITION RESTOCK] ${access.exhibition.name}`,
+      });
+      const savedTransfer = await transferRepo.save(transfer);
+
+      const transferItems = dto.items.map((i) =>
+        transferItemRepo.create({
+          transferId: savedTransfer.id,
+          bookId: i.bookId,
+          quantityRequested: i.quantityRequested,
+          quantityDispatched: 0,
+          quantityReceived: 0,
+        })
+      );
+      await transferItemRepo.save(transferItems);
+      this.notificationsService.triggerRefresh('transfers_changed');
+    } catch (err) {
+      console.error('Failed to create companion StockTransfer record:', err);
+    }
+
     this.notificationsService.triggerRefresh('exhibition_changed');
     return this.getStockRequestById(savedReq.id);
   }
@@ -1961,7 +2018,19 @@ export class ExhibitionsService {
     let upiRevenue = 0;
 
     const bookSalesMap: Record<string, { book: Book; unitsSold: number; revenue: number }> = {};
-    const todayStr = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const isSameDayIST = (d1: Date, d2: Date) => {
+      const s1 = d1.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+      const s2 = d2.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+      return s1 === s2;
+    };
+
+    const getISTHour = (d: Date) => {
+      const hourStr = d.toLocaleTimeString('en-US', { hour: '2-digit', hour12: false, timeZone: 'Asia/Kolkata' });
+      const h = parseInt(hourStr, 10);
+      return isNaN(h) ? d.getHours() : (h % 24);
+    };
+
     const hourlySalesCurve: Array<{ hour: number; revenue: number; billsCount: number }> = Array.from(
       { length: 24 },
       (_, i) => ({ hour: i, revenue: 0, billsCount: 0 }),
@@ -1973,12 +2042,12 @@ export class ExhibitionsService {
     let todayBillsCount = 0;
 
     for (const bill of bills) {
-      const billDateStr = new Date(bill.createdAt).toISOString().split('T')[0];
-      const isToday = billDateStr === todayStr;
+      const billDate = new Date(bill.createdAt);
+      const isToday = isSameDayIST(billDate, now);
 
       if (isToday) {
         todayBillsCount++;
-        const hour = new Date(bill.createdAt).getHours();
+        const hour = getISTHour(billDate);
         hourlySalesCurve[hour].revenue += Number(bill.totalAmount || 0);
         hourlySalesCurve[hour].billsCount++;
       }
@@ -2099,6 +2168,13 @@ export class ExhibitionsService {
         sourceBranch: exhibition.sourceBranch,
         assignments: exhibition.assignments,
       },
+      bills: bills.map((b) => ({
+        id: b.id,
+        billNumber: b.billNumber,
+        totalAmount: Number(b.totalAmount || 0),
+        paymentMode: b.paymentMode,
+        createdAt: b.createdAt,
+      })),
       today: {
         revenue: todayRevenue,
         billCount: todayBillsCount,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Fragment } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useConfirm } from '@/contexts/ConfirmContext';
 import { useApiData } from '@/hooks/useApiData';
@@ -8,7 +8,7 @@ import { api } from '@/lib/api';
 import { 
   Loader2, Plus, Tent, CheckCircle, XCircle, Send, ArchiveRestore, 
   AlertCircle, AlertTriangle, Eye, Pencil, Trash2, BookOpen, Warehouse, Store, Layers, GitFork, Building2,
-  ChevronDown, ChevronUp
+  ChevronDown, ChevronUp, Calendar, CalendarDays
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -33,13 +33,17 @@ export interface ExhibitionBookItem {
 function MultiSelectBookDropdown({
   books = [],
   onSelectBook,
-  placeholder = "Type book title or ISBN to add...",
+  placeholder = "Type book title to search & add...",
   selectedIds = [],
+  getStockQty,
+  selectedBranchName,
 }: {
   books: any[];
   onSelectBook: (book: any) => void;
   placeholder?: string;
   selectedIds?: string[];
+  getStockQty?: (bookId: string) => number;
+  selectedBranchName?: string;
 }) {
   const [search, setSearch] = useState('');
   const [isOpen, setIsOpen] = useState(false);
@@ -102,7 +106,7 @@ function MultiSelectBookDropdown({
 
   return (
     <div className="relative w-full" ref={containerRef}>
-      <div className="relative">
+      <div className="relative flex items-center">
         <input
           type="text"
           value={search}
@@ -112,13 +116,21 @@ function MultiSelectBookDropdown({
           }}
           onFocus={() => setIsOpen(true)}
           placeholder={placeholder}
-          className="w-full px-3 py-2 text-xs border border-gray-300 rounded-sm focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562] bg-white text-gray-900 pr-8"
+          className="w-full px-3 py-2 text-xs border border-gray-300 rounded-sm focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562] bg-white text-gray-900 pr-9 cursor-text"
         />
-        {searching && (
-          <div className="absolute right-2.5 top-2.5">
-            <Loader2 className="h-3.5 w-3.5 animate-spin text-[#7e2562]" />
-          </div>
-        )}
+        <button
+          type="button"
+          onClick={() => setIsOpen(!isOpen)}
+          className="absolute right-2.5 top-2.5 text-gray-400 hover:text-gray-600 focus:outline-hidden cursor-pointer"
+        >
+          {searching ? (
+            <Loader2 className="h-4 w-4 animate-spin text-[#7e2562]" />
+          ) : isOpen ? (
+            <ChevronUp className="h-4 w-4 text-gray-500" />
+          ) : (
+            <ChevronDown className="h-4 w-4 text-gray-500" />
+          )}
+        </button>
       </div>
       {isOpen && (
         <div className="absolute left-0 right-0 top-full mt-1 max-h-64 overflow-y-auto bg-white border border-gray-200 rounded-sm shadow-xl z-50 divide-y divide-gray-100">
@@ -129,6 +141,10 @@ function MultiSelectBookDropdown({
           ) : (
             displayList.slice(0, 50).map((b) => {
               const isSelected = selectedIds.includes(b.id);
+              const qty = getStockQty
+                ? getStockQty(b.id)
+                : (typeof b.quantity === 'number' ? b.quantity : (typeof b.stock === 'number' ? b.stock : 0));
+
               return (
                 <button
                   key={b.id}
@@ -163,11 +179,9 @@ function MultiSelectBookDropdown({
                     <span className={`font-semibold truncate block ${isSelected ? 'text-emerald-800' : 'text-gray-900'}`}>
                       {b.title || b.name}
                     </span>
-                    <div className="flex items-center gap-2 text-[10px] text-gray-400 font-mono mt-0.5">
-                      {b.isbn && <span>ISBN: {b.isbn}</span>}
-                      {(b.author?.name || b.authorName) && (
-                        <span>â€¢ {b.author?.name || b.authorName}</span>
-                      )}
+                    <div className="text-[11px] text-gray-600 mt-0.5 font-medium">
+                      {selectedBranchName ? `${selectedBranchName} Stock: ` : 'Branch Stock: '}
+                      <span className="font-bold text-[#7e2562]">{qty}</span> {qty === 1 ? 'book' : 'books'} available
                     </div>
                   </div>
 
@@ -249,6 +263,8 @@ export default function ExhibitionsPage() {
   const [assignedUserId, setAssignedUserId] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [createDurationType, setCreateDurationType] = useState<'SINGLE' | 'MULTI'>('SINGLE');
+  const [editDurationType, setEditDurationType] = useState<'SINGLE' | 'MULTI'>('SINGLE');
   const [cart, setCart] = useState<ExhibitionBookItem[]>([]);
 
   const rawCatalogList = catalog?.data?.items || catalog?.data || catalog?.items || catalog;
@@ -260,6 +276,11 @@ export default function ExhibitionsPage() {
       if (exists) {
         return prev.filter((i) => i.bookId !== book.id);
       }
+      const targetBranchId = (isAdmin ? createBranchId : user?.branchId) || user?.branchId || '';
+      const targetBranchObj = (branches || []).find((b: any) => b.id === targetBranchId);
+      const isWarehouse = targetBranchObj ? targetBranchObj.type === 'WAREHOUSE' : (!targetBranchId);
+      const defaultSourceKey = (targetBranchId && !isWarehouse) ? `BRANCH_${targetBranchId}` : 'WAREHOUSE';
+
       return [
         ...prev,
         {
@@ -268,8 +289,8 @@ export default function ExhibitionsPage() {
           isbn: book.isbn,
           quantityRequested: 1,
           sourceMode: 'SINGLE',
-          selectedSource: 'WAREHOUSE',
-          sourceSplits: { WAREHOUSE: 1 },
+          selectedSource: defaultSourceKey,
+          sourceSplits: { [defaultSourceKey]: 1 },
         },
       ];
     });
@@ -343,6 +364,66 @@ export default function ExhibitionsPage() {
   const getActiveBranchStockQty = (bookId: string) => {
     if (!activeSourceBranchId) return 0;
     return getBranchStockQty(activeSourceBranchId, bookId);
+  };
+
+  const effectiveCreateBranchId = (isAdmin && createBranchId)
+    ? createBranchId
+    : (assignedUserId
+        ? (usersResponse?.data || usersResponse || []).find((u: any) => u.id === assignedUserId)?.branchId ||
+          (usersResponse?.data || usersResponse || []).find((u: any) => u.id === assignedUserId)?.branch?.id
+        : user?.branchId) || '';
+
+  const selectedCreateBranchObj = branches.find((b: any) => b.id === effectiveCreateBranchId);
+  const selectedCreateBranchName = selectedCreateBranchObj
+    ? selectedCreateBranchObj.name
+    : (isAdmin ? (createBranchId ? 'Selected Branch' : 'Assigned Branch') : 'Your Branch');
+
+  const getCreateModalStockQty = (bookId: string) => {
+    if (!effectiveCreateBranchId) {
+      return getCentralStockQty(bookId);
+    }
+    if (selectedCreateBranchObj?.type === 'WAREHOUSE') {
+      return getCentralStockQty(bookId);
+    }
+    return getBranchStockQty(effectiveCreateBranchId, bookId);
+  };
+
+  const effectiveEditBranchId = 
+    editingExhibition?.sourceBranchId || 
+    editingExhibition?.sourceBranch?.id || 
+    editingExhibition?.branchId || 
+    editingExhibition?.branch?.id || 
+    (editingExhibition?.assignedUserId
+      ? (usersResponse?.data || usersResponse || []).find((u: any) => u.id === editingExhibition.assignedUserId)?.branchId ||
+        (usersResponse?.data || usersResponse || []).find((u: any) => u.id === editingExhibition.assignedUserId)?.branch?.id
+      : '') || 
+    '';
+  const selectedEditBranchObj = branches.find((b: any) => b.id === effectiveEditBranchId);
+  const selectedEditBranchName = selectedEditBranchObj
+    ? selectedEditBranchObj.name
+    : (editingExhibition?.sourceBranch?.name || editingExhibition?.branch?.name || 'Assigned Branch');
+
+  const getEditModalStockQty = (bookId: string) => {
+    if (!effectiveEditBranchId) {
+      return getCentralStockQty(bookId);
+    }
+    if (selectedEditBranchObj?.type === 'WAREHOUSE') {
+      return getCentralStockQty(bookId);
+    }
+    return getBranchStockQty(effectiveEditBranchId, bookId);
+  };
+
+  const isExhibitionStarted = (ex: any) => {
+    if (!ex) return false;
+    if (ex.status === 'ONGOING' || ex.status === 'CLOSED' || ex.status === 'REJECTED' || ex.status === 'OVERDUE') {
+      return true;
+    }
+    if (!ex.startDate) return false;
+    const start = new Date(ex.startDate);
+    start.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return today >= start;
   };
 
   const getItemBranchCentralQuantities = (item: ExhibitionBookItem) => {
@@ -590,7 +671,24 @@ export default function ExhibitionsPage() {
   const handleOpenApproveModal = (ex: any) => {
     setApprovingExhibition(ex);
     setApproveNote('');
-    const isWarehouse = branches.find((b: any) => b.id === ex.sourceBranchId)?.type === 'WAREHOUSE';
+    const exBranchId = 
+      ex.sourceBranchId || 
+      ex.sourceBranch?.id || 
+      ex.branchId || 
+      ex.branch?.id || 
+      (ex.assignedUserId
+        ? (usersResponse?.data || usersResponse || []).find((u: any) => u.id === ex.assignedUserId)?.branchId ||
+          (usersResponse?.data || usersResponse || []).find((u: any) => u.id === ex.assignedUserId)?.branch?.id
+        : '') || 
+      (ex.requestedById
+        ? (usersResponse?.data || usersResponse || []).find((u: any) => u.id === ex.requestedById)?.branchId ||
+          (usersResponse?.data || usersResponse || []).find((u: any) => u.id === ex.requestedById)?.branch?.id
+        : '') ||
+      '';
+
+    const sourceBranchObj = branches.find((b: any) => b.id === exBranchId);
+    const isWarehouse = sourceBranchObj ? sourceBranchObj.type === 'WAREHOUSE' : false;
+    const defaultBranchSourceKey = (exBranchId && !isWarehouse) ? `BRANCH_${exBranchId}` : 'WAREHOUSE';
 
     const items: ExhibitionBookItem[] = (ex.stock || []).map((s: any) => {
       const bookId = s.bookId || s.book?.id;
@@ -602,10 +700,14 @@ export default function ExhibitionsPage() {
       const sold = Number(s.quantitySold || 0);
 
       let splits: Record<string, number> = {};
-      let selectedSource = 'WAREHOUSE';
+      let selectedSource = defaultBranchSourceKey;
       let sourceMode: 'SINGLE' | 'SPLIT' = 'SINGLE';
 
-      if (s.sourceSplits && typeof s.sourceSplits === 'object' && Object.keys(s.sourceSplits).length > 0) {
+      if (exBranchId && !isWarehouse && ex.status === 'PENDING') {
+        selectedSource = defaultBranchSourceKey;
+        sourceMode = 'SINGLE';
+        splits = { [defaultBranchSourceKey]: totalQty };
+      } else if (s.sourceSplits && typeof s.sourceSplits === 'object' && Object.keys(s.sourceSplits).length > 0) {
         splits = { ...s.sourceSplits };
         const activeKeys = Object.keys(splits).filter((k) => (splits[k] || 0) > 0);
         if (activeKeys.length > 1) {
@@ -616,7 +718,7 @@ export default function ExhibitionsPage() {
           selectedSource = activeKeys[0];
         } else {
           sourceMode = 'SINGLE';
-          selectedSource = isWarehouse ? 'WAREHOUSE' : (ex.sourceBranchId ? `BRANCH_${ex.sourceBranchId}` : 'WAREHOUSE');
+          selectedSource = defaultBranchSourceKey;
           splits[selectedSource] = totalQty;
         }
       } else {
@@ -625,17 +727,21 @@ export default function ExhibitionsPage() {
           sourceMode = 'SPLIT';
           selectedSource = 'SPLIT';
           splits['WAREHOUSE'] = fromCentral;
-          if (ex.sourceBranchId) {
-            splits[`BRANCH_${ex.sourceBranchId}`] = fromBranch;
+          if (exBranchId) {
+            splits[`BRANCH_${exBranchId}`] = fromBranch;
           }
-        } else if (fromCentral > 0 || isWarehouse) {
+        } else if (fromBranch > 0 || (exBranchId && !isWarehouse && fromCentral === 0)) {
+          sourceMode = 'SINGLE';
+          selectedSource = defaultBranchSourceKey;
+          splits[defaultBranchSourceKey] = totalQty;
+        } else if (fromCentral > 0) {
           sourceMode = 'SINGLE';
           selectedSource = 'WAREHOUSE';
           splits['WAREHOUSE'] = totalQty;
         } else {
           sourceMode = 'SINGLE';
-          selectedSource = ex.sourceBranchId ? `BRANCH_${ex.sourceBranchId}` : 'WAREHOUSE';
-          splits[selectedSource] = totalQty;
+          selectedSource = defaultBranchSourceKey;
+          splits[defaultBranchSourceKey] = totalQty;
         }
       }
 
@@ -791,16 +897,36 @@ export default function ExhibitionsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleOpenEdit = (ex: any) => {
+    if (!isAdmin && isExhibitionStarted(ex)) {
+      alert("Editing is disabled once the exhibition start date has arrived or passed.");
+      return;
+    }
     setEditingExhibition(ex);
+    const sDate = ex.startDate ? new Date(ex.startDate).toISOString().split('T')[0] : '';
+    const eDate = ex.endDate ? new Date(ex.endDate).toISOString().split('T')[0] : '';
+    setEditDurationType(sDate && eDate && sDate === eDate ? 'SINGLE' : 'MULTI');
     setEditFormData({
       name: ex.name || ex.eventName || '',
       location: ex.location || '',
-      startDate: ex.startDate ? new Date(ex.startDate).toISOString().split('T')[0] : '',
-      endDate: ex.endDate ? new Date(ex.endDate).toISOString().split('T')[0] : '',
+      startDate: sDate,
+      endDate: eDate,
       assignedUserId: ex.assignedUserId || '',
     });
 
-    const isWarehouse = branches.find((b: any) => b.id === ex.sourceBranchId)?.type === 'WAREHOUSE';
+    const exBranchId = 
+      ex.sourceBranchId || 
+      ex.sourceBranch?.id || 
+      ex.branchId || 
+      ex.branch?.id || 
+      (ex.assignedUserId
+        ? (usersResponse?.data || usersResponse || []).find((u: any) => u.id === ex.assignedUserId)?.branchId ||
+          (usersResponse?.data || usersResponse || []).find((u: any) => u.id === ex.assignedUserId)?.branch?.id
+        : '') || 
+      '';
+
+    const sourceBranchObj = branches.find((b: any) => b.id === exBranchId);
+    const isWarehouse = sourceBranchObj ? sourceBranchObj.type === 'WAREHOUSE' : false;
+    const defaultBranchSourceKey = (exBranchId && !isWarehouse) ? `BRANCH_${exBranchId}` : 'WAREHOUSE';
 
     const items: ExhibitionBookItem[] = (ex.stock || []).map((s: any) => {
       const bookId = s.bookId || s.book?.id;
@@ -811,12 +937,15 @@ export default function ExhibitionsPage() {
       const fromCentral = Number(s.quantityFromCentral ?? 0);
       const sold = Number(s.quantitySold || 0);
 
-      const isSplit = fromBranch > 0 && fromCentral > 0;
       let splits: Record<string, number> = {};
-      let selectedSource = 'WAREHOUSE';
+      let selectedSource = defaultBranchSourceKey;
       let sourceMode: 'SINGLE' | 'SPLIT' = 'SINGLE';
 
-      if (s.sourceSplits && typeof s.sourceSplits === 'object' && Object.keys(s.sourceSplits).length > 0) {
+      if (exBranchId && !isWarehouse && ex.status === 'PENDING') {
+        selectedSource = defaultBranchSourceKey;
+        sourceMode = 'SINGLE';
+        splits = { [defaultBranchSourceKey]: totalQty };
+      } else if (s.sourceSplits && typeof s.sourceSplits === 'object' && Object.keys(s.sourceSplits).length > 0) {
         splits = { ...s.sourceSplits };
         const activeKeys = Object.keys(splits).filter((k) => (splits[k] || 0) > 0);
         if (activeKeys.length > 1) {
@@ -827,7 +956,7 @@ export default function ExhibitionsPage() {
           selectedSource = activeKeys[0];
         } else {
           sourceMode = 'SINGLE';
-          selectedSource = isWarehouse ? 'WAREHOUSE' : (ex.sourceBranchId ? `BRANCH_${ex.sourceBranchId}` : 'WAREHOUSE');
+          selectedSource = defaultBranchSourceKey;
           splits[selectedSource] = totalQty;
         }
       } else {
@@ -836,17 +965,21 @@ export default function ExhibitionsPage() {
           sourceMode = 'SPLIT';
           selectedSource = 'SPLIT';
           splits['WAREHOUSE'] = fromCentral;
-          if (ex.sourceBranchId) {
-            splits[`BRANCH_${ex.sourceBranchId}`] = fromBranch;
+          if (exBranchId) {
+            splits[`BRANCH_${exBranchId}`] = fromBranch;
           }
-        } else if (fromCentral > 0 || isWarehouse) {
+        } else if (fromBranch > 0 || (exBranchId && !isWarehouse && fromCentral === 0)) {
+          sourceMode = 'SINGLE';
+          selectedSource = defaultBranchSourceKey;
+          splits[defaultBranchSourceKey] = totalQty;
+        } else if (fromCentral > 0) {
           sourceMode = 'SINGLE';
           selectedSource = 'WAREHOUSE';
           splits['WAREHOUSE'] = totalQty;
         } else {
           sourceMode = 'SINGLE';
-          selectedSource = ex.sourceBranchId ? `BRANCH_${ex.sourceBranchId}` : 'WAREHOUSE';
-          splits[selectedSource] = totalQty;
+          selectedSource = defaultBranchSourceKey;
+          splits[defaultBranchSourceKey] = totalQty;
         }
       }
 
@@ -1024,9 +1157,9 @@ export default function ExhibitionsPage() {
   const handleClose = async () => {
     if (!closingExhibition) return;
     
-    // Validate that Sold + Returned + Damaged + Lost + Credit == Taken
+    // Validate that Sold + Returned + Damaged/Lost + Credit == Taken
     for (const rec of reconciliation) {
-      const total = (rec.quantitySold || 0) + (rec.quantityReturned || 0) + (rec.quantityDamaged || 0) + (rec.quantityLost || 0) + (rec.quantityCredit || 0);
+      const total = (rec.quantitySold || 0) + (rec.quantityReturned || 0) + (rec.quantityDamagedLost || 0) + (rec.quantityCredit || 0);
       if (total !== rec.quantityTaken) {
         alert(`Mismatch in "${rec.title}": Total accounted (${total}) does not equal quantity taken (${rec.quantityTaken}).`);
         return;
@@ -1050,12 +1183,13 @@ export default function ExhibitionsPage() {
           stockId: r.stockId,
           quantitySold: r.quantitySold || 0,
           quantityReturned: r.quantityReturned || 0,
-          quantityDamaged: r.quantityDamaged || 0,
-          quantityLost: r.quantityLost || 0,
+          quantityDamaged: r.quantityDamagedLost || 0,
+          quantityLost: 0,
           quantityCredit: r.quantityCredit || 0
         }))
       });
       setClosingExhibition(null);
+      window.location.reload();
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to close exhibition');
     } finally {
@@ -1097,7 +1231,6 @@ export default function ExhibitionsPage() {
         <BranchInventoryExhibitionsView 
           exhibitions={exhibitions || []} 
           user={user} 
-          onEditExhibition={handleOpenEdit}
         />
       ) : (
         <>
@@ -1117,9 +1250,9 @@ export default function ExhibitionsPage() {
             )}
           </div>
 
-      <div className="bg-white shadow-sm border border-[#7e2562]/10 rounded-sm overflow-hidden">
+      <div className="bg-white shadow-sm border border-[#7e2562]/10 rounded-sm overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562]   tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
+          <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562] tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
             <tr>
               <th scope="col" className="px-6 py-3 text-left">Event / Branch</th>
               <th scope="col" className="px-6 py-3 text-left">Dates</th>
@@ -1137,7 +1270,7 @@ export default function ExhibitionsPage() {
                   >
                     {ex.name || ex.eventName}
                   </button>
-                  <div className="text-xs text-gray-500">{ex.location} â€¢ {ex.branch?.name}</div>
+                  <div className="text-xs text-gray-500">{ex.location} {ex.branch?.name}</div>
                   {ex.assignedUser && <div className="text-xs text-[#7e2562] font-semibold mt-1">Assigned: {ex.assignedUser.name}</div>}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -1149,7 +1282,7 @@ export default function ExhibitionsPage() {
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                   <div className="flex flex-col items-end gap-1.5">
                     {/* Line 1: Primary actions */}
-                    <div className="flex items-center justify-end gap-2">
+                    <div className="flex flex-wrap items-center justify-end gap-2">
                       <button 
                         onClick={() => handleViewHistory(ex)}
                         className="inline-flex items-center px-3 py-1.5 text-xs font-semibold text-gray-700 bg-white hover:bg-[#faedf5] hover:text-[#7e2562] border border-gray-300 hover:border-[#7e2562]/30 rounded-sm shadow-xs transition-all active:scale-95"
@@ -1168,11 +1301,10 @@ export default function ExhibitionsPage() {
                         </button>
                       )}
 
-                      {ex.status !== 'CLOSED' && ex.status !== 'REJECTED' && (
+                      {ex.status !== 'CLOSED' && ex.status !== 'REJECTED' && (!isExhibitionStarted(ex) || isAdmin) && (
                         isAdmin ||
                         isCentralManager ||
                         ex.requestedById === user?.id ||
-                        ex.assignedUserId === user?.id ||
                         (isBranchManager && ex.sourceBranchId === user?.branchId)
                       ) && (
                         <button 
@@ -1198,7 +1330,7 @@ export default function ExhibitionsPage() {
 
                       {(ex.status === 'ONGOING' || ex.status === 'DISPATCHED' || ex.status === 'OVERDUE') && (
                         <button 
-                          onClick={() => router.push(`/dashboard/exhibitions/${ex.id}`)}
+                          onClick={() => router.push(`/dashboard/exhibitions/${ex.id}/overview`)}
                           className="inline-flex items-center px-2.5 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-sm transition-colors shadow-xs"
                         >
                           <Tent className="w-3.5 h-3.5 mr-1" /> Open Live Workspace
@@ -1209,16 +1341,22 @@ export default function ExhibitionsPage() {
                         <button 
                           onClick={() => {
                             setClosingExhibition(ex);
-                            setReconciliation(ex.stock.map((s: any) => ({
-                              stockId: s.id,
-                              title: s.book?.title,
-                              quantityTaken: s.quantityTaken,
-                              quantitySold: s.quantityTaken, // Default assume all sold
-                              quantityReturned: 0,
-                              quantityDamaged: 0,
-                              quantityLost: 0,
-                              quantityCredit: 0
-                            })));
+                            setReconciliation((ex.stock || []).map((s: any) => {
+                              const sold = Number(s.quantitySold || 0);
+                              const credit = Number(s.quantityCredit || 0);
+                              const totalTaken = Number(s.quantityTaken || 0) + Number(s.quantityTopUp || 0);
+                              const damagedLost = Number(s.quantityDamaged || 0) + Number(s.quantityLost || 0);
+                              const returned = Math.max(0, totalTaken - sold - credit - damagedLost);
+                              return {
+                                stockId: s.id,
+                                title: s.book?.title || 'Book Title',
+                                quantityTaken: totalTaken,
+                                quantitySold: sold,
+                                quantityCredit: credit,
+                                quantityDamagedLost: damagedLost,
+                                quantityReturned: returned
+                              };
+                            }));
                           }} 
                           className="inline-flex items-center px-2.5 py-1.5 text-xs font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-sm transition-colors shadow-xs"
                         >
@@ -1275,7 +1413,7 @@ export default function ExhibitionsPage() {
               initial={{ opacity: 0, scale: 0.95 }} 
               animate={{ opacity: 1, scale: 1 }} 
               exit={{ opacity: 0, scale: 0.95 }} 
-              className="bg-white rounded-sm shadow-xl w-full max-w-2xl max-h-[92dvh] flex flex-col overflow-hidden border border-[#7e2562]/10"
+              className="bg-white rounded-sm shadow-xl w-full max-w-4xl max-h-[92dvh] flex flex-col overflow-hidden border border-[#7e2562]/10"
             >
               {/* Header */}
               <div className="px-4 py-3 sm:px-6 sm:py-4 border-b border-[#7e2562]/10 bg-gradient-to-r from-[#faedf5]/70 to-[#faf6f9] flex justify-between items-center shrink-0">
@@ -1353,13 +1491,64 @@ export default function ExhibitionsPage() {
                         }))}
                     />
                   </div>
+                  <div className="col-span-1 md:col-span-2  flex flex-wrap items-center justify-between gap-2">
+                    <div className="inline-flex rounded bg-white p-0.5 border border-purple-200">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCreateDurationType('SINGLE');
+                          if (startDate) setEndDate(startDate);
+                        }}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-xs transition-colors ${
+                          createDurationType === 'SINGLE'
+                            ? 'bg-[#7e2562] text-white shadow-xs'
+                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                        }`}
+                      >
+                        <Calendar className="w-3.5 h-3.5" /> Single Day (1 Day)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCreateDurationType('MULTI')}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-xs transition-colors ${
+                          createDurationType === 'MULTI'
+                            ? 'bg-[#7e2562] text-white shadow-xs'
+                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                        }`}
+                      >
+                        <CalendarDays className="w-3.5 h-3.5" /> Multi-Day Event
+                      </button>
+                    </div>
+                  </div>
+
                   <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">Start Date</label>
-                    <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="block w-full px-3 py-2 border border-gray-300 rounded-sm text-sm focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" />
+                    <label className="block text-xs font-semibold text-gray-700 mb-1">
+                      {createDurationType === 'SINGLE' ? 'Event Date' : 'Start Date'}
+                    </label>
+                    <input 
+                      type="date" 
+                      value={startDate} 
+                      onChange={e => {
+                        const val = e.target.value;
+                        setStartDate(val);
+                        if (createDurationType === 'SINGLE') {
+                          setEndDate(val);
+                        }
+                      }} 
+                      className="block w-full px-3 py-2 border border-gray-300 rounded-sm text-sm focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" 
+                    />
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-gray-700 mb-1">End Date</label>
-                    <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="block w-full px-3 py-2 border border-gray-300 rounded-sm text-sm focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" />
+                    <input 
+                      type="date" 
+                      value={endDate} 
+                      disabled={createDurationType === 'SINGLE'}
+                      onChange={e => setEndDate(e.target.value)} 
+                      className={`block w-full px-3 py-2 border rounded-sm text-sm focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562] ${
+                        createDurationType === 'SINGLE' ? 'bg-gray-100 text-gray-500 border-gray-200 cursor-not-allowed' : 'border-gray-300'
+                      }`} 
+                    />
                   </div>
                 </div>
 
@@ -1378,8 +1567,10 @@ export default function ExhibitionsPage() {
                     <MultiSelectBookDropdown
                       books={catalogBooks}
                       onSelectBook={handleSelectBookForCreate}
-                      placeholder="Type book title or ISBN to add..."
+                      placeholder="Type book title to search & add..."
                       selectedIds={cart.map((i) => i.bookId)}
+                      getStockQty={getCreateModalStockQty}
+                      selectedBranchName={selectedCreateBranchName}
                     />
                   </div>
                 </div>
@@ -1407,41 +1598,38 @@ export default function ExhibitionsPage() {
                         const isSingleOver = !isSplit && (item.quantityRequested || 0) > selectedAvail;
 
                         return (
-                          <tr key={item.bookId} className="hover:bg-gray-50/75 transition-colors">
-                            <td className="px-4 py-3 align-top">
-                              <div className="font-semibold text-gray-900">{item.title}</div>
-                              {/* {item.isbn && (
-                                <div className="text-[11px] text-gray-400 font-mono mt-0.5">{item.isbn}</div>
-                              )} */}
-                              {!canManageStockSources && (
-                                <div className="text-[11px] text-gray-500 mt-1">
-                                  Your branch stock: <strong className="text-gray-800">{getActiveBranchStockQty(item.bookId)}</strong>
-                                </div>
-                              )}
-                            </td>
-
-                            {canManageStockSources && (
+                          <React.Fragment key={item.bookId}>
+                            <tr className="hover:bg-gray-50/75 transition-colors">
                               <td className="px-4 py-3 align-top">
-                                <div className="space-y-2">
-                                  <Dropdown
-                                    value={item.selectedSource}
-                                    onChange={(val) => handleCreateSourceChange(item.bookId, val)}
-                                    options={getRowSourceOptions(item.bookId, item, false)}
-                                    selectClassName="text-xs py-1.5 px-2.5 bg-white border border-[#7e2562]/20"
-                                    menuClassName="w-72"
-                                  />
+                                <div className="font-semibold text-gray-900">{item.title}</div>
+                                {!canManageStockSources && (
+                                  <div className="text-[11px] text-gray-500 mt-1">
+                                    Your branch stock: <strong className="text-gray-800">{getActiveBranchStockQty(item.bookId)}</strong>
+                                  </div>
+                                )}
+                              </td>
 
-                                  {isSplit && (
-                                    <div className="space-y-1.5">
-                                      <div className="flex flex-wrap items-center gap-1.5">
+                              {canManageStockSources && (
+                                <td className="px-4 py-3 align-top">
+                                  <div className="space-y-1.5">
+                                    <Dropdown
+                                      value={item.selectedSource}
+                                      onChange={(val) => handleCreateSourceChange(item.bookId, val)}
+                                      options={getRowSourceOptions(item.bookId, item, false)}
+                                      selectClassName="text-xs py-1.5 px-2.5 bg-white border border-[#7e2562]/20"
+                                      menuClassName="w-72"
+                                    />
+
+                                    {isSplit && (
+                                      <div className="flex flex-wrap items-center gap-1.5 pt-1">
                                         <button
                                           type="button"
                                           onClick={() => handleToggleCreateSplitExpand(item.bookId)}
-                                          className="inline-flex items-center text-[11px] font-semibold text-[#7e2562] bg-[#faedf5] hover:bg-[#f6dfef] px-2 py-0.5 rounded-sm border border-[#7e2562]/20 transition-colors"
+                                          className="inline-flex items-center text-[11px] font-semibold text-[#7e2562] bg-[#faedf5] hover:bg-[#f6dfef] px-2.5 py-1 rounded-sm border border-[#7e2562]/20 transition-colors shadow-2xs"
                                         >
-                                          <Layers className="w-3 h-3 mr-1 text-[#7e2562]" />
+                                          <Layers className="w-3.5 h-3.5 mr-1 text-[#7e2562]" />
                                           {item.isSplitExpanded ? 'Hide Branch Inputs' : 'Configure Branch Quantities'}
-                                          {item.isSplitExpanded ? <ChevronUp className="w-3 h-3 ml-1" /> : <ChevronDown className="w-3 h-3 ml-1" />}
+                                          {item.isSplitExpanded ? <ChevronUp className="w-3.5 h-3.5 ml-1" /> : <ChevronDown className="w-3.5 h-3.5 ml-1" />}
                                         </button>
 
                                         {!item.isSplitExpanded && (
@@ -1480,147 +1668,157 @@ export default function ExhibitionsPage() {
                                           </div>
                                         )}
                                       </div>
-
-                                      {item.isSplitExpanded && (
-                                        <div className="p-2.5 bg-[#faf6f9] border border-[#7e2562]/20 rounded-sm space-y-2 mt-2">
-                                          <div className="text-[11px] font-bold text-[#7e2562] flex items-center justify-between">
-                                            <span>Enter copies from each source:</span>
-                                            <span className="text-gray-700 font-normal">Sum: <strong className="text-[#7e2562]">{item.quantityRequested}</strong> copies</span>
-                                          </div>
-
-                                          <div className="flex flex-col gap-2">
-                                            {/* Warehouse */}
-                                            {(() => {
-                                              const wAvail = getCentralStockQty(item.bookId);
-                                              const wVal = item.sourceSplits?.['WAREHOUSE'] ?? 0;
-                                              const isOver = wVal > wAvail;
-                                              return (
-                                                <div className={`flex items-center justify-between bg-white px-3 py-2 rounded-sm border ${
-                                                  isOver ? 'border-red-300 bg-red-50/30' : 'border-gray-200'
-                                                }`}>
-                                                  <div className="flex items-center gap-2 min-w-0 flex-1">
-                                                    <Warehouse className={`w-4 h-4 shrink-0 ${isOver ? 'text-red-600' : 'text-blue-600'}`} />
-                                                    <div className="min-w-0">
-                                                      <div className="text-xs text-gray-800 font-semibold">Central Warehouse</div>
-                                                      <div className={`text-[10px] ${isOver ? 'text-red-600 font-bold' : 'text-gray-400'}`}>
-                                                        {wAvail} available
-                                                      </div>
-                                                    </div>
-                                                  </div>
-                                                  <input
-                                                    type="number"
-                                                    min="0"
-                                                    value={item.sourceSplits?.['WAREHOUSE'] ?? 0}
-                                                    onChange={(e) => handleCreateSplitQtyChange(item.bookId, 'WAREHOUSE', Number(e.target.value))}
-                                                    className={`w-16 px-1.5 py-1 text-center font-bold text-xs border rounded transition-colors ${
-                                                      isOver 
-                                                        ? 'text-red-600 bg-red-50 border-red-400 focus:ring-1 focus:ring-red-500 focus:border-red-500' 
-                                                        : 'text-gray-900 border-gray-300 focus:ring-1 focus:ring-[#7e2562]'
-                                                    }`}
-                                                  />
-                                                </div>
-                                              );
-                                            })()}
-
-                                            {/* Branches */}
-                                            {branches.filter((b: any) => b.type !== 'WAREHOUSE').map((b: any) => {
-                                              const bAvail = getBranchStockQty(b.id, item.bookId);
-                                              const bVal = item.sourceSplits?.[`BRANCH_${b.id}`] ?? 0;
-                                              const isOver = bVal > bAvail;
-                                              return (
-                                                <div key={b.id} className={`flex items-center justify-between bg-white px-3 py-2.5 rounded-sm border ${
-                                                  isOver ? 'border-red-300 bg-red-50/30' : 'border-gray-200'
-                                                }`}>
-                                                  <div className="flex items-start gap-2 min-w-0 flex-1 pr-3">
-                                                    <Store className={`w-4 h-4 shrink-0 mt-0.5 ${isOver ? 'text-red-600' : 'text-amber-600'}`} />
-                                                    <div className="min-w-0">
-                                                      <div className="text-xs text-gray-800 font-semibold leading-snug">{b.name}</div>
-                                                      <div className={`text-[10px] mt-0.5 ${isOver ? 'text-red-600 font-bold' : 'text-gray-400'}`}>
-                                                        {bAvail} available
-                                                      </div>
-                                                    </div>
-                                                  </div>
-                                                  <input
-                                                    type="number"
-                                                    min="0"
-                                                    value={item.sourceSplits?.[`BRANCH_${b.id}`] ?? 0}
-                                                    onChange={(e) => handleCreateSplitQtyChange(item.bookId, `BRANCH_${b.id}`, Number(e.target.value))}
-                                                    className={`w-16 shrink-0 px-1.5 py-1 text-center font-bold text-xs border rounded transition-colors ${
-                                                      isOver 
-                                                        ? 'text-red-600 bg-red-50 border-red-400 focus:ring-1 focus:ring-red-500 focus:border-red-500' 
-                                                        : 'text-gray-900 border-gray-300 focus:ring-1 focus:ring-[#7e2562]'
-                                                    }`}
-                                                  />
-                                                </div>
-                                              );
-                                            })}
-                                          </div>
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
-                              </td>
-                            )}
-
-                            <td className="px-4 py-3 align-top text-center">
-                              {isSplit ? (
-                                <div className="inline-flex items-center justify-center font-bold text-sm text-[#7e2562] bg-[#faedf5] px-2.5 py-1 rounded-sm border border-[#7e2562]/20">
-                                  {item.quantityRequested} copies
-                                </div>
-                              ) : (
-                                <div className="inline-flex flex-col items-center">
-                                  <div className="inline-flex items-center border border-gray-300 rounded-sm">
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        const current = item.quantityRequested || 1;
-                                        if (current > 1) {
-                                          handleCreateQuantityChange(item.bookId, current - 1);
-                                        }
-                                      }}
-                                      className="w-7 h-7 rounded-sm border border-gray-300 bg-gray-50 hover:bg-gray-100 flex items-center justify-center font-bold text-gray-700"
-                                    >
-                                      -
-                                    </button>
-                                    <input
-                                      type="number"
-                                      min="1"
-                                      value={item.quantityRequested}
-                                      onChange={(e) => handleCreateQuantityChange(item.bookId, Number(e.target.value))}
-                                      className="w-12 text-center text-xs font-bold border-0 focus:ring-0 py-1"
-                                    />
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        const current = item.quantityRequested || 1;
-                                        handleCreateQuantityChange(item.bookId, current + 1);
-                                      }}
-                                      className="w-7 h-7 rounded-sm border border-gray-300 bg-gray-50 hover:bg-gray-100 flex items-center justify-center font-bold text-gray-700"
-                                    >
-                                      +
-                                    </button>
+                                    )}
                                   </div>
-                                  {isSingleOver && (
-                                    <span className="text-[10px] text-red-600 font-bold mt-1 block whitespace-nowrap">
-                                      Exceeds stock ({selectedAvail} avail)
-                                    </span>
-                                  )}
-                                </div>
+                                </td>
                               )}
-                            </td>
 
-                            <td className="px-4 py-3 text-right align-top">
-                              <button
-                                type="button"
-                                onClick={() => setCart(cart.filter((i) => i.bookId !== item.bookId))}
-                                className="text-[#e45e34] hover:text-[#c74c25] font-semibold text-xs p-1 hover:bg-[#fef5f2] rounded-sm transition-colors"
-                                title="Remove book"
-                              >
-                                Remove
-                              </button>
-                            </td>
-                          </tr>
+                              <td className="px-4 py-3 align-top text-center">
+                                {isSplit ? (
+                                  <div className="inline-flex items-center justify-center font-bold text-sm text-[#7e2562] bg-[#faedf5] px-2.5 py-1 rounded-sm border border-[#7e2562]/20">
+                                    {item.quantityRequested} copies
+                                  </div>
+                                ) : (
+                                  <div className="inline-flex flex-col items-center">
+                                    <div className="inline-flex items-center border border-gray-300 rounded-sm">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const current = item.quantityRequested || 1;
+                                          if (current > 1) {
+                                            handleCreateQuantityChange(item.bookId, current - 1);
+                                          }
+                                        }}
+                                        className="w-7 h-7 rounded-sm border border-gray-300 bg-gray-50 hover:bg-gray-100 flex items-center justify-center font-bold text-gray-700"
+                                      >
+                                        -
+                                      </button>
+                                      <input
+                                        type="number"
+                                        min="1"
+                                        value={item.quantityRequested}
+                                        onChange={(e) => handleCreateQuantityChange(item.bookId, Number(e.target.value))}
+                                        className="w-12 text-center text-xs font-bold border-0 focus:ring-0 py-1"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const current = item.quantityRequested || 1;
+                                          handleCreateQuantityChange(item.bookId, current + 1);
+                                        }}
+                                        className="w-7 h-7 rounded-sm border border-gray-300 bg-gray-50 hover:bg-gray-100 flex items-center justify-center font-bold text-gray-700"
+                                      >
+                                        +
+                                      </button>
+                                    </div>
+                                    {isSingleOver && (
+                                      <span className="text-[10px] text-red-600 font-bold mt-1 block whitespace-nowrap">
+                                        Exceeds stock ({selectedAvail} avail)
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                              </td>
+
+                              <td className="px-4 py-3 text-right align-top">
+                                <button
+                                  type="button"
+                                  onClick={() => setCart(cart.filter((i) => i.bookId !== item.bookId))}
+                                  className="text-[#e45e34] hover:text-[#c74c25] font-semibold text-xs p-1 hover:bg-[#fef5f2] rounded-sm transition-colors"
+                                  title="Remove book"
+                                >
+                                  Remove
+                                </button>
+                              </td>
+                            </tr>
+
+                            {/* Full-width Expanded Split Sub-row */}
+                            {isSplit && item.isSplitExpanded && (
+                              <tr className="bg-[#faf6f9]/80 border-b border-[#7e2562]/10">
+                                <td colSpan={canManageStockSources ? 4 : 3} className="px-4 py-3">
+                                  <div className="bg-white border border-[#7e2562]/20 rounded-sm p-3.5 shadow-xs space-y-3">
+                                    <div className="flex items-center justify-between border-b border-gray-100 pb-2">
+                                      <div className="flex items-center gap-2 text-xs font-bold text-[#7e2562]">
+                                        <Layers className="w-4 h-4 text-[#7e2562]" />
+                                        <span>Configure Multi-Branch Quantities for "{item.title}":</span>
+                                      </div>
+                                      <div className="text-xs text-gray-600 font-medium">
+                                        Total Allocated: <strong className="text-[#7e2562] font-bold text-sm ml-1">{item.quantityRequested}</strong> copies
+                                      </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                      {/* Warehouse */}
+                                      {(() => {
+                                        const wAvail = getCentralStockQty(item.bookId);
+                                        const wVal = item.sourceSplits?.['WAREHOUSE'] ?? 0;
+                                        const isOver = wVal > wAvail;
+                                        return (
+                                          <div className={`flex items-center justify-between bg-white p-2.5 rounded-sm border shadow-2xs transition-colors ${
+                                            isOver ? 'border-red-300 bg-red-50/30' : 'border-gray-200 hover:border-[#7e2562]/30'
+                                          }`}>
+                                            <div className="flex items-center gap-2 min-w-0 flex-1 pr-2">
+                                              <Warehouse className={`w-4 h-4 shrink-0 ${isOver ? 'text-red-600' : 'text-blue-600'}`} />
+                                              <div className="min-w-0">
+                                                <div className="text-xs text-gray-800 font-bold truncate">Central Warehouse</div>
+                                                <div className={`text-[10px] ${isOver ? 'text-red-600 font-bold' : 'text-gray-400'}`}>
+                                                  {wAvail} available
+                                                </div>
+                                              </div>
+                                            </div>
+                                            <input
+                                              type="number"
+                                              min="0"
+                                              value={item.sourceSplits?.['WAREHOUSE'] ?? 0}
+                                              onChange={(e) => handleCreateSplitQtyChange(item.bookId, 'WAREHOUSE', Number(e.target.value))}
+                                              className={`w-16 shrink-0 px-2 py-1 text-center font-bold text-xs border rounded-sm transition-colors ${
+                                                isOver 
+                                                  ? 'text-red-600 bg-red-50 border-red-400 focus:ring-1 focus:ring-red-500 focus:border-red-500' 
+                                                  : 'text-gray-900 border-gray-300 focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]'
+                                              }`}
+                                            />
+                                          </div>
+                                        );
+                                      })()}
+
+                                      {/* Branches */}
+                                      {branches.filter((b: any) => b.type !== 'WAREHOUSE').map((b: any) => {
+                                        const bAvail = getBranchStockQty(b.id, item.bookId);
+                                        const bVal = item.sourceSplits?.[`BRANCH_${b.id}`] ?? 0;
+                                        const isOver = bVal > bAvail;
+                                        return (
+                                          <div key={b.id} className={`flex items-center justify-between bg-white p-2.5 rounded-sm border shadow-2xs transition-colors ${
+                                            isOver ? 'border-red-300 bg-red-50/30' : 'border-gray-200 hover:border-[#7e2562]/30'
+                                          }`}>
+                                            <div className="flex items-center gap-2 min-w-0 flex-1 pr-2">
+                                              <Store className={`w-4 h-4 shrink-0 ${isOver ? 'text-red-600' : 'text-amber-600'}`} />
+                                              <div className="min-w-0">
+                                                <div className="text-xs text-gray-800 font-bold truncate">{b.name}</div>
+                                                <div className={`text-[10px] ${isOver ? 'text-red-600 font-bold' : 'text-gray-400'}`}>
+                                                  {bAvail} available
+                                                </div>
+                                              </div>
+                                            </div>
+                                            <input
+                                              type="number"
+                                              min="0"
+                                              value={item.sourceSplits?.[`BRANCH_${b.id}`] ?? 0}
+                                              onChange={(e) => handleCreateSplitQtyChange(item.bookId, `BRANCH_${b.id}`, Number(e.target.value))}
+                                              className={`w-16 shrink-0 px-2 py-1 text-center font-bold text-xs border rounded-sm transition-colors ${
+                                                isOver 
+                                                  ? 'text-red-600 bg-red-50 border-red-400 focus:ring-1 focus:ring-red-500 focus:border-red-500' 
+                                                  : 'text-gray-900 border-gray-300 focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]'
+                                              }`}
+                                            />
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
                         );
                       })}
                       {cart.length === 0 && (
@@ -1673,65 +1871,59 @@ export default function ExhibitionsPage() {
               <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-4">
                 <div className="bg-[#faedf5] text-[#7e2562] border border-[#7e2562]/20 p-3 rounded-sm text-xs flex items-start">
                   <AlertCircle className="w-4 h-4 mr-2 flex-shrink-0 text-[#7e2562] mt-0.5" />
-                  <p>You must account for every book taken. For each row: <strong>Sold + Not Sold + Damaged + Lost + Credit = Taken</strong>.</p>
+                  <p>Taken quantity is the total stock allocated (Initial + Restock top-ups). Sold and Credit are populated automatically from event activity. Damaged / Lost is entered manually, and Not Sold is calculated automatically.</p>
                 </div>
 
                 <div className="overflow-x-auto border border-[#7e2562]/10 rounded-sm">
                   <table className="min-w-[640px] w-full divide-y divide-gray-200">
-                    <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562]   tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
+                    <thead className="bg-[#faf6f9]/70 text-[11px] font-bold text-[#7e2562] tracking-wider border-b border-[#7e2562]/10 whitespace-nowrap">
                       <tr>
-                        <th className="px-4 py-2.5 text-left">Book</th>
+                        <th className="px-4 py-2.5 text-left">Book Title</th>
                         <th className="px-3 py-2.5 text-center">Taken</th>
                         <th className="px-3 py-2.5 text-center text-[#3cb976]">Sold</th>
                         <th className="px-3 py-2.5 text-center text-[#7e2562]">Not Sold</th>
-                        <th className="px-3 py-2.5 text-center text-[#e45e34]">Damaged</th>
-                        <th className="px-3 py-2.5 text-center text-[#e45e34]">Lost</th>
+                        <th className="px-3 py-2.5 text-center text-[#e45e34]">Damaged / Lost</th>
                         <th className="px-3 py-2.5 text-center text-purple-700">Credit</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200 text-xs">
                       {reconciliation.map((rec: any, idx) => {
-                        const total = (rec.quantitySold || 0) + (rec.quantityReturned || 0) + (rec.quantityDamaged || 0) + (rec.quantityLost || 0) + (rec.quantityCredit || 0);
+                        const total = (rec.quantitySold || 0) + (rec.quantityReturned || 0) + (rec.quantityDamagedLost || 0) + (rec.quantityCredit || 0);
                         const isBalanced = total === rec.quantityTaken;
                         
+                        const updateRow = (fields: Partial<typeof rec>) => {
+                          const newRec = [...reconciliation];
+                          const updated = { ...newRec[idx], ...fields };
+                          const s = Number(updated.quantitySold) || 0;
+                          const c = Number(updated.quantityCredit) || 0;
+                          const dl = Number(updated.quantityDamagedLost) || 0;
+                          updated.quantityReturned = Math.max(0, updated.quantityTaken - s - c - dl);
+                          newRec[idx] = updated;
+                          setReconciliation(newRec);
+                        };
+
                         return (
                           <tr key={rec.stockId} className={!isBalanced ? 'bg-[#fef5f2]' : ''}>
                             <td className="px-4 py-3 font-semibold text-gray-900">{rec.title}</td>
-                            <td className="px-3 py-3 text-center font-bold">{rec.quantityTaken}</td>
-                            <td className="px-2 py-3 text-center">
-                              <input type="number" min="0" value={rec.quantitySold} onChange={(e) => {
-                                const newRec = [...reconciliation];
-                                newRec[idx].quantitySold = Number(e.target.value);
-                                setReconciliation(newRec);
-                              }} className="w-14 sm:w-16 text-center border border-gray-300 rounded-sm py-1 font-semibold text-[#3cb976]" />
+                            <td className="px-3 py-3 text-center font-bold text-gray-800">{rec.quantityTaken}</td>
+                            <td className="px-3 py-3 text-center font-bold text-[#3cb976] bg-emerald-50/50">
+                              {rec.quantitySold}
+                            </td>
+                            <td className="px-3 py-3 text-center font-bold text-[#7e2562] bg-[#faedf5]/40">
+                              {rec.quantityReturned}
                             </td>
                             <td className="px-2 py-3 text-center">
-                              <input type="number" min="0" value={rec.quantityReturned} onChange={(e) => {
-                                const newRec = [...reconciliation];
-                                newRec[idx].quantityReturned = Number(e.target.value);
-                                setReconciliation(newRec);
-                              }} className="w-14 sm:w-16 text-center border border-gray-300 rounded-sm py-1 font-semibold text-[#7e2562]" />
+                              <input 
+                                type="number" 
+                                min="0" 
+                                max={Math.max(0, rec.quantityTaken - rec.quantitySold - rec.quantityCredit)}
+                                value={rec.quantityDamagedLost} 
+                                onChange={(e) => updateRow({ quantityDamagedLost: Math.max(0, Number(e.target.value)) })} 
+                                className="w-16 text-center border border-[#e45e34]/40 rounded-sm py-1 font-bold text-[#e45e34] bg-white" 
+                              />
                             </td>
-                            <td className="px-2 py-3 text-center">
-                              <input type="number" min="0" value={rec.quantityDamaged} onChange={(e) => {
-                                const newRec = [...reconciliation];
-                                newRec[idx].quantityDamaged = Number(e.target.value);
-                                setReconciliation(newRec);
-                              }} className="w-14 sm:w-16 text-center border border-[#e45e34]/40 rounded-sm py-1 font-semibold text-[#e45e34]" />
-                            </td>
-                            <td className="px-2 py-3 text-center">
-                              <input type="number" min="0" value={rec.quantityLost} onChange={(e) => {
-                                const newRec = [...reconciliation];
-                                newRec[idx].quantityLost = Number(e.target.value);
-                                setReconciliation(newRec);
-                              }} className="w-14 sm:w-16 text-center border border-[#e45e34]/40 rounded-sm py-1 font-semibold text-[#e45e34]" />
-                            </td>
-                            <td className="px-2 py-3 text-center">
-                              <input type="number" min="0" value={rec.quantityCredit} onChange={(e) => {
-                                const newRec = [...reconciliation];
-                                newRec[idx].quantityCredit = Number(e.target.value);
-                                setReconciliation(newRec);
-                              }} className="w-14 sm:w-16 text-center border border-purple-300 rounded-sm py-1 font-semibold text-purple-700" />
+                            <td className="px-3 py-3 text-center font-bold text-purple-700 bg-purple-50/50">
+                              {rec.quantityCredit}
                             </td>
                           </tr>
                         );
@@ -1837,13 +2029,54 @@ export default function ExhibitionsPage() {
                         className="block w-full px-3 py-2 border border-gray-300 rounded-sm text-sm bg-white focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" 
                       />
                     </div>
+                    <div className="col-span-1 md:col-span-2  flex flex-wrap items-center justify-between gap-2">
+                      <div className="inline-flex rounded bg-white p-0.5 border border-purple-200">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditDurationType('SINGLE');
+                            if (editFormData.startDate) {
+                              setEditFormData({ ...editFormData, endDate: editFormData.startDate });
+                            }
+                          }}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-xs transition-colors ${
+                            editDurationType === 'SINGLE'
+                              ? 'bg-[#7e2562] text-white shadow-xs'
+                              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                          }`}
+                        >
+                          <Calendar className="w-3.5 h-3.5" /> Single Day (1 Day)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditDurationType('MULTI')}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-xs transition-colors ${
+                            editDurationType === 'MULTI'
+                              ? 'bg-[#7e2562] text-white shadow-xs'
+                              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                          }`}
+                        >
+                          <CalendarDays className="w-3.5 h-3.5" /> Multi-Day Event
+                        </button>
+                      </div>
+                    </div>
+
                     <div>
-                      <label className="block text-xs font-semibold text-gray-700 mb-1">Start Date</label>
+                      <label className="block text-xs font-semibold text-gray-700 mb-1">
+                        {editDurationType === 'SINGLE' ? 'Event Date' : 'Start Date'}
+                      </label>
                       <input 
                         required 
                         type="date" 
                         value={editFormData.startDate} 
-                        onChange={e => setEditFormData({...editFormData, startDate: e.target.value})} 
+                        onChange={e => {
+                          const val = e.target.value;
+                          setEditFormData({
+                            ...editFormData,
+                            startDate: val,
+                            endDate: editDurationType === 'SINGLE' ? val : editFormData.endDate,
+                          });
+                        }} 
                         className="block w-full px-3 py-2 border border-gray-300 rounded-sm text-sm bg-white focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" 
                       />
                     </div>
@@ -1853,8 +2086,11 @@ export default function ExhibitionsPage() {
                         required 
                         type="date" 
                         value={editFormData.endDate} 
+                        disabled={editDurationType === 'SINGLE'}
                         onChange={e => setEditFormData({...editFormData, endDate: e.target.value})} 
-                        className="block w-full px-3 py-2 border border-gray-300 rounded-sm text-sm bg-white focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" 
+                        className={`block w-full px-3 py-2 border rounded-sm text-sm bg-white focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562] ${
+                          editDurationType === 'SINGLE' ? 'bg-gray-100 text-gray-500 border-gray-200 cursor-not-allowed' : 'border-gray-300'
+                        }`} 
                       />
                     </div>
                   </div>
@@ -1885,7 +2121,7 @@ export default function ExhibitionsPage() {
                         Allocated Books & Quantities
                       </h4>
                       <p className="text-xs text-gray-500">
-                        Total {editCart.length} titles â€¢ {editCart.reduce((acc, curr) => acc + (Number(curr.quantityRequested) || 0), 0)} copies allocated
+                        Total {editCart.length} titles {editCart.reduce((acc, curr) => acc + (Number(curr.quantityRequested) || 0), 0)} copies allocated
                       </p>
                     </div>
                   </div>
@@ -1904,7 +2140,7 @@ export default function ExhibitionsPage() {
                           <th className="px-3 py-3 text-right min-w-[80px]">Action</th>
                         </tr>
                       </thead>
-                      <tbody className="bg-white divide-y divide-gray-200 text-xs">
+                      <tbody className="bg-white divide-y divide-gray-200 text-sm">
                         {editCart.map((item, idx) => {
                           const orig = item.originalQuantity ?? item.quantityRequested;
                           const isSold = (item.quantitySold || 0) > 0;
@@ -1915,55 +2151,50 @@ export default function ExhibitionsPage() {
                           const isSingleOver = !isSplit && (item.quantityRequested || 0) > selectedAvail;
 
                           return (
-                            <tr key={item.bookId} className="hover:bg-[#faf6f9]/40 transition-colors">
-                              <td className="px-4 py-3 align-top">
-                                <div className="font-semibold text-gray-900">{item.title}</div>
-                                {/* {item.isbn && (
-                                  <div className="text-[11px] text-gray-500 font-mono mt-0.5">
-                                    ISBN: {item.isbn}
-                                  </div>
-                                )} */}
-                                {orig > 0 && (
-                                  <div className="text-[11px] text-gray-500 font-medium mt-1">
-                                    Requested: <strong className="text-gray-900 font-bold">{orig}</strong> copies
-                                  </div>
-                                )}
-                                {isSold && (
-                                  <div className="text-[11px] text-amber-700 font-medium mt-1">
-                                    â€¢ {item.quantitySold} copies already sold (min required: {item.quantitySold})
-                                  </div>
-                                )}
-                              </td>
-
-                              {canManageStockSources && (
+                            <React.Fragment key={item.bookId}>
+                              <tr className="hover:bg-[#faf6f9]/40 transition-colors">
                                 <td className="px-4 py-3 align-top">
-                                  <div className="space-y-2">
-                                    <Dropdown
-                                      value={item.selectedSource}
-                                      onChange={(val) => handleEditSourceChange(item.bookId, val)}
-                                      options={getRowSourceOptions(item.bookId, item, true)}
-                                      selectClassName="text-xs py-1.5 px-2.5 bg-white border border-[#7e2562]/20"
-                                      menuClassName="w-72"
-                                    />
+                                  <div className="font-semibold text-gray-900">{item.title}</div>
+                                  {orig > 0 && (
+                                    <div className="text-[11px] text-gray-500 font-medium mt-1">
+                                      Requested: <strong className="text-gray-900 font-bold">{orig}</strong> copies
+                                    </div>
+                                  )}
+                                  {isSold && (
+                                    <div className="text-[11px] text-amber-700 font-medium mt-1">
+                                      {item.quantitySold} copies already sold (min required: {item.quantitySold})
+                                    </div>
+                                  )}
+                                </td>
 
-                                    {!isSplit && (orig > selectedAvail || isSingleOver) && (
-                                      <div className="text-[11px] text-red-600 font-semibold bg-red-50/80 border border-red-200 px-2 py-1 rounded-sm flex items-center gap-1.5">
-                                        <AlertTriangle className="w-3.5 h-3.5 text-red-500 shrink-0" />
-                                        <span>Selected source has only <strong>{selectedAvail}</strong> in stock (Requested: <strong>{orig}</strong>)</span>
-                                      </div>
-                                    )}
+                                {canManageStockSources && (
+                                  <td className="px-4 py-3 align-top">
+                                    <div className="space-y-1.5">
+                                      <Dropdown
+                                        value={item.selectedSource}
+                                        onChange={(val) => handleEditSourceChange(item.bookId, val)}
+                                        options={getRowSourceOptions(item.bookId, item, true)}
+                                        selectClassName="text-xs py-1.5 px-2.5 bg-white border border-[#7e2562]/20"
+                                        menuClassName="w-72"
+                                      />
 
-                                    {isSplit && (
-                                      <div className="space-y-1.5">
-                                        <div className="flex flex-wrap items-center gap-1.5">
+                                      {!isSplit && (orig > selectedAvail || isSingleOver) && (
+                                        <div className="text-[11px] text-red-600 font-semibold bg-red-50/80 border border-red-200 px-2 py-1 rounded-sm flex items-center gap-1.5">
+                                          <AlertTriangle className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                                          <span>Selected source has only <strong>{selectedAvail}</strong> in stock (Requested: <strong>{orig}</strong>)</span>
+                                        </div>
+                                      )}
+
+                                      {isSplit && (
+                                        <div className="flex flex-wrap items-center gap-1.5 pt-1">
                                           <button
                                             type="button"
                                             onClick={() => handleToggleEditSplitExpand(item.bookId)}
-                                            className="inline-flex items-center text-[11px] font-semibold text-[#7e2562] bg-[#faedf5] hover:bg-[#f6dfef] px-2 py-0.5 rounded-sm border border-[#7e2562]/20 transition-colors"
+                                            className="inline-flex items-center text-[11px] font-semibold text-[#7e2562] bg-[#faedf5] hover:bg-[#f6dfef] px-2.5 py-1 rounded-sm border border-[#7e2562]/20 transition-colors shadow-2xs"
                                           >
-                                            <Layers className="w-3 h-3 mr-1 text-[#7e2562]" />
+                                            <Layers className="w-3.5 h-3.5 mr-1 text-[#7e2562]" />
                                             {item.isSplitExpanded ? 'Hide Branch Inputs' : 'Configure Branch Quantities'}
-                                            {item.isSplitExpanded ? <ChevronUp className="w-3 h-3 ml-1" /> : <ChevronDown className="w-3 h-3 ml-1" />}
+                                            {item.isSplitExpanded ? <ChevronUp className="w-3.5 h-3.5 ml-1" /> : <ChevronDown className="w-3.5 h-3.5 ml-1" />}
                                           </button>
 
                                           {!item.isSplitExpanded && (
@@ -2002,152 +2233,162 @@ export default function ExhibitionsPage() {
                                             </div>
                                           )}
                                         </div>
-
-                                        {item.isSplitExpanded && (
-                                          <div className="p-2.5 bg-[#faf6f9] border border-[#7e2562]/20 rounded-sm space-y-2 mt-2">
-                                            <div className="text-[11px] font-bold text-[#7e2562] flex items-center justify-between">
-                                              <span>Enter copies from each source:</span>
-                                              <span className="text-gray-700 font-normal">Sum: <strong className="text-[#7e2562]">{item.quantityRequested}</strong> copies</span>
-                                            </div>
-
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                              {/* Warehouse */}
-                                              {(() => {
-                                                const wAvail = getCentralStockQty(item.bookId) + (item.originalFromCentral || 0);
-                                                const wVal = item.sourceSplits?.['WAREHOUSE'] ?? 0;
-                                                const isOver = wVal > wAvail;
-                                                return (
-                                                  <div className={`flex items-center justify-between bg-white px-2.5 py-1.5 rounded-sm border ${
-                                                    isOver ? 'border-red-300 bg-red-50/30' : 'border-gray-200'
-                                                  }`}>
-                                                    <div className="flex items-center gap-1.5 min-w-0 pr-2">
-                                                      <Warehouse className={`w-3.5 h-3.5 shrink-0 ${isOver ? 'text-red-600' : 'text-blue-600'}`} />
-                                                      <div className="text-xs text-gray-800 font-medium truncate">
-                                                        Central Warehouse
-                                                        <span className={`text-[10px] block ${isOver ? 'text-red-600 font-bold' : 'text-gray-400'}`}>
-                                                          ({wAvail} avail)
-                                                        </span>
-                                                      </div>
-                                                    </div>
-                                                    <input
-                                                      type="number"
-                                                      min="0"
-                                                      value={item.sourceSplits?.['WAREHOUSE'] ?? 0}
-                                                      onChange={(e) => handleEditSplitQtyChange(item.bookId, 'WAREHOUSE', Number(e.target.value))}
-                                                      className={`w-16 px-1.5 py-1 text-center font-bold text-xs border rounded transition-colors ${
-                                                        isOver 
-                                                          ? 'text-red-600 bg-red-50 border-red-400 focus:ring-1 focus:ring-red-500 focus:border-red-500' 
-                                                          : 'text-gray-900 border-gray-300 focus:ring-1 focus:ring-[#7e2562]'
-                                                      }`}
-                                                    />
-                                                  </div>
-                                                );
-                                              })()}
-
-                                              {/* Branches */}
-                                              {branches.filter((b: any) => b.type !== 'WAREHOUSE').map((b: any) => {
-                                                const bAvail = getBranchStockQty(b.id, item.bookId) + (b.id === editingExhibition?.sourceBranchId ? (item.originalFromBranch || 0) : 0);
-                                                const bVal = item.sourceSplits?.[`BRANCH_${b.id}`] ?? 0;
-                                                const isOver = bVal > bAvail;
-                                                return (
-                                                  <div key={b.id} className={`flex items-center justify-between bg-white px-2.5 py-1.5 rounded-sm border ${
-                                                    isOver ? 'border-red-300 bg-red-50/30' : 'border-gray-200'
-                                                  }`}>
-                                                    <div className="flex items-center gap-1.5 min-w-0 pr-2">
-                                                      <Store className={`w-3.5 h-3.5 shrink-0 ${isOver ? 'text-red-600' : 'text-amber-600'}`} />
-                                                      <div className="text-xs text-gray-800 font-medium truncate">
-                                                        {b.name}
-                                                        <span className={`text-[10px] block ${isOver ? 'text-red-600 font-bold' : 'text-gray-400'}`}>
-                                                          ({bAvail} avail)
-                                                        </span>
-                                                      </div>
-                                                    </div>
-                                                    <input
-                                                      type="number"
-                                                      min="0"
-                                                      value={item.sourceSplits?.[`BRANCH_${b.id}`] ?? 0}
-                                                      onChange={(e) => handleEditSplitQtyChange(item.bookId, `BRANCH_${b.id}`, Number(e.target.value))}
-                                                      className={`w-16 px-1.5 py-1 text-center font-bold text-xs border rounded transition-colors ${
-                                                        isOver 
-                                                          ? 'text-red-600 bg-red-50 border-red-400 focus:ring-1 focus:ring-red-500 focus:border-red-500' 
-                                                          : 'text-gray-900 border-gray-300 focus:ring-1 focus:ring-[#7e2562]'
-                                                      }`}
-                                                    />
-                                                  </div>
-                                                );
-                                              })}
-                                            </div>
-                                          </div>
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
-                                </td>
-                              )}
-
-                              <td className="px-4 py-3 align-top text-center">
-                                {isSplit ? (
-                                  <div className="inline-flex items-center justify-center font-bold text-sm text-[#7e2562] bg-[#faedf5] px-2.5 py-1 rounded-sm border border-[#7e2562]/20">
-                                    {item.quantityRequested} copies
-                                  </div>
-                                ) : (
-                                  <div className="inline-flex flex-col items-center">
-                                    <div className="inline-flex items-center border border-gray-300 rounded-sm">
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          const min = item.quantitySold || 1;
-                                          const current = item.quantityRequested || 1;
-                                          if (current > min) {
-                                            handleEditQuantityChange(item.bookId, current - 1);
-                                          }
-                                        }}
-                                        className="w-7 h-7 rounded-sm border border-gray-300 bg-gray-50 hover:bg-gray-100 flex items-center justify-center font-bold text-gray-700"
-                                      >
-                                        -
-                                      </button>
-                                      <input
-                                        type="number"
-                                        min={item.quantitySold || 1}
-                                        value={item.quantityRequested}
-                                        onChange={(e) => handleEditQuantityChange(item.bookId, Number(e.target.value))}
-                                        className="w-12 text-center text-xs font-bold border-0 focus:ring-0 py-1"
-                                      />
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          const current = item.quantityRequested || 1;
-                                          handleEditQuantityChange(item.bookId, current + 1);
-                                        }}
-                                        className="w-7 h-7 rounded-sm border border-gray-300 bg-gray-50 hover:bg-gray-100 flex items-center justify-center font-bold text-gray-700"
-                                      >
-                                        +
-                                      </button>
+                                      )}
                                     </div>
-                                    {isSingleOver && (
-                                      <span className="text-[10px] text-red-600 font-bold mt-1 block whitespace-nowrap">
-                                        Exceeds stock ({selectedAvail} avail)
-                                      </span>
-                                    )}
-                                  </div>
+                                  </td>
                                 )}
-                              </td>
 
-                              <td className="px-3 py-3 text-right align-top">
-                                {isSold ? (
-                                  <span className="text-[11px] text-gray-400 italic">Sold copies lock</span>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    onClick={() => setEditCart(editCart.filter((i) => i.bookId !== item.bookId))}
-                                    className="text-[#e45e34] hover:text-[#c74c25] font-semibold text-xs p-1 hover:bg-[#fef5f2] rounded-sm transition-colors"
-                                    title="Remove book"
-                                  >
-                                    Remove
-                                  </button>
-                                )}
-                              </td>
-                            </tr>
+                                <td className="px-4 py-3 align-top text-center">
+                                  {isSplit ? (
+                                    <div className="inline-flex items-center justify-center font-bold text-sm text-[#7e2562] bg-[#faedf5] px-2.5 py-1 rounded-sm border border-[#7e2562]/20">
+                                      {item.quantityRequested} copies
+                                    </div>
+                                  ) : (
+                                    <div className="inline-flex flex-col items-center">
+                                      <div className="inline-flex items-center border border-gray-300 rounded-sm">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const min = item.quantitySold || 1;
+                                            const current = item.quantityRequested || 1;
+                                            if (current > min) {
+                                              handleEditQuantityChange(item.bookId, current - 1);
+                                            }
+                                          }}
+                                          className="w-7 h-7 rounded-sm border border-gray-300 bg-gray-50 hover:bg-gray-100 flex items-center justify-center font-bold text-gray-700"
+                                        >
+                                          -
+                                        </button>
+                                        <input
+                                          type="number"
+                                          min={item.quantitySold || 1}
+                                          value={item.quantityRequested}
+                                          onChange={(e) => handleEditQuantityChange(item.bookId, Number(e.target.value))}
+                                          className="w-12 text-center text-xs font-bold border-0 focus:ring-0 py-1"
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const current = item.quantityRequested || 1;
+                                            handleEditQuantityChange(item.bookId, current + 1);
+                                          }}
+                                          className="w-7 h-7 rounded-sm border border-gray-300 bg-gray-50 hover:bg-gray-100 flex items-center justify-center font-bold text-gray-700"
+                                        >
+                                          +
+                                        </button>
+                                      </div>
+                                      {isSingleOver && (
+                                        <span className="text-[10px] text-red-600 font-bold mt-1 block whitespace-nowrap">
+                                          Exceeds stock ({selectedAvail} avail)
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+                                </td>
+
+                                <td className="px-3 py-3 text-right align-top">
+                                  {isSold ? (
+                                    <span className="text-[11px] text-gray-400 italic">Sold copies lock</span>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => setEditCart(editCart.filter((i) => i.bookId !== item.bookId))}
+                                      className="text-[#e45e34] hover:text-[#c74c25] font-semibold text-xs p-1 hover:bg-[#fef5f2] rounded-sm transition-colors"
+                                      title="Remove book"
+                                    >
+                                      Remove
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+
+                              {/* Full-width Expanded Split Sub-row */}
+                              {isSplit && item.isSplitExpanded && (
+                                <tr className="bg-[#faf6f9]/80 border-b border-[#7e2562]/10">
+                                  <td colSpan={canManageStockSources ? 4 : 3} className="px-4 py-3">
+                                    <div className="bg-white border border-[#7e2562]/20 rounded-sm p-3.5 shadow-xs space-y-3">
+                                      <div className="flex items-center justify-between border-b border-gray-100 pb-2">
+                                        <div className="flex items-center gap-2 text-xs font-bold text-[#7e2562]">
+                                          <Layers className="w-4 h-4 text-[#7e2562]" />
+                                          <span>Configure Multi-Branch Quantities for "{item.title}":</span>
+                                        </div>
+                                        <div className="text-xs text-gray-600 font-medium">
+                                          Total Allocated: <strong className="text-[#7e2562] font-bold text-sm ml-1">{item.quantityRequested}</strong> copies
+                                        </div>
+                                      </div>
+
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                        {/* Warehouse */}
+                                        {(() => {
+                                          const wAvail = getCentralStockQty(item.bookId) + (item.originalFromCentral || 0);
+                                          const wVal = item.sourceSplits?.['WAREHOUSE'] ?? 0;
+                                          const isOver = wVal > wAvail;
+                                          return (
+                                            <div className={`flex items-center justify-between bg-white p-2.5 rounded-sm border shadow-2xs transition-colors ${
+                                              isOver ? 'border-red-300 bg-red-50/30' : 'border-gray-200 hover:border-[#7e2562]/30'
+                                            }`}>
+                                              <div className="flex items-center gap-2 min-w-0 flex-1 pr-2">
+                                                <Warehouse className={`w-4 h-4 shrink-0 ${isOver ? 'text-red-600' : 'text-blue-600'}`} />
+                                                <div className="min-w-0">
+                                                  <div className="text-xs text-gray-800 font-bold truncate">Central Warehouse</div>
+                                                  <div className={`text-[10px] ${isOver ? 'text-red-600 font-bold' : 'text-gray-400'}`}>
+                                                    {wAvail} available
+                                                  </div>
+                                                </div>
+                                              </div>
+                                              <input
+                                                type="number"
+                                                min="0"
+                                                value={item.sourceSplits?.['WAREHOUSE'] ?? 0}
+                                                onChange={(e) => handleEditSplitQtyChange(item.bookId, 'WAREHOUSE', Number(e.target.value))}
+                                                className={`w-16 shrink-0 px-2 py-1 text-center font-bold text-xs border rounded-sm transition-colors ${
+                                                  isOver 
+                                                    ? 'text-red-600 bg-red-50 border-red-400 focus:ring-1 focus:ring-red-500 focus:border-red-500' 
+                                                    : 'text-gray-900 border-gray-300 focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]'
+                                                }`}
+                                              />
+                                            </div>
+                                          );
+                                        })()}
+
+                                        {/* Branches */}
+                                        {branches.filter((b: any) => b.type !== 'WAREHOUSE').map((b: any) => {
+                                          const bAvail = getBranchStockQty(b.id, item.bookId) + (b.id === editingExhibition?.sourceBranchId ? (item.originalFromBranch || 0) : 0);
+                                          const bVal = item.sourceSplits?.[`BRANCH_${b.id}`] ?? 0;
+                                          const isOver = bVal > bAvail;
+                                          return (
+                                            <div key={b.id} className={`flex items-center justify-between bg-white p-2.5 rounded-sm border shadow-2xs transition-colors ${
+                                              isOver ? 'border-red-300 bg-red-50/30' : 'border-gray-200 hover:border-[#7e2562]/30'
+                                            }`}>
+                                              <div className="flex items-center gap-2 min-w-0 flex-1 pr-2">
+                                                <Store className={`w-4 h-4 shrink-0 ${isOver ? 'text-red-600' : 'text-amber-600'}`} />
+                                                <div className="min-w-0">
+                                                  <div className="text-xs text-gray-800 font-bold truncate">{b.name}</div>
+                                                  <div className={`text-[10px] ${isOver ? 'text-red-600 font-bold' : 'text-gray-400'}`}>
+                                                    {bAvail} available
+                                                  </div>
+                                                </div>
+                                              </div>
+                                              <input
+                                                type="number"
+                                                min="0"
+                                                value={item.sourceSplits?.[`BRANCH_${b.id}`] ?? 0}
+                                                onChange={(e) => handleEditSplitQtyChange(item.bookId, `BRANCH_${b.id}`, Number(e.target.value))}
+                                                className={`w-16 shrink-0 px-2 py-1 text-center font-bold text-xs border rounded-sm transition-colors ${
+                                                  isOver 
+                                                    ? 'text-red-600 bg-red-50 border-red-400 focus:ring-1 focus:ring-red-500 focus:border-red-500' 
+                                                    : 'text-gray-900 border-gray-300 focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]'
+                                                }`}
+                                              />
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </React.Fragment>
                           );
                         })}
                         {editCart.length === 0 && (
@@ -2164,60 +2405,50 @@ export default function ExhibitionsPage() {
                   {/* Add New Book Row */}
                   <div className="pt-2">
                     <label className="block text-xs font-semibold text-gray-700 mb-1">Add More Books to Exhibition</label>
-                    <Dropdown
-                      searchable={true}
-                      isMulti={true}
-                      closeOnSelect={false}
-                      actionType="plus"
-                      value={editCart.map((i) => i.bookId)}
-                      onChange={() => {}}
-                      onItemToggle={(opt, willSelect) => {
-                        if (willSelect) {
-                          const bookList = catalog?.books || catalog?.items || catalog?.data || (Array.isArray(catalog) ? catalog : []);
-                          const book = bookList.find((b: any) => b.id === opt.value);
-                          const title = book?.title || opt.label || 'Selected Book';
-                          const isbn = book?.isbn || opt.isbn;
+                    <MultiSelectBookDropdown
+                      books={catalog?.books || catalog?.items || catalog?.data || (Array.isArray(catalog) ? catalog : [])}
+                      selectedIds={editCart.map((i) => i.bookId)}
+                      selectedBranchName={selectedEditBranchName}
+                      getStockQty={getEditModalStockQty}
+                      placeholder="Type book title to search & add..."
+                      onSelectBook={(book: any) => {
+                        const bookId = book.id || book.bookId;
+                        if (!bookId) return;
 
-                          const defaultSource = editingExhibition?.sourceBranchId ? `BRANCH_${editingExhibition.sourceBranchId}` : 'WAREHOUSE';
-                          const defaultQty = 5;
-
-                          setEditCart((prev) => {
-                            if (prev.some((i) => i.bookId === opt.value)) return prev;
-                            return [
-                              ...prev,
-                              {
-                                bookId: opt.value,
-                                title,
-                                isbn,
-                                quantityRequested: defaultQty,
-                                sourceMode: 'SINGLE',
-                                selectedSource: defaultSource,
-                                sourceSplits: { [defaultSource]: defaultQty },
-                                isSplitExpanded: false,
-                                isNew: true,
-                                originalQuantity: 0,
-                                originalFromBranch: 0,
-                                originalFromCentral: 0,
-                                quantitySold: 0,
-                              }
-                            ];
-                          });
-                        } else {
-                          const existing = editCart.find((i) => i.bookId === opt.value);
+                        if (editCart.some((i) => i.bookId === bookId)) {
+                          const existing = editCart.find((i) => i.bookId === bookId);
                           if (existing && (existing.quantitySold || 0) > 0) {
                             alert(`Cannot remove "${existing.title}" because ${existing.quantitySold} copies have already been sold.`);
                             return;
                           }
-                          setEditCart((prev) => prev.filter((i) => i.bookId !== opt.value));
+                          setEditCart((prev) => prev.filter((i) => i.bookId !== bookId));
+                          return;
                         }
+
+                        const title = book.title || book.name || 'Selected Book';
+                        const isbn = book.isbn;
+                        const defaultSource = editingExhibition?.sourceBranchId ? `BRANCH_${editingExhibition.sourceBranchId}` : 'WAREHOUSE';
+                        const defaultQty = 5;
+
+                        setEditCart((prev) => [
+                          ...prev,
+                          {
+                            bookId,
+                            title,
+                            isbn,
+                            quantityRequested: defaultQty,
+                            sourceMode: 'SINGLE',
+                            selectedSource: defaultSource,
+                            sourceSplits: { [defaultSource]: defaultQty },
+                            isSplitExpanded: false,
+                            isNew: true,
+                            originalQuantity: 0,
+                            originalFromBranch: 0,
+                            originalFromCentral: 0,
+                            quantitySold: 0,
+                          }
+                        ]);
                       }}
-                      placeholder="Search title or ISBN to add books..."
-                      options={(catalog?.books || catalog?.items || catalog?.data || (Array.isArray(catalog) ? catalog : [])).map((b: any) => ({
-                        value: b.id,
-                        label: b.title,
-                        isbn: b.isbn,
-                        isSelected: editCart.some((i) => i.bookId === b.id),
-                      }))}
                     />
                   </div>
                 </div>
@@ -2226,7 +2457,7 @@ export default function ExhibitionsPage() {
               {/* Footer */}
               <div className="px-4 py-3 sm:px-6 sm:py-4 border-t border-gray-200 bg-gray-50 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
                 <div className="text-xs text-gray-500 text-center sm:text-left">
-                  Total Titles: <strong className="text-gray-900">{editCart.length}</strong> â€¢ Total Copies: <strong className="text-gray-900">{editCart.reduce((acc, curr) => acc + (Number(curr.quantityRequested) || 0), 0)}</strong>
+                  Total Titles: <strong className="text-gray-900">{editCart.length}</strong> Total Copies: <strong className="text-gray-900">{editCart.reduce((acc, curr) => acc + (Number(curr.quantityRequested) || 0), 0)}</strong>
                 </div>
 
                 <div className="flex items-center space-x-2 sm:space-x-3 w-full sm:w-auto justify-end">
@@ -2349,242 +2580,252 @@ export default function ExhibitionsPage() {
                         const hasSplitOverStock = isWarehouseOver || isAnyBranchOver;
 
                         return (
-                          <tr key={item.bookId} className="hover:bg-[#faf6f9]/40 transition-colors">
-                            <td className="px-4 py-3 align-top">
-                              <div className="font-semibold text-gray-900">{item.title}</div>
-                              {item.isbn && (
-                                <div className="text-[11px] text-gray-500 font-mono mt-0.5">
-                                  ISBN: {item.isbn}
-                                </div>
-                              )}
-                              <div className="text-[11px] text-gray-500 font-medium mt-1">
-                                Requested: <strong className="text-gray-900 font-bold">{reqQty}</strong> copies
-                              </div>
-                            </td>
-
-                            <td className="px-4 py-3 align-top">
-                              <div className="space-y-2">
-                                <Dropdown
-                                  value={item.selectedSource}
-                                  onChange={(val) => handleApproveSourceChange(item.bookId, val)}
-                                  options={getRowSourceOptions(item.bookId, item)}
-                                  selectClassName="text-xs py-1.5 px-2.5 bg-white border border-[#7e2562]/20"
-                                  menuClassName="w-72"
-                                />
-
-                                {!isSplit && isSingleStockShortForReq && (
-                                  <div className="text-[11px] text-red-600 font-semibold bg-red-50/80 border border-red-200 px-2 py-1 rounded-sm flex items-center gap-1.5">
-                                    <AlertTriangle className="w-3.5 h-3.5 text-red-500 shrink-0" />
-                                    <span>Selected branch has only <strong>{selectedAvail}</strong> in stock (Requested: <strong>{reqQty}</strong>)</span>
+                          <Fragment key={item.bookId}>
+                            <tr className="hover:bg-[#faf6f9]/40 transition-colors">
+                              <td className="px-4 py-3 align-top">
+                                <div className="font-semibold text-gray-900">{item.title}</div>
+                                {item.isbn && (
+                                  <div className="text-[11px] text-gray-500 font-mono mt-0.5">
+                                    ISBN: {item.isbn}
                                   </div>
                                 )}
+                                <div className="text-[11px] text-gray-500 font-medium mt-1">
+                                  Requested: <strong className="text-gray-900 font-bold">{reqQty}</strong> copies
+                                </div>
+                              </td>
 
-                                {isSplit && (
-                                  <div className="space-y-1.5">
-                                    <div className="flex flex-wrap items-center gap-1.5">
+                              <td className="px-4 py-3 align-top">
+                                <div className="space-y-2">
+                                  <Dropdown
+                                    value={item.selectedSource}
+                                    onChange={(val) => handleApproveSourceChange(item.bookId, val)}
+                                    options={getRowSourceOptions(item.bookId, item)}
+                                    selectClassName="text-xs py-1.5 px-2.5 bg-white border border-[#7e2562]/20"
+                                    menuClassName="w-72"
+                                  />
+
+                                  {!isSplit && isSingleStockShortForReq && (
+                                    <div className="text-[11px] text-red-600 font-semibold bg-red-50/80 border border-red-200 px-2 py-1 rounded-sm flex items-center gap-1.5">
+                                      <AlertTriangle className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                                      <span>Selected branch has only <strong>{selectedAvail}</strong> in stock (Requested: <strong>{reqQty}</strong>)</span>
+                                    </div>
+                                  )}
+
+                                  {isSplit && (
+                                    <div className="space-y-1.5">
+                                      <div className="flex flex-wrap items-center gap-1.5">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleToggleApproveSplitExpand(item.bookId)}
+                                          className="inline-flex items-center text-[11px] font-semibold text-[#7e2562] bg-[#faedf5] hover:bg-[#f6dfef] px-2 py-0.5 rounded-sm border border-[#7e2562]/20 transition-colors"
+                                        >
+                                          <Layers className="w-3 h-3 mr-1 text-[#7e2562]" />
+                                          {item.isSplitExpanded ? 'Hide Branch Inputs' : 'Configure Branch Quantities'}
+                                          {item.isSplitExpanded ? <ChevronUp className="w-3 h-3 ml-1" /> : <ChevronDown className="w-3 h-3 ml-1" />}
+                                        </button>
+
+                                        {!item.isSplitExpanded && (
+                                          <div className="flex flex-wrap gap-1 text-[10px]">
+                                            {(item.sourceSplits?.['WAREHOUSE'] || 0) > 0 && (() => {
+                                              const wQty = item.sourceSplits?.['WAREHOUSE'] || 0;
+                                              const isOver = wQty > warehouseAvail;
+                                              return (
+                                                <span className={`font-medium px-1.5 py-0.5 rounded border ${
+                                                  isOver 
+                                                    ? 'bg-red-50 text-red-700 border-red-300 font-bold' 
+                                                    : 'bg-blue-50 text-blue-700 border-blue-200'
+                                                }`}>
+                                                  Warehouse: {wQty}
+                                                  {isOver && <span className="ml-1 text-[9px] text-red-500 font-normal">({warehouseAvail} avail)</span>}
+                                                </span>
+                                              );
+                                            })()}
+                                            {branches.filter((b: any) => b.type !== 'WAREHOUSE').map((b: any) => {
+                                              const qty = item.sourceSplits?.[`BRANCH_${b.id}`] || 0;
+                                              if (qty <= 0) return null;
+                                              const bAvail = getBranchStockQty(b.id, item.bookId);
+                                              const isOver = qty > bAvail;
+                                              return (
+                                                <span key={b.id} className={`font-medium px-1.5 py-0.5 rounded border ${
+                                                  isOver 
+                                                    ? 'bg-red-50 text-red-700 border-red-300 font-bold' 
+                                                    : 'bg-amber-50 text-amber-800 border-amber-200'
+                                                }`}>
+                                                  {b.name}: {qty}
+                                                  {isOver && <span className="ml-1 text-[9px] text-red-500 font-normal">({bAvail} avail)</span>}
+                                                </span>
+                                              );
+                                            })}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+
+                              <td className="px-4 py-3 align-top text-center">
+                                {isSplit ? (
+                                  <div className="flex flex-col items-center justify-center">
+                                    <span className={`inline-flex items-center px-2.5 py-1 rounded-sm text-sm font-bold border transition-colors ${
+                                      hasSplitOverStock
+                                        ? 'bg-red-50 text-red-700 border-red-300'
+                                        : isFulfilledOrExceeded 
+                                          ? 'bg-emerald-50 text-emerald-700 border-emerald-300' 
+                                          : 'bg-[#faedf5] text-[#7e2562] border-[#7e2562]/20'
+                                    }`}>
+                                      {item.quantityRequested}
+                                    </span>
+                                    <span className="text-[10px] text-gray-400 mt-0.5">Sum of splits</span>
+                                    {hasSplitOverStock ? (
+                                      <span className="text-[10px] text-red-600 font-bold mt-1 inline-flex items-center gap-0.5 whitespace-nowrap">
+                                        <AlertTriangle className="w-3 h-3 text-red-500 shrink-0" /> Exceeds stock in split
+                                      </span>
+                                    ) : isFulfilledOrExceeded ? (
+                                      <span className="text-[10px] text-emerald-600 font-bold mt-1 inline-flex items-center gap-0.5 whitespace-nowrap">
+                                         {isExceeded ? `Exceeds req (${reqQty})` : `Fulfills req (${reqQty})`}
+                                      </span>
+                                    ) : (
+                                      <span className="text-[10px] text-amber-600 font-semibold mt-1 whitespace-nowrap">
+                                        Req: {reqQty}
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className="flex flex-col items-center justify-center">
+                                    <div className="flex items-center justify-center gap-1">
                                       <button
                                         type="button"
-                                        onClick={() => handleToggleApproveSplitExpand(item.bookId)}
-                                        className="inline-flex items-center text-[11px] font-semibold text-[#7e2562] bg-[#faedf5] hover:bg-[#f6dfef] px-2 py-0.5 rounded-sm border border-[#7e2562]/20 transition-colors"
+                                        onClick={() => handleApproveQuantityChange(item.bookId, Math.max(1, item.quantityRequested - 1))}
+                                        className="w-7 h-7 rounded-sm border border-gray-300 bg-gray-50 hover:bg-gray-100 flex items-center justify-center font-bold text-gray-700"
                                       >
-                                        <Layers className="w-3 h-3 mr-1 text-[#7e2562]" />
-                                        {item.isSplitExpanded ? 'Hide Branch Inputs' : 'Configure Branch Quantities'}
-                                        {item.isSplitExpanded ? <ChevronUp className="w-3 h-3 ml-1" /> : <ChevronDown className="w-3 h-3 ml-1" />}
+                                        -
                                       </button>
-
-                                      {!item.isSplitExpanded && (
-                                        <div className="flex flex-wrap gap-1 text-[10px]">
-                                          {(item.sourceSplits?.['WAREHOUSE'] || 0) > 0 && (() => {
-                                            const wQty = item.sourceSplits?.['WAREHOUSE'] || 0;
-                                            const isOver = wQty > warehouseAvail;
-                                            return (
-                                              <span className={`font-medium px-1.5 py-0.5 rounded border ${
-                                                isOver 
-                                                  ? 'bg-red-50 text-red-700 border-red-300 font-bold' 
-                                                  : 'bg-blue-50 text-blue-700 border-blue-200'
-                                              }`}>
-                                                Warehouse: {wQty}
-                                                {isOver && <span className="ml-1 text-[9px] text-red-500 font-normal">({warehouseAvail} avail)</span>}
-                                              </span>
-                                            );
-                                          })()}
-                                          {branches.filter((b: any) => b.type !== 'WAREHOUSE').map((b: any) => {
-                                            const qty = item.sourceSplits?.[`BRANCH_${b.id}`] || 0;
-                                            if (qty <= 0) return null;
-                                            const bAvail = getBranchStockQty(b.id, item.bookId);
-                                            const isOver = qty > bAvail;
-                                            return (
-                                              <span key={b.id} className={`font-medium px-1.5 py-0.5 rounded border ${
-                                                isOver 
-                                                  ? 'bg-red-50 text-red-700 border-red-300 font-bold' 
-                                                  : 'bg-amber-50 text-amber-800 border-amber-200'
-                                              }`}>
-                                                {b.name}: {qty}
-                                                {isOver && <span className="ml-1 text-[9px] text-red-500 font-normal">({bAvail} avail)</span>}
-                                              </span>
-                                            );
-                                          })}
-                                        </div>
-                                      )}
+                                      <input
+                                        type="number"
+                                        min="1"
+                                        value={item.quantityRequested}
+                                        onChange={(e) => handleApproveQuantityChange(item.bookId, Number(e.target.value))}
+                                        className={`w-16 px-2 py-1 text-center font-bold text-sm border rounded-sm transition-colors ${
+                                          isSingleOverStock
+                                            ? 'text-red-600 bg-red-50 border-red-400 focus:ring-1 focus:ring-red-500 focus:border-red-500'
+                                            : isFulfilledOrExceeded 
+                                              ? 'text-emerald-700 bg-emerald-50 border-emerald-400 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500' 
+                                              : 'text-gray-900 border-gray-300 focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]'
+                                        }`}
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => handleApproveQuantityChange(item.bookId, item.quantityRequested + 1)}
+                                        className="w-7 h-7 rounded-sm border border-gray-300 bg-gray-50 hover:bg-gray-100 flex items-center justify-center font-bold text-gray-700"
+                                      >
+                                        +
+                                      </button>
                                     </div>
-
-                                    {item.isSplitExpanded && (
-                                      <div className="p-2.5 bg-[#faf6f9] border border-[#7e2562]/20 rounded-sm space-y-2 mt-2">
-                                        <div className="text-[11px] font-bold text-[#7e2562] flex items-center justify-between">
-                                          <span>Enter copies from each source:</span>
-                                          <span className="text-gray-700 font-normal">
-                                            Sum: <strong className={isFulfilledOrExceeded ? "text-emerald-600 font-bold" : "text-[#7e2562] font-bold"}>{item.quantityRequested}</strong> / {reqQty} requested
-                                          </span>
-                                        </div>
-
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                          {/* Warehouse */}
-                                          {(() => {
-                                            const wVal = item.sourceSplits?.['WAREHOUSE'] ?? 0;
-                                            const isOver = wVal > warehouseAvail;
-                                            return (
-                                              <div className={`flex items-center justify-between bg-white px-2.5 py-1.5 rounded-sm border ${
-                                                isOver ? 'border-red-300 bg-red-50/30' : 'border-gray-200'
-                                              }`}>
-                                                <div className="flex items-center gap-1.5 min-w-0 pr-2">
-                                                  <Warehouse className={`w-3.5 h-3.5 shrink-0 ${isOver ? 'text-red-600' : 'text-blue-600'}`} />
-                                                  <div className="text-xs text-gray-800 font-medium truncate">
-                                                    Central Warehouse
-                                                    <span className={`text-[10px] block ${isOver ? 'text-red-600 font-bold' : 'text-gray-400'}`}>
-                                                      ({warehouseAvail} avail)
-                                                    </span>
-                                                  </div>
-                                                </div>
-                                                <input
-                                                  type="number"
-                                                  min="0"
-                                                  value={item.sourceSplits?.['WAREHOUSE'] ?? 0}
-                                                  onChange={(e) => handleApproveSplitQtyChange(item.bookId, 'WAREHOUSE', Number(e.target.value))}
-                                                  className={`w-16 px-1.5 py-1 text-center font-bold text-xs border rounded transition-colors ${
-                                                    isOver 
-                                                      ? 'text-red-600 bg-red-50 border-red-400 focus:ring-1 focus:ring-red-500 focus:border-red-500' 
-                                                      : 'text-gray-900 border-gray-300 focus:ring-1 focus:ring-[#7e2562]'
-                                                  }`}
-                                                />
-                                              </div>
-                                            );
-                                          })()}
-
-                                          {/* Branches */}
-                                          {branches.filter((b: any) => b.type !== 'WAREHOUSE').map((b: any) => {
-                                            const bAvail = getBranchStockQty(b.id, item.bookId);
-                                            const bVal = item.sourceSplits?.[`BRANCH_${b.id}`] ?? 0;
-                                            const isOver = bVal > bAvail;
-                                            return (
-                                              <div key={b.id} className={`flex items-center justify-between bg-white px-2.5 py-1.5 rounded-sm border ${
-                                                isOver ? 'border-red-300 bg-red-50/30' : 'border-gray-200'
-                                              }`}>
-                                                <div className="flex items-center gap-1.5 min-w-0 pr-2">
-                                                  <Store className={`w-3.5 h-3.5 shrink-0 ${isOver ? 'text-red-600' : 'text-amber-600'}`} />
-                                                  <div className="text-xs text-gray-800 font-medium truncate">
-                                                    {b.name}
-                                                    <span className={`text-[10px] block ${isOver ? 'text-red-600 font-bold' : 'text-gray-400'}`}>
-                                                      ({bAvail} avail)
-                                                    </span>
-                                                  </div>
-                                                </div>
-                                                <input
-                                                  type="number"
-                                                  min="0"
-                                                  value={item.sourceSplits?.[`BRANCH_${b.id}`] ?? 0}
-                                                  onChange={(e) => handleApproveSplitQtyChange(item.bookId, `BRANCH_${b.id}`, Number(e.target.value))}
-                                                  className={`w-16 px-1.5 py-1 text-center font-bold text-xs border rounded transition-colors ${
-                                                    isOver 
-                                                      ? 'text-red-600 bg-red-50 border-red-400 focus:ring-1 focus:ring-red-500 focus:border-red-500' 
-                                                      : 'text-gray-900 border-gray-300 focus:ring-1 focus:ring-[#7e2562]'
-                                                  }`}
-                                                />
-                                              </div>
-                                            );
-                                          })}
-                                        </div>
-                                      </div>
+                                    {isSingleOverStock ? (
+                                      <span className="text-[10px] text-red-600 font-bold mt-1 inline-flex items-center gap-0.5 whitespace-nowrap">
+                                        <AlertTriangle className="w-3 h-3 text-red-500 shrink-0" /> Exceeds stock ({selectedAvail} avail)
+                                      </span>
+                                    ) : isFulfilledOrExceeded ? (
+                                      <span className="text-[10px] text-emerald-600 font-bold mt-1 inline-flex items-center gap-0.5 whitespace-nowrap">
+                                         {isExceeded ? `Exceeds req (${reqQty})` : `Fulfills req (${reqQty})`}
+                                      </span>
+                                    ) : (
+                                      <span className="text-[10px] text-amber-600 font-semibold mt-1 whitespace-nowrap">
+                                        Requested: {reqQty}
+                                      </span>
                                     )}
                                   </div>
                                 )}
-                              </div>
-                            </td>
+                              </td>
+                            </tr>
 
-                            <td className="px-4 py-3 align-top text-center">
-                              {isSplit ? (
-                                <div className="flex flex-col items-center justify-center">
-                                  <span className={`inline-flex items-center px-2.5 py-1 rounded-sm text-sm font-bold border transition-colors ${
-                                    hasSplitOverStock
-                                      ? 'bg-red-50 text-red-700 border-red-300'
-                                      : isFulfilledOrExceeded 
-                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-300' 
-                                        : 'bg-[#faedf5] text-[#7e2562] border-[#7e2562]/20'
-                                  }`}>
-                                    {item.quantityRequested}
-                                  </span>
-                                  <span className="text-[10px] text-gray-400 mt-0.5">Sum of splits</span>
-                                  {hasSplitOverStock ? (
-                                    <span className="text-[10px] text-red-600 font-bold mt-1 inline-flex items-center gap-0.5 whitespace-nowrap">
-                                      <AlertTriangle className="w-3 h-3 text-red-500 shrink-0" /> Exceeds stock in split
-                                    </span>
-                                  ) : isFulfilledOrExceeded ? (
-                                    <span className="text-[10px] text-emerald-600 font-bold mt-1 inline-flex items-center gap-0.5 whitespace-nowrap">
-                                      âœ“ {isExceeded ? `Exceeds req (${reqQty})` : `Fulfills req (${reqQty})`}
-                                    </span>
-                                  ) : (
-                                    <span className="text-[10px] text-amber-600 font-semibold mt-1 whitespace-nowrap">
-                                      Req: {reqQty}
-                                    </span>
-                                  )}
-                                </div>
-                              ) : (
-                                <div className="flex flex-col items-center justify-center">
-                                  <div className="flex items-center justify-center gap-1">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleApproveQuantityChange(item.bookId, Math.max(1, item.quantityRequested - 1))}
-                                      className="w-7 h-7 rounded-sm border border-gray-300 bg-gray-50 hover:bg-gray-100 flex items-center justify-center font-bold text-gray-700"
-                                    >
-                                      -
-                                    </button>
-                                    <input
-                                      type="number"
-                                      min="1"
-                                      value={item.quantityRequested}
-                                      onChange={(e) => handleApproveQuantityChange(item.bookId, Number(e.target.value))}
-                                      className={`w-16 px-2 py-1 text-center font-bold text-sm border rounded-sm transition-colors ${
-                                        isSingleOverStock
-                                          ? 'text-red-600 bg-red-50 border-red-400 focus:ring-1 focus:ring-red-500 focus:border-red-500'
-                                          : isFulfilledOrExceeded 
-                                            ? 'text-emerald-700 bg-emerald-50 border-emerald-400 focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500' 
-                                            : 'text-gray-900 border-gray-300 focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]'
-                                      }`}
-                                    />
-                                    <button
-                                      type="button"
-                                      onClick={() => handleApproveQuantityChange(item.bookId, item.quantityRequested + 1)}
-                                      className="w-7 h-7 rounded-sm border border-gray-300 bg-gray-50 hover:bg-gray-100 flex items-center justify-center font-bold text-gray-700"
-                                    >
-                                      +
-                                    </button>
+                            {/* Full-width Expanded Split Sub-row */}
+                            {isSplit && item.isSplitExpanded && (
+                              <tr key={`${item.bookId}-split`} className="bg-[#faf6f9]/80 border-b border-[#7e2562]/10">
+                                <td colSpan={3} className="px-4 py-3">
+                                  <div className="bg-white border border-[#7e2562]/20 rounded-sm p-3.5 shadow-xs space-y-3">
+                                    <div className="flex items-center justify-between border-b border-gray-100 pb-2">
+                                      <div className="flex items-center gap-2 text-xs font-bold text-[#7e2562]">
+                                        <Layers className="w-4 h-4 text-[#7e2562]" />
+                                        <span>Configure Multi-Branch Quantities for "{item.title}":</span>
+                                      </div>
+                                      <div className="text-xs text-gray-600 font-medium">
+                                        Sum of Splits: <strong className={isFulfilledOrExceeded ? "text-emerald-600 font-bold text-sm ml-1" : "text-[#7e2562] font-bold text-sm ml-1"}>{item.quantityRequested}</strong> / {reqQty} requested
+                                      </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                      {/* Warehouse */}
+                                      {(() => {
+                                        const wVal = item.sourceSplits?.['WAREHOUSE'] ?? 0;
+                                        const isOver = wVal > warehouseAvail;
+                                        return (
+                                          <div className={`flex items-center justify-between bg-white p-2.5 rounded-sm border shadow-2xs transition-colors ${
+                                            isOver ? 'border-red-300 bg-red-50/30' : 'border-gray-200 hover:border-[#7e2562]/30'
+                                          }`}>
+                                            <div className="flex items-center gap-2 min-w-0 flex-1 pr-2">
+                                              <Warehouse className={`w-4 h-4 shrink-0 ${isOver ? 'text-red-600' : 'text-blue-600'}`} />
+                                              <div className="min-w-0">
+                                                <div className="text-xs text-gray-800 font-bold truncate">Central Warehouse</div>
+                                                <div className={`text-[10px] ${isOver ? 'text-red-600 font-bold' : 'text-gray-400'}`}>
+                                                  {warehouseAvail} available
+                                                </div>
+                                              </div>
+                                            </div>
+                                            <input
+                                              type="number"
+                                              min="0"
+                                              value={item.sourceSplits?.['WAREHOUSE'] ?? 0}
+                                              onChange={(e) => handleApproveSplitQtyChange(item.bookId, 'WAREHOUSE', Number(e.target.value))}
+                                              className={`w-16 shrink-0 px-2 py-1 text-center font-bold text-xs border rounded-sm transition-colors ${
+                                                isOver 
+                                                  ? 'text-red-600 bg-red-50 border-red-400 focus:ring-1 focus:ring-red-500 focus:border-red-500' 
+                                                  : 'text-gray-900 border-gray-300 focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]'
+                                              }`}
+                                            />
+                                          </div>
+                                        );
+                                      })()}
+
+                                      {/* Branches */}
+                                      {branches.filter((b: any) => b.type !== 'WAREHOUSE').map((b: any) => {
+                                        const bAvail = getBranchStockQty(b.id, item.bookId);
+                                        const bVal = item.sourceSplits?.[`BRANCH_${b.id}`] ?? 0;
+                                        const isOver = bVal > bAvail;
+                                        return (
+                                          <div key={b.id} className={`flex items-center justify-between bg-white p-2.5 rounded-sm border shadow-2xs transition-colors ${
+                                            isOver ? 'border-red-300 bg-red-50/30' : 'border-gray-200 hover:border-[#7e2562]/30'
+                                          }`}>
+                                            <div className="flex items-center gap-2 min-w-0 flex-1 pr-2">
+                                              <Store className={`w-4 h-4 shrink-0 ${isOver ? 'text-red-600' : 'text-amber-600'}`} />
+                                              <div className="min-w-0">
+                                                <div className="text-xs text-gray-800 font-bold truncate">{b.name}</div>
+                                                <div className={`text-[10px] ${isOver ? 'text-red-600 font-bold' : 'text-gray-400'}`}>
+                                                  {bAvail} available
+                                                </div>
+                                              </div>
+                                            </div>
+                                            <input
+                                              type="number"
+                                              min="0"
+                                              value={item.sourceSplits?.[`BRANCH_${b.id}`] ?? 0}
+                                              onChange={(e) => handleApproveSplitQtyChange(item.bookId, `BRANCH_${b.id}`, Number(e.target.value))}
+                                              className={`w-16 shrink-0 px-2 py-1 text-center font-bold text-xs border rounded-sm transition-colors ${
+                                                isOver 
+                                                  ? 'text-red-600 bg-red-50 border-red-400 focus:ring-1 focus:ring-red-500 focus:border-red-500' 
+                                                  : 'text-gray-900 border-gray-300 focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]'
+                                              }`}
+                                            />
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
                                   </div>
-                                  {isSingleOverStock ? (
-                                    <span className="text-[10px] text-red-600 font-bold mt-1 inline-flex items-center gap-0.5 whitespace-nowrap">
-                                      <AlertTriangle className="w-3 h-3 text-red-500 shrink-0" /> Exceeds stock ({selectedAvail} avail)
-                                    </span>
-                                  ) : isFulfilledOrExceeded ? (
-                                    <span className="text-[10px] text-emerald-600 font-bold mt-1 inline-flex items-center gap-0.5 whitespace-nowrap">
-                                      âœ“ {isExceeded ? `Exceeds req (${reqQty})` : `Fulfills req (${reqQty})`}
-                                    </span>
-                                  ) : (
-                                    <span className="text-[10px] text-amber-600 font-semibold mt-1 whitespace-nowrap">
-                                      Requested: {reqQty}
-                                    </span>
-                                  )}
-                                </div>
-                              )}
-                            </td>
-                          </tr>
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
                         );
                       })}
                     </tbody>
@@ -2733,7 +2974,7 @@ export default function ExhibitionsPage() {
                     {viewingExhibitionHistory.name || viewingExhibitionHistory.eventName}
                   </h3>
                   <p className="text-xs text-gray-500 mt-1">
-                    Location: <strong className="text-gray-700">{viewingExhibitionHistory.location}</strong> â€¢ 
+                    Location: <strong className="text-gray-700">{viewingExhibitionHistory.location}</strong> 
                     Source: <strong className="text-gray-700">{viewingExhibitionHistory.branch?.name || viewingExhibitionHistory.sourceBranchName}</strong>
                   </p>
                 </div>
@@ -2790,11 +3031,11 @@ export default function ExhibitionsPage() {
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                         <div className="bg-[#f0fbf5] border border-[#3cb976]/20 rounded-sm p-3 sm:p-4 flex flex-col">
                           <span className="text-[10px] font-bold text-[#3cb976]   tracking-wider">Total Cash/UPI Revenue</span>
-                          <strong className="text-lg sm:text-xl text-emerald-800 mt-1">â‚¹{Number(historyData.metrics.totalRevenue).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
+                          <strong className="text-lg sm:text-xl text-emerald-800 mt-1"> {Number(historyData.metrics.totalRevenue).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
                         </div>
                         <div className="bg-amber-50/70 border border-amber-200 rounded-sm p-3 sm:p-4 flex flex-col">
                           <span className="text-[10px] font-bold text-amber-700   tracking-wider">Total Credit Sales Amount</span>
-                          <strong className="text-lg sm:text-xl text-amber-900 mt-1">â‚¹{Number(historyData.metrics.totalCreditAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
+                          <strong className="text-lg sm:text-xl text-amber-900 mt-1"> {Number(historyData.metrics.totalCreditAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
                         </div>
                         <div className="bg-[#faedf5] border border-[#7e2562]/20 rounded-sm p-3 sm:p-4 flex flex-col">
                           <span className="text-[10px] font-bold text-[#7e2562]   tracking-wider">Books Sold (From Invoices)</span>
@@ -2879,7 +3120,7 @@ export default function ExhibitionsPage() {
                                        )}
                                      </td>
                                     <td className="px-4 py-2.5 text-slate-400">{new Date(bill.createdAt).toLocaleString()}</td>
-                                    <td className="px-4 py-2.5 text-right font-bold text-slate-800">â‚¹{Number(bill.totalAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                                    <td className="px-4 py-2.5 text-right font-bold text-slate-800"> {Number(bill.totalAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
                                   </tr>
                                 ))}
                               </tbody>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useState, useEffect } from 'react';
 import { 
@@ -37,7 +37,8 @@ import { LogOut, Clock, Send } from 'lucide-react';
 export default function Sidebar() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { user } = useAuth();
+  const router = useRouter();
+  const { user, exitExhibitionMode } = useAuth();
   const [activeExhibition, setActiveExhibition] = useState<any | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -87,32 +88,35 @@ export default function Sidebar() {
   if (!user) return null;
 
   if (isExhibitionMode) {
+    const rawId = pathname.split('/dashboard/exhibitions/')[1] || '';
+    const currentExhibitionId = rawId.split('/')[0];
+
     const exhibitionNavLinks = [
-      { name: 'Live POS Billing', tab: 'POS', icon: ShoppingCart },
-      { name: 'Venue Book Stock', tab: 'STOCK', icon: Boxes },
-      { name: 'Sales & Bills', tab: 'BILLS', icon: Receipt },
-      { name: 'Mid-Event TopUp', tab: 'TOPUP', icon: Send },
-      { name: 'Credit Copies', tab: 'CREDIT', icon: FileText },
-      { name: 'End of Day Close', tab: 'DAY_CLOSE', icon: Clock },
+      { name: 'Exhibition Dashboard', subRoute: 'overview', icon: LayoutDashboard },
+      { name: 'Billing', subRoute: 'live-billing', icon: ShoppingCart },
+      { name: 'Inventory', subRoute: 'stock', icon: Boxes },
+      { name: 'Bills', subRoute: 'bills', icon: Receipt },
+      { name: 'Restock', subRoute: 'topup', icon: Send },
+      { name: 'Credit Copies', subRoute: 'credit', icon: FileText },
+      { name: 'End of Day Close', subRoute: 'day-close', icon: Clock },
     ];
 
     return (
-      <div className={`flex flex-col shrink-0 ${isCollapsed ? 'w-20' : 'w-72'} bg-slate-900 text-white border-r border-emerald-500/20 h-full overflow-y-auto backdrop-blur-2xl shadow-xl transition-all duration-300 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']`}>
+      <div className={`flex flex-col shrink-0 ${isCollapsed ? 'w-20' : 'w-72'} bg-white/95 border-r border-[#7e2562]/10 h-full overflow-y-auto backdrop-blur-2xl shadow-plum-sm transition-all duration-300 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']`}>
         {/* Header / Logo */}
-        <div className={`flex items-center border-b border-emerald-500/20 shrink-0 ${isCollapsed ? 'h-20 justify-center px-4' : 'h-20 px-6 justify-between'}`}>
-          {!isCollapsed && (
-            <div className="flex flex-col gap-0.5">
-              <span className="text-[10px] font-black uppercase text-emerald-400 tracking-wider flex items-center gap-1.5 animate-pulse">
-                <span className="w-2 h-2 rounded-full bg-emerald-400"></span> EXHIBITION MODE
+        <div className={`flex items-center border-b border-[#7e2562]/10 shrink-0 ${isCollapsed ? 'h-20 justify-center px-4' : 'h-20 px-6 justify-between'}`}>
+          <div className={`flex flex-col gap-1 ${isCollapsed ? 'hidden' : 'flex'}`}>
+            <Image className='object-contain' src="/kairaliLogo.png" alt="Kairali Books" width={115} height={45} priority />
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[10px] font-bold text-[#7e2562] pl-0.5 tracking-wide uppercase flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#7e2562] animate-pulse"></span> Exhibition Mode
               </span>
-              <h2 className="text-xs font-bold text-slate-300 truncate max-w-[180px]">
-                {activeExhibition?.name || 'Venue Operating Surface'}
-              </h2>
+          
             </div>
-          )}
+          </div>
           <button 
             onClick={() => setIsCollapsed(!isCollapsed)} 
-            className="p-2 text-emerald-300 hover:text-white rounded-sm hover:bg-emerald-800/40 transition shrink-0 cursor-pointer"
+            className="p-2 text-muted-foreground hover:text-foreground rounded-sm hover:bg-[#faedf5] transition-colors shrink-0 cursor-pointer"
           >
             {isCollapsed ? <PanelLeftOpen className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
           </button>
@@ -121,38 +125,45 @@ export default function Sidebar() {
         {/* Navigation */}
         <div className="p-3 flex-1 flex flex-col justify-between gap-4">
           <nav className="space-y-1.5 flex-1">
-            {!isCollapsed && <div className="px-3 text-[10px] font-bold text-emerald-400/70 tracking-wider mb-2 uppercase">Venue Operations</div>}
+            {!isCollapsed && <div className="px-3 text-[11px] font-bold text-[#7e2562]/70 tracking-wider mb-2 uppercase">Venue Operations</div>}
             {exhibitionNavLinks.map((link) => {
               const Icon = link.icon;
-              const isActive = currentTab === link.tab;
+              const linkHref = `/dashboard/exhibitions/${currentExhibitionId}/${link.subRoute}`;
+              const isActive = pathname.endsWith(`/${link.subRoute}`) || (link.subRoute === 'overview' && pathname.endsWith(`/${currentExhibitionId}`));
               return (
                 <Link
                   key={link.name}
-                  href={`/dashboard/exhibitions/${currentExhibitionId}?tab=${link.tab}`}
-                  className={`apple-button group flex items-center justify-between rounded-lg px-3.5 py-2.5 text-xs font-bold transition-all relative overflow-hidden ${
+                  href={linkHref}
+                  className={`apple-button group flex items-center justify-between rounded-sm px-3.5 py-2.5 text-[14px] font-medium transition-all duration-150 relative overflow-hidden ${
                     isActive 
-                      ? 'bg-emerald-600 text-white shadow-md font-extrabold' 
-                      : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                      ? 'bg-[#7e2562] text-white shadow-plum-sm font-semibold' 
+                      : 'text-foreground/80 hover:bg-[#7e2562]/8 hover:text-primary'
                   } ${isCollapsed ? 'justify-center px-0' : ''}`}
                 >
                   <span className="flex items-center gap-3 relative z-10">
-                    <Icon className="h-4 w-4 shrink-0 text-emerald-300" />
+                    <Icon className={`h-4.5 w-4.5 shrink-0 ${isActive ? 'text-white' : 'text-[#7e2562]'}`} />
                     {!isCollapsed && <span className="truncate">{link.name}</span>}
                   </span>
+                  {isActive && !isCollapsed && (
+                    <span className="relative z-10 h-1.5 w-1.5 rounded-full bg-white opacity-80" />
+                  )}
                 </Link>
               );
             })}
           </nav>
 
           {/* Exit Exhibition Mode */}
-          <div className="pt-3 border-t border-emerald-500/20">
-            <Link
-              href="/dashboard"
-              className="flex items-center gap-2.5 rounded-lg px-3.5 py-2.5 text-xs font-bold text-red-300 bg-red-950/40 hover:bg-red-900/60 border border-red-800/30 transition shadow-sm"
+          <div className="pt-3 border-t border-[#7e2562]/10">
+            <button
+              onClick={() => {
+                exitExhibitionMode();
+                router.push('/dashboard/exhibitions');
+              }}
+              className="w-full flex items-center gap-2.5 rounded-sm px-3.5 py-2.5 text-xs font-bold text-[#7e2562] bg-[#faedf5] hover:bg-[#f6dbe9] border border-[#7e2562]/20 transition shadow-xs cursor-pointer"
             >
-              <LogOut className="h-4 w-4 shrink-0 text-red-400" />
+              <LogOut className="h-4 w-4 shrink-0 text-[#7e2562]" />
               {!isCollapsed && <span>Exit Exhibition Mode</span>}
-            </Link>
+            </button>
           </div>
         </div>
       </div>
@@ -242,7 +253,7 @@ export default function Sidebar() {
           {/* Active Exhibition Live Operating Surface Banner Tab */}
           {activeExhibition && (
             <Link
-              href={`/dashboard/exhibitions/${activeExhibition.id}`}
+              href={`/dashboard/exhibitions/${activeExhibition.id}/overview`}
               className="group flex items-center justify-between rounded-lg px-3.5 py-3 text-[13px] font-bold bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow-md hover:shadow-lg transition-all duration-200 relative overflow-hidden mb-3 animate-pulse border border-emerald-400"
             >
               <span className="flex items-center gap-2.5 relative z-10">

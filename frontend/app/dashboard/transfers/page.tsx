@@ -15,7 +15,8 @@ import {
   Loader2,
   Eye,
   ShoppingCart,
-  Zap
+  Zap,
+  Tent
 } from 'lucide-react';
 import CreateTransferModal from '@/components/CreateTransferModal';
 import TransferDetailsModal from '@/components/TransferDetailsModal';
@@ -252,8 +253,17 @@ export default function StockTransfersPage() {
                     className="hover:bg-[#faf6f9]/60 transition duration-150"
                   >
                     <td className="px-6 py-4 font-mono font-bold text-primary whitespace-nowrap">{t.transferNumber}</td>
-                    <td className="px-6 py-4 font-semibold text-foreground whitespace-nowrap">{t.fromBranch.name}</td>
-                    <td className="px-6 py-4 font-semibold text-foreground whitespace-nowrap">{t.toBranch.name}</td>
+                    <td className="px-6 py-4 font-semibold text-foreground whitespace-nowrap">{t.fromBranch?.name || 'Central Warehouse'}</td>
+                    <td className="px-6 py-4 font-semibold text-foreground whitespace-nowrap">
+                      {t.note?.includes('[EXHIBITION RESTOCK]') ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-extrabold bg-[#faedf5] text-[#7e2562] border border-[#7e2562]/20">
+                          <Tent className="w-3.5 h-3.5 text-[#7e2562]" />
+                          {t.note.replace('[EXHIBITION RESTOCK]', 'Exhibition:')}
+                        </span>
+                      ) : (
+                        t.toBranch?.name || 'Branch'
+                      )}
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">{t.requestedBy?.name || 'BMS Staff'}</td>
                     <td className="px-6 py-4 font-semibold whitespace-nowrap">{t.items?.length || 0} books</td>
                     <td className="px-6 py-4 whitespace-nowrap">

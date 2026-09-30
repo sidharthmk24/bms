@@ -5,7 +5,7 @@ import Sidebar from '@/components/Sidebar';
 import RealTimeSync from '@/components/RealTimeSync';
 import RoleSwitcher from '@/components/RoleSwitcher';
 import NotificationDropdown from '@/components/NotificationDropdown';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Calendar, MapPin, LogOut } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import UserProfileDropdown from '@/components/UserProfileDropdown';
@@ -46,23 +46,49 @@ export default function DashboardLayout({
       <main className="flex-1 flex flex-col h-full overflow-y-auto min-w-0">
         {/* Exhibition Mode Persistent Banner */}
         {activeExhibition && (
-          <div className="bg-gradient-to-r from-[#7e2562] to-[#a2327e] text-white px-6 py-2.5 flex items-center justify-between shadow-md shrink-0 z-20">
-            <div className="flex items-center space-x-3 text-xs sm:text-sm font-medium">
-              <span className="bg-white/20 text-white font-bold px-2 py-0.5 rounded-sm uppercase tracking-wider text-[10px] animate-pulse">
-                Exhibition Mode Active
-              </span>
-              <span className="font-bold">{activeExhibition.name}</span>
-              <span className="hidden md:inline text-white/80">({activeExhibition.location})</span>
-              <span className="bg-white/10 px-2 py-0.5 rounded-sm text-xs font-semibold">
-                Role: {activeExhibition.role}
-              </span>
+          <div className="bg-gradient-to-r from-[#7e2562] via-[#681b50] to-[#52133e] text-white px-6 py-3 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-md shrink-0 z-20">
+            <div className="flex items-center gap-4 flex-wrap">
+              <div>
+                  {(activeExhibition.startDate || activeExhibition.endDate) ? (
+                    <span className="text-xs text-pink-100 flex items-center gap-1 font-mono">
+                      <Calendar className="w-3.5 h-3.5" />
+                      {activeExhibition.startDate ? new Date(activeExhibition.startDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : ''}
+                      {activeExhibition.startDate && activeExhibition.endDate ? ' — ' : ''}
+                      {activeExhibition.endDate ? new Date(activeExhibition.endDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : ''}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-pink-100 flex items-center gap-1 font-mono">
+                      <Calendar className="w-3.5 h-3.5" />
+                      Live Event
+                    </span>
+                  )}
+                <h1 className="text-base sm:text-lg font-black text-white leading-tight">
+                  {activeExhibition.name || activeExhibition.eventName}
+                </h1>
+              </div>
+
+              <div className="text-xs text-pink-100 flex items-center gap-3 border-l border-white/20 pl-4 hidden lg:flex">
+                <span className="flex items-center gap-1">
+                  <MapPin className="w-3.5 h-3.5 text-pink-200" /> {activeExhibition.location}
+                </span>
+                <span>•</span>
+                <span>
+                  Source: <strong>{activeExhibition.sourceBranch?.name || activeExhibition.sourceBranchName || 'Central Warehouse'}</strong>
+                </span>
+              </div>
             </div>
-            <button
-              onClick={() => exitExhibitionMode()}
-              className="text-xs font-bold bg-white/15 hover:bg-white/25 text-white px-3 py-1 rounded-sm transition-colors border border-white/20 active:scale-95 flex items-center gap-1"
-            >
-              Exit Exhibition Mode
-            </button>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  exitExhibitionMode();
+                  router.push('/dashboard/exhibitions');
+                }}
+                className="text-xs font-bold bg-white/15 hover:bg-white/25 text-white px-3.5 py-1.5 rounded-md transition-colors border border-white/20 active:scale-95 flex items-center gap-1.5 cursor-pointer"
+              >
+                <LogOut className="w-3.5 h-3.5" /> Exit Exhibition Mode
+              </button>
+            </div>
           </div>
         )}
 

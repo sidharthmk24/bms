@@ -239,7 +239,7 @@ export default function PurchaseOrdersPage() {
     setIsCreating(true);
   };
 
-  const handleSaveOrder = async () => {
+  const handleSaveOrder = async (targetStatus: 'DRAFT' | 'PLACED' = 'DRAFT') => {
     if (!selectedSupplier) {
       alert('Please select a supplier');
       return;
@@ -264,14 +264,18 @@ export default function PurchaseOrdersPage() {
     const totalEstCost = cart.reduce((acc, i) => acc + (i.quantity * i.unitCost), 0);
     const isEdit = !!editingPO;
 
+    const actionText = isEdit 
+      ? "Update Purchase Order" 
+      : (targetStatus === 'PLACED' ? "Place Purchase Order" : "Save Draft Purchase Order");
+
     const ok = await confirm({
-      title: isEdit ? "Update Purchase Order" : "Place Purchase Order",
+      title: actionText,
       message: isEdit 
         ? `Update purchase order "${editingPO.orderNumber}" for ${cart.length} item(s) (${totalQty} total units) for ₹${totalEstCost.toLocaleString()}?`
-        : `Place purchase order for ${cart.length} item(s) (${totalQty} total units) for ₹${totalEstCost.toLocaleString()}?`,
-      confirmText: isEdit ? "Yes, Update Order" : "Yes, Place Order",
+        : `${actionText} for ${cart.length} item(s) (${totalQty} total units) for ₹${totalEstCost.toLocaleString()}?`,
+      confirmText: `Yes, ${actionText}`,
       cancelText: "No, Cancel",
-      variant: "primary",
+      variant: targetStatus === 'PLACED' ? "success" : "primary",
     });
     if (!ok) return;
 
@@ -283,6 +287,7 @@ export default function PurchaseOrdersPage() {
         expectedDate: expectedDate || undefined,
         poRequestId: linkedPoRequestId || undefined,
         transferId: linkedTransferId || undefined,
+        status: targetStatus,
         items: cart.map(i => ({ 
           bookId: i.bookId, 
           newBook: i.newBook, 
@@ -307,9 +312,9 @@ export default function PurchaseOrdersPage() {
       setLinkedPoRequestId(null);
       setLinkedTransferId(null);
       await Promise.all([refetchPOs(), refetchPoRequests()]);
-      alert(isEdit ? 'Purchase Order Updated Successfully' : 'Purchase Order Created Successfully');
+      alert(isEdit ? 'Purchase Order Updated Successfully' : (targetStatus === 'PLACED' ? 'Purchase Order Placed Successfully' : 'Purchase Order Draft Saved'));
     } catch (err: any) {
-      alert(err.response?.data?.message || `Failed to ${isEdit ? 'update' : 'create'} PO`);
+      alert(err.response?.data?.message || 'Failed to save purchase order');
     } finally {
       setIsSubmitting(false);
     }
@@ -1609,7 +1614,7 @@ export default function PurchaseOrdersPage() {
                 <div className="text-lg font-bold text-neutral-900 font-mono">
                   Total: <span className="text-[#7e2562]">₹{cart.reduce((sum, item) => sum + (item.quantity * item.unitCost), 0).toFixed(2)}</span>
                 </div>
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-2 sm:space-x-3">
                   <button 
                     type="button"
                     onClick={() => {
@@ -1617,18 +1622,28 @@ export default function PurchaseOrdersPage() {
                       setEditingPO(null);
                       setCart([]);
                     }} 
-                    className="px-4 py-2 text-xs font-bold   tracking-wider text-neutral-700 bg-white border border-neutral-300 rounded-sm hover:bg-neutral-50 active:scale-95 transition-all cursor-pointer"
+                    className="px-3.5 py-2 text-xs font-bold tracking-wider text-neutral-700 bg-white border border-neutral-300 rounded-sm hover:bg-neutral-50 active:scale-95 transition-all cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button 
                     type="button"
-                    onClick={handleCreate} 
+                    onClick={() => handleSaveOrder('DRAFT')} 
                     disabled={cart.length === 0 || !selectedSupplier || isSubmitting} 
-                    className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold   tracking-wider text-white bg-[#7e2562] hover:bg-[#681b50] rounded-sm shadow-sm shadow-plum-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold tracking-wider text-[#7e2562] bg-[#faedf5] hover:bg-[#f6dbe9] border border-[#7e2562]/20 rounded-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
                   >
-                    {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                    {editingPO ? 'Update Purchase Order' : 'Save Draft PO'}
+                    {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    <span>{editingPO ? 'Update Draft' : 'Save Draft'}</span>
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => handleSaveOrder('PLACED')} 
+                    disabled={cart.length === 0 || !selectedSupplier || isSubmitting} 
+                    className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold tracking-wider text-white bg-[#7e2562] hover:bg-[#681b50] rounded-sm shadow-sm shadow-plum-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
+                  >
+                    {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    <Send className="w-3.5 h-3.5 text-white" />
+                    <span>{editingPO ? 'Update & Place Order' : 'Place Order'}</span>
                   </button>
                 </div>
               </div>

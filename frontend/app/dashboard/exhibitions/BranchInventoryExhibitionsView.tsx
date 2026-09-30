@@ -14,8 +14,27 @@ export function BranchInventoryExhibitionsView({
   onEditExhibition?: (ex: any) => void 
 }) {
   const { enterExhibitionMode } = useAuth();
+  const userRoles = user?.roles || [user?.role || user?.primaryRole || ''];
+  const isCentralOnly = userRoles.includes('CENTRAL_INVENTORY_MANAGER') &&
+    !userRoles.includes('SUPER_ADMIN') &&
+    !userRoles.includes('ADMIN') &&
+    !userRoles.includes('BRANCH_MANAGER');
+
   const [viewingExhibition, setViewingExhibition] = useState<any | null>(null);
   const [activeTab, setActiveTab] = useState<'ACTIVE' | 'PAST'>('ACTIVE');
+
+  const isExhibitionStarted = (ex: any) => {
+    if (!ex) return false;
+    if (ex.status === 'ONGOING' || ex.status === 'CLOSED' || ex.status === 'REJECTED' || ex.status === 'OVERDUE') {
+      return true;
+    }
+    if (!ex.startDate) return false;
+    const start = new Date(ex.startDate);
+    start.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return today >= start;
+  };
 
   const myExhibitions = (exhibitions || []).filter(ex => ex.assignedUserId === user?.id || ex.assignedUserId === user?.userId);
   const activeExhibitions = myExhibitions.filter(ex => ['REQUESTED', 'APPROVED', 'ONGOING', 'OVERDUE'].includes(ex.status));
@@ -45,9 +64,9 @@ export function BranchInventoryExhibitionsView({
   const handleClose = async () => {
     if (!closingExhibition) return;
     
-    // Validate that Sold + Returned + Damaged + Lost + Credit == Taken
+    // Validate that Sold + Returned + Damaged/Lost + Credit == Taken
     for (const rec of reconciliation) {
-      const total = (rec.quantitySold || 0) + (rec.quantityReturned || 0) + (rec.quantityDamaged || 0) + (rec.quantityLost || 0) + (rec.quantityCredit || 0);
+      const total = (rec.quantitySold || 0) + (rec.quantityReturned || 0) + (rec.quantityDamagedLost || 0) + (rec.quantityCredit || 0);
       if (total !== rec.quantityTaken) {
         alert(`Mismatch in "${rec.title}": Total accounted (${total}) does not equal quantity taken (${rec.quantityTaken}).`);
         return;
@@ -62,8 +81,8 @@ export function BranchInventoryExhibitionsView({
           stockId: r.stockId,
           quantitySold: r.quantitySold || 0,
           quantityReturned: r.quantityReturned || 0,
-          quantityDamaged: r.quantityDamaged || 0,
-          quantityLost: r.quantityLost || 0,
+          quantityDamaged: r.quantityDamagedLost || 0,
+          quantityLost: 0,
           quantityCredit: r.quantityCredit || 0
         }))
       });
@@ -179,21 +198,9 @@ export function BranchInventoryExhibitionsView({
                     View Details
                   </button>
 
-                  {ex.status !== 'CLOSED' && ex.status !== 'REJECTED' && onEditExhibition && (
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onEditExhibition(ex);
-                      }} 
-                      className="inline-flex items-center px-2.5 py-1.5 text-xs font-semibold text-[#7e2562] bg-[#faedf5] hover:bg-[#f6dbe9] border border-[#7e2562]/20 rounded-sm shadow-xs transition-all active:scale-95"
-                    >
-                      <Pencil className="w-3.5 h-3.5 mr-1" />
-                      Edit Books & Details
-                    </button>
-                  )}
-                </div>
+                  </div>
                 <div className="flex space-x-3 items-center">
-                  {(ex.status === 'ONGOING' || ex.status === 'OVERDUE') && (
+                  {!isCentralOnly && (ex.status === 'ONGOING' || ex.status === 'OVERDUE') && (
                     <>
                       <button
                         onClick={(e) => {
@@ -203,10 +210,12 @@ export function BranchInventoryExhibitionsView({
                             name: ex.name || ex.eventName,
                             location: ex.location,
                             role: ex.assignments?.find((a: any) => a.userId === user?.id)?.role || 'LEAD',
+                            startDate: ex.startDate || ex.eventStartDate,
+                            endDate: ex.endDate || ex.eventEndDate,
                           });
-                          window.location.href = `/dashboard/exhibitions/${ex.id}`;
+                          window.location.href = `/dashboard/exhibitions/${ex.id}/overview`;
                         }}
-                        className="inline-flex items-center px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-sm shadow-xs transition-all active:scale-95"
+                        className="inline-flex items-center px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-sm shadow-xs transition-all active:scale-95 cursor-pointer"
                       >
                         <Tent className="w-3.5 h-3.5 mr-1.5" />
                         Open Live Workspace
@@ -215,25 +224,30 @@ export function BranchInventoryExhibitionsView({
                         onClick={(e) => { 
                           e.stopPropagation(); 
                           setClosingExhibition(ex);
-                          setReconciliation(ex.stock.map((s: any) => ({
-                            stockId: s.id,
-                            title: s.book?.title,
-                            quantityTaken: s.quantityTaken,
-                            quantitySold: s.quantityTaken, // Default assume all sold
-                            quantityReturned: 0,
-                            quantityDamaged: 0,
-                            quantityLost: 0,
-                            quantityCredit: 0
-                          })));
+                          setReconciliation((ex.stock || []).map((s: any) => {
+                            const sold = Number(s.quantitySold || 0);
+                            const credit = Number(s.quantityCredit || 0);
+                            const totalTaken = Number(s.quantityTaken || 0) + Number(s.quantityTopUp || 0);
+                            const damagedLost = Number(s.quantityDamaged || 0) + Number(s.quantityLost || 0);
+                            const returned = Math.max(0, totalTaken - sold - credit - damagedLost);
+                            return {
+                              stockId: s.id,
+                              title: s.book?.title || 'Book Title',
+                              quantityTaken: totalTaken,
+                              quantitySold: sold,
+                              quantityCredit: credit,
+                              quantityDamagedLost: damagedLost,
+                              quantityReturned: returned
+                            };
+                          }));
                         }} 
-                        className="inline-flex items-center px-3 py-1.5 text-xs font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-sm shadow-xs transition-colors active:scale-95"
+                        className="inline-flex items-center px-3 py-1.5 text-xs font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-sm shadow-xs transition-colors active:scale-95 cursor-pointer"
                       >
                         <ArchiveRestore className="w-3.5 h-3.5 mr-1.5" />
                         Close & Reconcile
                       </button>
                     </>
                   )}
-                  {ex.status !== 'REQUESTED' && ex.status !== 'ONGOING' && <span className="text-gray-400 text-xs">ID: {ex.id.substring(0, 8)}</span>}
                 </div>
               </div>
             </motion.div>
@@ -311,15 +325,26 @@ export function BranchInventoryExhibitionsView({
                         <th className="px-3 py-3 text-center">Taken</th>
                         <th className="px-3 py-3 text-center text-[#3cb976]">Sold</th>
                         <th className="px-3 py-3 text-center text-[#7e2562]">Not Sold</th>
-                        <th className="px-3 py-3 text-center text-[#e45e34]">Damaged</th>
-                        <th className="px-3 py-3 text-center text-[#e45e34]">Lost</th>
+                        <th className="px-3 py-3 text-center text-[#e45e34]">Damaged / Lost</th>
                         <th className="px-3 py-3 text-center text-purple-600">Credit</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200 text-xs">
-                      {reconciliation.map((rec, idx) => {
-                        const total = (rec.quantitySold || 0) + (rec.quantityReturned || 0) + (rec.quantityDamaged || 0) + (rec.quantityLost || 0) + (rec.quantityCredit || 0);
+                      {reconciliation.map((rec: any, idx) => {
+                        const total = (rec.quantitySold || 0) + (rec.quantityReturned || 0) + (rec.quantityDamagedLost || 0) + (rec.quantityCredit || 0);
                         const isBalanced = total === rec.quantityTaken;
+
+                        const updateRow = (fields: Partial<typeof rec>) => {
+                          const newRec = [...reconciliation];
+                          const updated = { ...newRec[idx], ...fields };
+                          const s = Number(updated.quantitySold) || 0;
+                          const c = Number(updated.quantityCredit) || 0;
+                          const dl = Number(updated.quantityDamagedLost) || 0;
+                          updated.quantityReturned = Math.max(0, updated.quantityTaken - s - c - dl);
+                          newRec[idx] = updated;
+                          setReconciliation(newRec);
+                        };
+
                         return (
                           <tr key={rec.stockId} className={!isBalanced ? 'bg-[#fef5f2]' : ''}>
                             <td className="px-4 py-3 font-medium text-gray-900 max-w-[200px] truncate" title={rec.title}>
@@ -327,40 +352,24 @@ export function BranchInventoryExhibitionsView({
                               {!isBalanced && <div className="text-[10px] text-[#e45e34] font-bold mt-1">Count mismatch: {total} vs {rec.quantityTaken}</div>}
                             </td>
                             <td className="px-3 py-3 text-center font-bold text-gray-700">{rec.quantityTaken}</td>
-                            <td className="px-2 py-2">
-                              <input type="number" min="0" value={rec.quantitySold} onChange={(e) => {
-                                const newRec = [...reconciliation];
-                                newRec[idx].quantitySold = Number(e.target.value);
-                                setReconciliation(newRec);
-                              }} className="w-full px-2 py-1.5 text-xs font-semibold text-[#3cb976] border border-gray-300 rounded-sm text-center focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" />
+                            <td className="px-3 py-3 text-center font-bold text-[#3cb976] bg-emerald-50/50">
+                              {rec.quantitySold}
+                            </td>
+                            <td className="px-3 py-3 text-center font-bold text-[#7e2562] bg-[#faedf5]/40">
+                              {rec.quantityReturned}
                             </td>
                             <td className="px-2 py-2">
-                              <input type="number" min="0" value={rec.quantityReturned} onChange={(e) => {
-                                const newRec = [...reconciliation];
-                                newRec[idx].quantityReturned = Number(e.target.value);
-                                setReconciliation(newRec);
-                              }} className="w-full px-2 py-1.5 text-xs font-semibold text-[#7e2562] border border-gray-300 rounded-sm text-center focus:ring-1 focus:ring-[#7e2562] focus:border-[#7e2562]" />
+                              <input 
+                                type="number" 
+                                min="0" 
+                                max={Math.max(0, rec.quantityTaken - rec.quantitySold - rec.quantityCredit)}
+                                value={rec.quantityDamagedLost} 
+                                onChange={(e) => updateRow({ quantityDamagedLost: Math.max(0, Number(e.target.value)) })} 
+                                className="w-full px-2 py-1.5 text-xs font-bold text-[#e45e34] border border-[#e45e34]/30 rounded-sm text-center focus:ring-1 focus:ring-[#e45e34] bg-white" 
+                              />
                             </td>
-                            <td className="px-2 py-2">
-                              <input type="number" min="0" value={rec.quantityDamaged} onChange={(e) => {
-                                const newRec = [...reconciliation];
-                                newRec[idx].quantityDamaged = Number(e.target.value);
-                                setReconciliation(newRec);
-                              }} className="w-full px-2 py-1.5 text-xs font-semibold text-[#e45e34] border border-[#e45e34]/30 rounded-sm text-center focus:ring-1 focus:ring-[#e45e34] focus:border-[#e45e34]" />
-                            </td>
-                            <td className="px-2 py-2">
-                              <input type="number" min="0" value={rec.quantityLost} onChange={(e) => {
-                                const newRec = [...reconciliation];
-                                newRec[idx].quantityLost = Number(e.target.value);
-                                setReconciliation(newRec);
-                              }} className="w-full px-2 py-1.5 text-xs font-semibold text-[#e45e34] border border-[#e45e34]/30 rounded-sm text-center focus:ring-1 focus:ring-[#e45e34] focus:border-[#e45e34]" />
-                            </td>
-                            <td className="px-2 py-2">
-                              <input type="number" min="0" value={rec.quantityCredit} onChange={(e) => {
-                                const newRec = [...reconciliation];
-                                newRec[idx].quantityCredit = Number(e.target.value);
-                                setReconciliation(newRec);
-                              }} className="w-full px-2 py-1.5 text-xs font-semibold text-purple-700 border border-purple-300 rounded-sm text-center focus:ring-1 focus:ring-purple-600 focus:border-purple-600" />
+                            <td className="px-3 py-3 text-center font-bold text-purple-700 bg-purple-50/50">
+                              {rec.quantityCredit}
                             </td>
                           </tr>
                         );
@@ -416,19 +425,6 @@ export function BranchInventoryExhibitionsView({
                   </div>
                 </div>
                 <div className="flex items-center space-x-2 self-end sm:self-auto">
-                  {viewingExhibition.status !== 'CLOSED' && viewingExhibition.status !== 'REJECTED' && onEditExhibition && (
-                    <button 
-                      onClick={() => {
-                        const target = viewingExhibition;
-                        setViewingExhibition(null);
-                        onEditExhibition(target);
-                      }} 
-                      className="inline-flex items-center px-3 py-1.5 text-xs font-semibold text-[#7e2562] bg-[#faedf5] hover:bg-[#f6dbe9] border border-[#7e2562]/20 rounded-sm shadow-xs transition-all active:scale-95"
-                    >
-                      <Pencil className="w-3.5 h-3.5 mr-1.5" />
-                      Edit Books & Details
-                    </button>
-                  )}
                   <button 
                     onClick={() => setViewingExhibition(null)}
                     className="text-gray-400 hover:text-gray-600 p-1"
