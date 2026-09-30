@@ -13,12 +13,6 @@
   ],
   "components": {
     "securitySchemes": {
-      "ApiKeyAuth": {
-        "type": "apiKey",
-        "in": "header",
-        "name": "x-api-key",
-        "description": "E-Commerce Shared Secret Key"
-      },
       "BearerAuth": {
         "type": "http",
         "scheme": "bearer",
@@ -145,7 +139,6 @@
       "get": {
         "summary": "Fetch Book Catalog & Stock Levels (E-Commerce Sync)",
         "tags": ["E-Commerce Integration"],
-        "security": [{ "ApiKeyAuth": [] }],
         "parameters": [
           { "name": "page", "in": "query", "schema": { "type": "integer", "default": 1 } },
           { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 100 } },
@@ -184,7 +177,6 @@
       "post": {
         "summary": "Live Stock & Price Check (Pre-Checkout)",
         "tags": ["E-Commerce Integration"],
-        "security": [{ "ApiKeyAuth": [] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -202,7 +194,6 @@
       "post": {
         "summary": "Submit Paid Online Order",
         "tags": ["E-Commerce Integration"],
-        "security": [{ "ApiKeyAuth": [] }],
         "requestBody": {
           "required": true,
           "content": {
@@ -218,7 +209,6 @@
       "get": {
         "summary": "Get Online Order Dispatch Queue",
         "tags": ["E-Commerce Integration"],
-        "security": [{ "ApiKeyAuth": [] }],
         "parameters": [
           { "name": "page", "in": "query", "schema": { "type": "integer" } },
           { "name": "limit", "in": "query", "schema": { "type": "integer" } },
@@ -233,7 +223,6 @@
       "post": {
         "summary": "Mark Online Order Dispatched & Trigger Webhook",
         "tags": ["E-Commerce Integration"],
-        "security": [{ "ApiKeyAuth": [] }],
         "parameters": [
           { "name": "id", "in": "path", "required": true, "schema": { "type": "string" }, "description": "BMS Order ID" }
         ],
