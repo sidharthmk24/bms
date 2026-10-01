@@ -63,11 +63,10 @@ api.interceptors.response.use(
   async (error: any) => {
     const originalRequest = error.config;
 
-    // Never interfere with 401s while on the login page — doing so causes a
-    // race condition where an in-flight expired-token request from initializeAuth
-    // wipes the token that was JUST stored by a successful login POST.
-    const onLoginPage = typeof window !== 'undefined' && window.location.pathname === '/login';
-    if (onLoginPage) {
+    // Never interfere with 401s while on public pages (like /login, /api-docs, etc.)
+    const publicPaths = ['/login', '/forgot-password', '/reset-password', '/api-docs'];
+    const isPublicPage = typeof window !== 'undefined' && publicPaths.some(p => window.location.pathname === p || window.location.pathname.startsWith(p + '/'));
+    if (isPublicPage) {
       return Promise.reject(error);
     }
 

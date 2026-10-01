@@ -87,6 +87,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         } catch (_) {}
       }
 
+      const publicPaths = ['/login', '/forgot-password', '/reset-password', '/api-docs'];
+      const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
+      const isPublic = publicPaths.some((p) => currentPath === p || currentPath.startsWith(p + '/'));
+
       if (storedToken) {
         try {
           const res = await api.get('/auth/me');
@@ -105,12 +109,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           setToken(null);
           setUser(null);
           setActiveExhibition(null);
-          if (window.location.pathname !== '/login') {
+          if (!isPublic) {
             router.push('/login');
           }
         }
       } else {
-        if (window.location.pathname !== '/login') {
+        if (!isPublic) {
           router.push('/login');
         }
       }

@@ -911,7 +911,7 @@ async function seed() {
       const branchCode = storeBranchCodes[i % storeBranchCodes.length];
       const branchId = branchMap.get(branchCode)!;
       const billDate = daysAgo(12 - i);
-      const billNum = `${branchCode.replace('-', '')}-${formatDateKey(billDate)}-${String(i + 1).padStart(4, '0')}`;
+      const billNum = `${branchCode.replace('-', '')}-${formatDateKey(billDate)}-${String(i + 1).padStart(4, '0')}-${Math.floor(Math.random()*1000)}`;
       
       // Select 1 to 3 books for this bill
       const b1 = createdBooks[(i * 3) % createdBooks.length];
@@ -963,7 +963,7 @@ async function seed() {
     const supplierEntries = Array.from(supplierMap.entries());
     for (let i = 0; i < 3; i++) {
       const [suppName, suppId] = supplierEntries[i];
-      const poNum = `PO-2026-${String(101 + i)}`;
+      const poNum = `PO-2026-${String(101 + i)}-${Math.floor(Math.random()*1000)}`;
       const poDate = daysAgo(20 - i * 5);
       const poId = uuidv4();
       

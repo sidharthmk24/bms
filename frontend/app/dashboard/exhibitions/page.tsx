@@ -337,7 +337,7 @@ export default function ExhibitionsPage() {
         }
       })
       .catch((err) => console.error('Failed to load central inventory:', err));
-  }, []);
+  }, [isCreating, editingExhibition, approvingExhibition]);
 
   useEffect(() => {
     if (!branches || branches.length === 0) return;
@@ -355,17 +355,25 @@ export default function ExhibitionsPage() {
           .catch(() => {});
       }
     });
-  }, [branches]);
+  }, [branches, isCreating, editingExhibition, approvingExhibition, createBranchId]);
 
   const getBranchStockQty = (branchId: string, bookId: string) => {
+    if (!branchId || !bookId) return 0;
     const list = allBranchInventories[branchId] || [];
-    const item = list.find((bi: any) => bi.bookId === bookId || bi.book?.id === bookId);
-    return item ? Number(item.quantity) : 0;
+    const item = list.find((bi: any) => 
+      String(bi.bookId || '').toLowerCase() === String(bookId).toLowerCase() || 
+      String(bi.book?.id || '').toLowerCase() === String(bookId).toLowerCase()
+    );
+    return item ? Number(item.quantity || 0) : 0;
   };
 
   const getCentralStockQty = (bookId: string) => {
-    const item = centralInventory.find((ci: any) => ci.bookId === bookId || ci.book?.id === bookId);
-    return item ? Number(item.quantity) : 0;
+    if (!bookId) return 0;
+    const item = centralInventory.find((ci: any) => 
+      String(ci.bookId || '').toLowerCase() === String(bookId).toLowerCase() || 
+      String(ci.book?.id || '').toLowerCase() === String(bookId).toLowerCase()
+    );
+    return item ? Number(item.quantity || 0) : 0;
   };
 
   const getActiveBranchStockQty = (bookId: string) => {
